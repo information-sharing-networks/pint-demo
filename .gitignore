@@ -1,0 +1,11 @@
+**/.env*
+/notes
+/.psqlrc
+/.vscode
+.DS_store
+/todo.md
+tmp/
+/app/bin
+/bin
+/TODO.md
+*.swp

@@ -1,0 +1,99 @@
+# docker-compose.yml (development env - mounts the local repo directory)
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    container_name: pint-demo-db
+    volumes:
+      - db-data-dev:/var/lib/postgresql/data
+    ports:
+      - "15433:5432"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: pint-dev
+      POSTGRES_DB: pint_demo
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U pint-dev -d pint_demo -c 'select 1;'"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2048M
+
+  app:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM golang:1.25-alpine
+        # Install system dependencies in one layer for better caching
+        RUN apk add --no-cache bash postgresql-client curl jq vim git
+        # Install Go tools
+        RUN go install github.com/pressly/goose/v3/cmd/goose@latest && \
+            go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+        # Pre-download common Go modules for faster startup
+        WORKDIR /tmp/app
+        COPY app/go.mod app/go.sum* ./
+        RUN go mod download
+        WORKDIR /pint-demo
+    container_name: pint-demo-app
+    volumes:
+      - ./:/pint-demo # project dir
+      - go-modules:/go/pkg/mod # persist downloaded modules
+    environment:
+      # Required - container-specific values
+      - DOCKER_ENV=true
+      - SECRET_KEY=${SECRET_KEY:-dev-container-secret-key-12345}
+      - DATABASE_URL=${DATABASE_URL:-postgres://pint-dev:@db:5432/pint_demo?sslmode=disable}
+
+      # Optional overrides - pass through from shell if set, otherwise app uses defaults
+      - HOST
+      - PORT
+      - ENVIRONMENT
+      - LOG_LEVEL
+      - READ_TIMEOUT
+      - WRITE_TIMEOUT
+      - IDLE_TIMEOUT
+      - RATE_LIMIT_RPS
+      - RATE_LIMIT_BURST
+      - ALLOWED_ORIGINS
+      - PLATFORM_ID
+      - PLATFORM_NAME
+    working_dir: /pint-demo
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: >
+      sh -c "
+        cd /pint-demo/app &&
+        echo 'Generating sqlc files...' &&
+        sqlc generate &&
+        echo 'Running database migrations...' &&
+        goose -dir sql/schema postgres $$DATABASE_URL -env=none up &&
+        echo 'Starting pint-receiver service...' &&
+        go run -mod=readonly cmd/pint-receiver/main.go
+      "
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data-dev:
+  go-modules:
+

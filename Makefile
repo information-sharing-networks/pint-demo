@@ -1,0 +1,105 @@
+# Docker-based Makefile for pint-demo
+# Uses tools installed in Docker containers instead of local installations
+
+.PHONY: help build run-receiver run-sender test clean migrate sqlc docker-up docker-down restart logs psql check fmt vet
+
+# Docker compose service name
+APP_SERVICE = app
+DB_ACCOUNT = pint-dev
+DB_NAME = pint_demo
+
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@echo "  make help            - Show this help message"
+	@echo "  make docker-up       - Start Docker containers"
+	@echo "  make docker-down     - Stop Docker containers"
+	@echo "  make restart         - Restart the app container"
+	@echo "  make logs            - Follow docker logs"
+	@echo "  make psql            - Run psql against the dev database"
+	@echo "  make sqlc            - Generate sqlc code"
+	@echo "  make migrate         - Run database migrations (up)"
+	@echo "  make build           - Build both sender and receiver binaries (in Docker)"
+	@echo "  make run-receiver    - Run receiver locally (expects docker db to be running)"
+	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
+	@echo "  make test            - Run tests"
+	@echo "  make fmt             - Format code"
+	@echo "  make vet             - Run go vet"
+	@echo "  make check           - Run all checks (fmt, vet, test)"
+	@echo "  make clean           - Clean build artifacts"
+
+# Docker management
+docker-up:
+	@echo "🐳 Starting Docker containers..."
+	@docker compose up -d
+
+docker-down:
+	@echo "🐳 Stopping Docker containers..."
+	@docker compose down
+
+restart:
+	@echo "🐳 Restarting app container..."
+	@docker compose restart app
+
+logs:
+	@echo "🐳 Following docker logs..."
+	@docker compose logs -f
+
+# Database access
+psql:
+	@echo "🐘 Connecting to PostgreSQL..."
+	@docker compose exec db psql -U $(DB_ACCOUNT) -d $(DB_NAME)
+
+# Generate type-safe SQL code
+sqlc:
+	@echo "🔄 Generating sqlc code..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && sqlc generate"
+
+# Run database migrations
+migrate:
+	@echo "🔄 Running database migrations..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none up"
+
+# Build binaries (in Docker)
+build:
+	@echo "🔨 Building binaries in Docker..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go build -o bin/pint-receiver ./cmd/pint-receiver && go build -o bin/pint-sender ./cmd/pint-sender"
+
+# Run receiver locally (expects docker db to be running)
+run-receiver:
+	@echo "🚀 Running receiver locally..."
+	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-receiver/main.go
+
+# Run sender CLI locally (expects docker db to be running)
+run-sender:
+	@echo "🚀 Running sender CLI locally..."
+	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-sender/main.go
+
+# Format code
+fmt:
+	@echo "🔄 Formatting code..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go fmt ./..."
+
+# Run go vet
+vet:
+	@echo "🔍 Running go vet..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go vet ./..."
+
+# Run tests
+test:
+	@echo "🧪 Running tests..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go test -v ./..."
+
+# Run all checks
+check: fmt vet test
+	@echo ""
+	@echo "✅ All checks passed! Ready to commit."
+
+# Clean build artifacts
+clean:
+	@echo "🧹 Cleaning build artifacts..."
+	@rm -rf app/bin/
+	@rm -rf app/internal/database/
+	@echo "Clean complete!"
+
