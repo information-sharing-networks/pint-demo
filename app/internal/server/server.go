@@ -112,7 +112,7 @@ func (s *Server) DatabaseShutdown() {
 	}
 }
 
-// Placeholder handlers (to be implemented in Phase 3)
+// TODO - c.f signalsd
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -135,6 +135,6 @@ func (s *Server) handleFinishEnvelopeTransfer(w http.ResponseWriter, r *http.Req
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
 
-func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
+func (s *Server) todohandleJWKS(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
