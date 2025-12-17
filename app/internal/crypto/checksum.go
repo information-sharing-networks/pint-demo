@@ -1,61 +1,52 @@
+// this file contains functions to calculate and verify SHA-256 checksums
+//
+// the DCSA standard requires that SHA-256 is used to calculate checksums.
+
 package crypto
 
-import "fmt"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"os"
+)
 
-// CalculateSHA256 calculates the SHA-256 checksum of data
-// TODO: Implement SHA-256 checksum calculation
-// - Use crypto/sha256 package
-// - Return hex-encoded string
-//
-// Example usage:
-//
-//	data := []byte("hello world")
-//	checksum := CalculateSHA256(data)
-//	// checksum = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
-func CalculateSHA256(data []byte) string {
-	// TODO: Implement SHA-256 calculation
-	// Hint: sha256.Sum256(data), then hex.EncodeToString()
-	return ""
+// CalculateSHA256Hex calculates the SHA-256 checksum of data and returns it as a hex string
+func CalculateSHA256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // CalculateSHA256FromFile calculates the SHA-256 checksum of a file
-// TODO: Implement file checksum calculation
-// - Open the file
-// - Create a SHA-256 hasher
-// - Copy file contents to hasher using io.Copy
-// - Return hex-encoded string
-//
-// Example usage:
-//
-//	checksum, err := CalculateSHA256FromFile("/path/to/file.pdf")
 func CalculateSHA256FromFile(filepath string) (string, error) {
-	// TODO: Implement file checksum calculation
-	// Hint: Use sha256.New(), io.Copy(), and hex.EncodeToString()
-	return "", fmt.Errorf("not implemented")
+	file, err := os.Open(filepath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+
+	_, err = io.Copy(hasher, file)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // VerifyChecksum verifies that data matches the expected SHA-256 checksum
-// TODO: Implement checksum verification
-// - Calculate checksum of provided data
-// - Compare with expected checksum (case-insensitive)
-// - Return true if they match
-//
-// Example usage:
-//
-//	data := []byte("hello world")
-//	expected := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
-//	valid := VerifyChecksum(data, expected)
 func VerifyChecksum(data []byte, expectedChecksum string) bool {
-	// TODO: Implement checksum verification
-	return false
+	checksum := CalculateSHA256Hex(data)
+	return checksum == expectedChecksum
 }
 
 // VerifyFileChecksum verifies that a file matches the expected SHA-256 checksum
-// TODO: Implement file checksum verification
-// - Calculate checksum of file
-// - Compare with expected checksum
-// - Return true if they match
 func VerifyFileChecksum(filepath string, expectedChecksum string) (bool, error) {
-	// TODO: Implement file checksum verification
-	return false, fmt.Errorf("not implemented")
+	checksum, err := CalculateSHA256FromFile(filepath)
+	if err != nil {
+		return false, err
+	}
+	return checksum == expectedChecksum, nil
 }

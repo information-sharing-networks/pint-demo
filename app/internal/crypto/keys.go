@@ -1,3 +1,11 @@
+// this file contains functions to generate and manage public/private key pairs
+//
+// Because participating parties in PINT exchanges may have different policies on acceptable key types,
+// DSCA do not specify which algorithm should be used to generate public/private keys
+//
+// This implementation supports both ED25519 and RSA key types.
+// ED25519 is the recommended key type since it is more secure and efficient than RSA.
+
 package crypto
 
 import (
@@ -9,9 +17,6 @@ import (
 	"fmt"
 	"os"
 )
-
-// this package supports generation of ED25519 and RSA public/private keys
-// RSA is included in case we need to support it for compatiability with the PINT standard
 
 // GenerateEd25519KeyPair generates a new ED25519 private key
 func GenerateEd25519KeyPair() (ed25519.PrivateKey, error) {
