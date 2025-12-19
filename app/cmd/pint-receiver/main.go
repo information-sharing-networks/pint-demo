@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// DCSA 3.0 PINT compatible receiver platform
 func main() {
 	cmd := &cobra.Command{
 		Use:   "pint-receiver",
