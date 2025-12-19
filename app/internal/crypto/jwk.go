@@ -1,100 +1,201 @@
+// JWK (JSON Web Key) Implementation for DCSA PINT
+//
+// these functions convert raw RSA/Ed25519 public keys to JWK format (and vice versa)
+// Reference: https://datatracker.ietf.org/doc/html/rfc7517 (JSON Web Key standard)
+//
+// DCSA Guidance:
+// The DCSA Digital Signatures Guide v03 states: "The API could even work without
+// certificates (unclear how non-repudiation would be achieved)"
+// - DCSA Digital Signatures Guide v03: https://github.com/dcsaorg/DCSA-Digital-Signatures-Guide
+//
+// This implementation uses certificates as the mechanism for achieving non-repudiation.
+//
+// Security Model:
+// ==============
+// - Certificate chain validation against system trust store
+// - Message-level signatures with X.509 certificate chain (x5c) are REQUIRED for production (EV/OV certs only)
+// - Signatures with raw public keys (no x5c) will fallback to domain validation (testing only)
+// - Self-signed certificates are only allowed for testing
+// - Platform authorization via DCSA registry of approved platforms/MSPIA signatories
+//
+// Key Distribution Methods:
+// =========================
+// 1. JWK Endpoint - Dynamic discovery via HTTPS
+//    - TLS certificate validates domain ownership
+//
+// 2. JWK Endpoint with x5c (RECOMMENDED) - JWK with X.509 certificate chain
+//    - CA validates organization identity (EV/OV only)
+//    - Provides non-repudiation
+//
+// 3. Manual Certificate Exchange (High Security) - Out-of-band exchange during onboarding
+//    - Direct validation of organization
+//
+
 package crypto
 
 import (
+	"context"
+	"crypto/ed25519"
 	"crypto/rsa"
+	"crypto/x509"
 	"fmt"
+
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-// JWK represents a JSON Web Key
-type JWK struct {
-	KeyType   string `json:"kty"`           // "RSA"
-	Use       string `json:"use,omitempty"` // "sig" for signature
-	KeyID     string `json:"kid"`           // Key ID
-	Algorithm string `json:"alg,omitempty"` // "RS256"
-	Modulus   string `json:"n"`             // Base64url-encoded modulus
-	Exponent  string `json:"e"`             // Base64url-encoded exponent
+// RSAPublicKeyToJWK converts a RSA public key to JWK format
+func RSAPublicKeyToJWK(publicKey *rsa.PublicKey, keyID string) (jwk.Key, error) {
+	if publicKey == nil {
+		return nil, fmt.Errorf("public key is nil")
+	}
+	if keyID == "" {
+		return nil, fmt.Errorf("keyID is required")
+	}
+
+	// create the jwk key
+	key, err := jwk.Import(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWK from RSA public key: %w", err)
+	}
+
+	// Set key ID
+	if err := key.Set(jwk.KeyIDKey, keyID); err != nil {
+		return nil, fmt.Errorf("failed to set key ID: %w", err)
+	}
+
+	// Set algorithm
+	if err := key.Set(jwk.AlgorithmKey, jwa.RS256()); err != nil {
+		return nil, fmt.Errorf("failed to set algorithm: %w", err)
+	}
+
+	// Set key usage
+	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
+		return nil, fmt.Errorf("failed to set key usage: %w", err)
+	}
+
+	return key, nil
 }
 
-// JWKSet represents a set of JSON Web Keys
-type JWKSet struct {
-	Keys []JWK `json:"keys"`
+// RSAPublicKeyToJWKWithCerts converts an RSA public key to JWK format with X.509 certificate chain
+func RSAPublicKeyToJWKWithCerts(publicKey *rsa.PublicKey, keyID string, certChain []*x509.Certificate) (jwk.Key, error) {
+	// Create base JWK
+	key, err := RSAPublicKeyToJWK(publicKey, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add certificate chain (x5c)
+	if len(certChain) > 0 {
+		if err := key.Set(jwk.X509CertChainKey, certChain); err != nil {
+			return nil, fmt.Errorf("failed to assign certificate chain: %w", err)
+		}
+	}
+
+	return key, nil
 }
 
-// PublicKeyToJWK converts an RSA public key to JWK format
-// TODO: Implement RSA public key to JWK conversion
-// - Extract modulus (n) and exponent (e) from public key
-// - Base64url encode them (use encoding/base64.RawURLEncoding)
-// - Create JWK struct with appropriate fields
-//
-// Example usage:
-//
-//	jwk, err := PublicKeyToJWK(publicKey, "platform-a-key-1")
-//
-// Reference: RFC 7517 (JSON Web Key)
-func PublicKeyToJWK(publicKey *rsa.PublicKey, keyID string) (*JWK, error) {
-	// TODO: Implement public key to JWK conversion
-	// Hint: publicKey.N.Bytes() for modulus, publicKey.E for exponent
-	return nil, fmt.Errorf("not implemented")
+// Ed25519PublicKeyToJWK converts an Ed25519 public key to JWK format
+func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey, keyID string) (jwk.Key, error) {
+	if publicKey == nil {
+		return nil, fmt.Errorf("public key is nil")
+	}
+	if keyID == "" {
+		return nil, fmt.Errorf("keyID is required")
+	}
+
+	// Create JWK
+	key, err := jwk.Import(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWK from Ed25519 public key: %w", err)
+	}
+
+	// Set key ID
+	if err := key.Set(jwk.KeyIDKey, keyID); err != nil {
+		return nil, fmt.Errorf("failed to set key ID: %w", err)
+	}
+
+	// Set algorithm
+	if err := key.Set(jwk.AlgorithmKey, jwa.EdDSA()); err != nil {
+		return nil, fmt.Errorf("failed to set algorithm: %w", err)
+	}
+
+	// Set key usage
+	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
+		return nil, fmt.Errorf("failed to set key usage: %w", err)
+	}
+
+	return key, nil
 }
 
-// JWKToPublicKey converts a JWK to an RSA public key
-// TODO: Implement JWK to RSA public key conversion
-// - Base64url decode modulus and exponent
-// - Create big.Int from modulus bytes
-// - Create rsa.PublicKey with modulus and exponent
-//
-// Example usage:
-//
-//	publicKey, err := JWKToPublicKey(jwk)
-func JWKToPublicKey(jwk *JWK) (*rsa.PublicKey, error) {
-	// TODO: Implement JWK to public key conversion
-	// Hint: Use encoding/base64.RawURLEncoding.DecodeString()
-	// Hint: Use big.NewInt(0).SetBytes() for modulus
-	return nil, fmt.Errorf("not implemented")
+// Ed25519PublicKeyToJWKWithCerts converts an Ed25519 public key to JWK format with X.509 certificate chain
+func Ed25519PublicKeyToJWKWithCerts(publicKey ed25519.PublicKey, keyID string, certChain []*x509.Certificate) (jwk.Key, error) {
+	// Create base JWK
+	key, err := Ed25519PublicKeyToJWK(publicKey, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add certificate chain (x5c)
+	if len(certChain) > 0 {
+		if err := key.Set(jwk.X509CertChainKey, certChain); err != nil {
+			return nil, fmt.Errorf("failed to assign certificate chain: %w", err)
+		}
+	}
+
+	return key, nil
 }
 
-// CreateJWKSet creates a JWK Set from multiple public keys
-// TODO: Implement JWK Set creation
-// - Convert each public key to JWK
-// - Add to JWKSet.Keys array
-// - Return JWKSet
-//
-// Example usage:
-//
-//	keys := map[string]*rsa.PublicKey{
-//	    "key-1": publicKey1,
-//	    "key-2": publicKey2,
-//	}
-//	jwkSet, err := CreateJWKSet(keys)
-func CreateJWKSet(keys map[string]*rsa.PublicKey) (*JWKSet, error) {
-	// TODO: Implement JWK Set creation
-	return nil, fmt.Errorf("not implemented")
+// JWKToRSAPublicKey converts a JWK to an RSA public key using lestrrat-go/jwx
+func JWKToRSAPublicKey(key jwk.Key) (*rsa.PublicKey, error) {
+	if key == nil {
+		return nil, fmt.Errorf("key is nil")
+	}
+
+	var raw any
+	// Export to raw key
+	if err := jwk.Export(key, &raw); err != nil {
+		return nil, fmt.Errorf("failed to export RSA public key: %w", err)
+	}
+
+	rsaPublicKey, ok := raw.(*rsa.PublicKey)
+	if !ok {
+		alg, _ := key.Algorithm()
+		return nil, fmt.Errorf("expected RSA public key but got key with algorithm %v and type %T", alg, raw)
+	}
+
+	return rsaPublicKey, nil
 }
 
-// MarshalJWKSet marshals a JWK Set to JSON
-// TODO: Implement JWK Set JSON marshaling
-// - Use json.MarshalIndent for pretty printing
-// - Return JSON bytes
-func MarshalJWKSet(jwkSet *JWKSet) ([]byte, error) {
-	// TODO: Implement JSON marshaling
-	// Hint: json.MarshalIndent(jwkSet, "", "  ")
-	return nil, fmt.Errorf("not implemented")
+// Ed25519JWKToPublicKey converts an Ed25519 JWK to an Ed25519 public key
+func Ed25519JWKToPublicKey(key jwk.Key) (ed25519.PublicKey, error) {
+	if key == nil {
+		return nil, fmt.Errorf("jwk is nil")
+	}
+
+	var raw any
+	// Export to raw key
+	if err := jwk.Export(key, &raw); err != nil {
+		return nil, fmt.Errorf("failed to export Ed25519 public key: %w", err)
+	}
+
+	ed25519PublicKey, ok := raw.(ed25519.PublicKey)
+	if !ok {
+		alg, _ := key.Algorithm()
+		return nil, fmt.Errorf("expected Ed25519 public key but got key with algorithm %v and type %T", alg, raw)
+	}
+
+	return ed25519PublicKey, nil
+
 }
 
-// UnmarshalJWKSet unmarshals JSON to a JWK Set
-// TODO: Implement JWK Set JSON unmarshaling
-// - Use json.Unmarshal
-// - Validate that keys array is not empty
-func UnmarshalJWKSet(data []byte) (*JWKSet, error) {
-	// TODO: Implement JSON unmarshaling
-	return nil, fmt.Errorf("not implemented")
-}
+// FetchJWKSet fetches a JWK set from a URL
+func FetchJWKSet(ctx context.Context, url string) (jwk.Set, error) {
+	// Fetch the JWK set
+	set, err := jwk.Fetch(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWK set: %w", err)
+	}
 
-// FindKeyByID finds a JWK in a JWK Set by key ID
-// TODO: Implement key lookup by ID
-// - Iterate through JWKSet.Keys
-// - Return matching JWK or error if not found
-func FindKeyByID(jwkSet *JWKSet, keyID string) (*JWK, error) {
-	// TODO: Implement key lookup
-	return nil, fmt.Errorf("not implemented")
+	return set, nil
 }

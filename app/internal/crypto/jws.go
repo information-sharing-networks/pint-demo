@@ -1,5 +1,7 @@
 // the DCSA standard requires that JWS compact serialization is used for signing and verifying envelopes
 // ... and that the signing process MUST be performed using a library (this implementation use github.com/go-jose/go-jose/v4)
+
+// the DCSA spec does not specify which signing algorithm should be used (this implementation uses RS256 or EdDSA)
 package crypto
 
 import (
