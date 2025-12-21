@@ -5,26 +5,29 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Server struct {
-	pool   *pgxpool.Pool
-	config *config.ServerEnvironment
-	logger *slog.Logger
-	router *chi.Mux
+	pool       *pgxpool.Pool
+	config     *config.ServerEnvironment
+	logger     *slog.Logger
+	router     *chi.Mux
+	keyManager *crypto.KeyManager
 }
 
 func NewServer(
 	pool *pgxpool.Pool,
 	cfg *config.ServerEnvironment,
 	logger *slog.Logger,
-) *Server {
+) (*Server, error) {
 	server := &Server{
 		pool:   pool,
 		config: cfg,
@@ -32,10 +35,47 @@ func NewServer(
 		router: chi.NewRouter(),
 	}
 
+	if err := server.initKeyManager(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to initialize KeyManager: %w", err)
+	}
+
 	server.setupMiddleware()
 	server.registerRoutes()
 
-	return server
+	return server, nil
+}
+
+// initKeyManager creates and initializes the KeyManager.
+func (s *Server) initKeyManager(ctx context.Context) error {
+
+	registryURL, err := url.Parse(s.config.DCSARegistryURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse DCSA registry URL: %w", err)
+	}
+
+	s.logger.Info("DCSA registry URL",
+		slog.String("url", registryURL.String()))
+
+	keyManagerConfig := crypto.NewConfig(
+		registryURL,
+		"", // TODO: manual keys directory
+		crypto.TrustLevel(s.config.MinTrustLevel),
+		10*time.Second,
+		s.config.SkipJWKCache,
+	)
+
+	kmCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	keyManager, err := crypto.NewKeyManager(kmCtx, keyManagerConfig, s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create KeyManager: %w", err)
+	}
+
+	s.keyManager = keyManager
+	s.logger.Info("KeyManager initialized successfully")
+
+	return nil
 }
 
 func (s *Server) setupMiddleware() {
@@ -132,9 +172,5 @@ func (s *Server) handleTransferAdditionalDocument(w http.ResponseWriter, r *http
 }
 
 func (s *Server) handleFinishEnvelopeTransfer(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
-}
-
-func (s *Server) todohandleJWKS(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }

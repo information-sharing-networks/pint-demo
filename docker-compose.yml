@@ -63,6 +63,9 @@ services:
       - ALLOWED_ORIGINS
       - PLATFORM_ID
       - PLATFORM_NAME
+      - SKIP_JWK_CACHE
+      - DCSA_REGISTRY_URL
+      - KEY_MANAGER_MIN_TRUST_LEVEL
     working_dir: /pint-demo
     ports:
       - "${PORT:-8080}:${PORT:-8080}"

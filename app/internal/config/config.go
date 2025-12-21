@@ -31,6 +31,9 @@ type ServerEnvironment struct {
 	DBConnectTimeout  time.Duration `env:"DB_CONNECT_TIMEOUT,default=5s"`
 	PlatformID        string        `env:"PLATFORM_ID,default=DEMO_PLATFORM"`
 	PlatformName      string        `env:"PLATFORM_NAME,default=Demo Platform"`
+	DCSARegistryURL   string        `env:"DCSA_REGISTRY_URL,default=https://github.com/dcsaorg/DCSA-OpenAPI/raw/master/reference-data/eblsolutionproviders-v3.0.0.csv"`
+	MinTrustLevel     int           `env:"MIN_TRUST_LEVEL,default=2"`
+	SkipJWKCache      bool          `env:"SKIP_JWK_CACHE,default=false"`
 }
 
 const (
@@ -71,6 +74,7 @@ func NewServerConfig() (*ServerEnvironment, error) {
 		return nil, err
 	}
 	return &cfg, nil
+
 }
 
 // validateConfig checks for required env variables
@@ -110,6 +114,10 @@ func validateConfig(cfg *ServerEnvironment) error {
 	// Default to all origins when not in prod/staging
 	if len(cfg.AllowedOrigins) == 0 {
 		cfg.AllowedOrigins = []string{"*"}
+	}
+
+	if cfg.MinTrustLevel < 1 || cfg.MinTrustLevel > 5 {
+		return fmt.Errorf("MIN_TRUST_LEVEL must be between 1 and 5, got %d", cfg.MinTrustLevel)
 	}
 
 	return nil

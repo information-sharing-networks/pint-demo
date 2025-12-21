@@ -5,7 +5,9 @@
 .DS_store
 /todo.md
 tmp/
-/app/bin
-/bin
+/app/bin/
+/bin/
 /TODO.md
+pint-receiver
+pint-sender
 *.swp

@@ -90,11 +90,15 @@ func run() error {
 
 	appLogger.Info("Starting server", slog.String("version", version.Get().Version))
 
-	server := server.NewServer(
+	server, err := server.NewServer(
 		pool,
 		cfg,
 		appLogger,
 	)
+	if err != nil {
+		appLogger.Error("Failed to create server", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
