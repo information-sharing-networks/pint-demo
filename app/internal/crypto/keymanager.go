@@ -41,6 +41,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -259,15 +260,6 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 		km.logger.Info("JWK cache initialization skipped")
 	}
 
-	/*
-		km.loadManualKeys()
-		km.initJWKCache()
-		km.discoverJWKEndpoints(ctx)
-		km.validateCertificates()
-		km.checkRevocation()
-		km.logSecurityEvents()
-	*/
-
 	return km, nil
 }
 
@@ -275,8 +267,10 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 // this function assumes the same csv as can be found at https://github.com/dcsaorg/DCSA-OpenAPI/raw/master/reference-data/eblsolutionproviders-v3.0.0.csv
 // (Name,Code,URL,Description)
 //
-// TODO check with DCSA if they will maintain this register and - if they do - how it will be shared
+// TODO: check with DCSA if they will maintain this register and - if they do - how it will be shared
 // if it is the csv file some more robust checks are probably appropriate below.
+// TODO: consider storing this on the db in addition to the cache in case of outage
+// TODO: we may need a mechanism to immediately refresh the registry in case of changes
 func (km *KeyManager) loadEbLSolutionProviders(ctx context.Context) error {
 	km.logger.Info("loading DCSA registry",
 		slog.String("url", km.config.eblSolutionProvidersRegistryURL.String()))
@@ -365,6 +359,7 @@ func (km *KeyManager) fetchRegistryData(ctx context.Context) ([]byte, error) {
 
 // initJWKCache initializes the JWK cache and registers all eBL solution provider JWK endpoints.
 // The cache will automatically fetch and refresh JWK sets from each provider's .well-known/jwks.json endpoint.
+//
 // TODO: the well-known JWK endpoint URL is based on RFC 8615 - what are the eBL solution providers planning/
 // TODO: cache refresh intervals should be configurable
 // TODO: do we need to support  https://{domain}/.well-known/openid-configuration ?
@@ -376,10 +371,18 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 
 	cache, err := jwk.NewCache(ctx, client)
 	if err != nil {
+		// Check if it's a context error (recoverable)
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			km.logger.Warn("JWK cache creation timed out - will retry in background",
+				slog.String("error", err.Error()))
+			return nil // Recoverable: start server anyway
+		}
+		// System error - fatal
 		return fmt.Errorf("failed to create JWK cache: %w", err)
 	}
 	km.jwkCache = cache
 
+	successCount := 0
 	// Register each eBL solution provider's JWK endpoint
 	for domain := range km.eblSolutionProviders {
 		jwkURL := fmt.Sprintf("https://%s/.well-known/jwks.json", domain)
@@ -389,7 +392,6 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 			jwk.WithMaxInterval(24*time.Hour),
 		)
 		if err != nil {
-			// log providers without JWK endpoints
 			km.logger.Warn("failed to register JWK endpoint",
 				slog.String("domain", domain),
 				slog.String("jwk_url", jwkURL),
@@ -397,10 +399,17 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 			continue
 		}
 
+		successCount++
 		km.logger.Debug("registered JWK endpoint",
 			slog.String("domain", domain),
 			slog.String("jwk_url", jwkURL))
 	}
+
+	// Log summary - but don't fail if no endpoints registered
+	// (they might all be using manual keys, or auto-retry will fix it)
+	km.logger.Info("JWK cache registration complete",
+		slog.Int("registered", successCount),
+		slog.Int("total_providers", len(km.eblSolutionProviders)))
 
 	return nil
 }

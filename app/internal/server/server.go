@@ -60,11 +60,11 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 		registryURL,
 		"", // TODO: manual keys directory
 		crypto.TrustLevel(s.config.MinTrustLevel),
-		10*time.Second,
+		config.JWKCacheHTTPTimeout,
 		s.config.SkipJWKCache,
 	)
 
-	kmCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	kmCtx, cancel := context.WithTimeout(ctx, config.RegistryFetchTimeout)
 	defer cancel()
 
 	keyManager, err := crypto.NewKeyManager(kmCtx, keyManagerConfig, s.logger)

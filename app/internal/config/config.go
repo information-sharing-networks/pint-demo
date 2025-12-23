@@ -37,9 +37,11 @@ type ServerEnvironment struct {
 }
 
 const (
-	// Operational timeouts
+	// timeouts
 	ServerShutdownTimeout = 10 * time.Second
 	DatabasePingTimeout   = 10 * time.Second
+	RegistryFetchTimeout  = 30 * time.Second // Timeout for fetching the registry of ebl solution providers
+	JWKCacheHTTPTimeout   = 30 * time.Second // HTTP timeout for fetching JWK sets from remote endpoints
 )
 
 var validEnvs = map[string]bool{
