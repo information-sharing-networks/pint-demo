@@ -1,13 +1,27 @@
-**/.env*
-/notes
 /.psqlrc
 /.vscode
 .DS_store
-/todo.md
+**/*.swp
+
+# temp files
+/notes
 tmp/
-/app/bin/
-/bin/
-/TODO.md
+
+# binaries
 pint-receiver
 pint-sender
-*.swp
+/app/pint-receiver
+/app/pint-sender
+/keygen
+/app/keygen
+/app/bin/
+/bin/
+
+# keys, secrets and env
+keys/
+**/*.pem
+**/*.jwk
+**/*.jwk.json
+**/.env*
+
+

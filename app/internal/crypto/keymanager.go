@@ -1,44 +1,79 @@
 // these functions handle discovering, caching, and validating public keys
 // from eBL solution providers for JWS signature verification.
 //
+// eBL signatures may be stored externally from this app in order to track transfers, provide an externally verifiable audit trail and so on.
+// this app assumes that all production eBL signatures will include x5c in the JWS header (signatures with raw public keys and no x5c are supported but not recommended)
+// This ensures signatures remain verifiable without access to the original platforms.
+//
 // # DCSA Signature Verification Process
 //
-// The KeyManager implements DCSA's standardized signature verification process:
+// The KeyManager implements DCSA's standardized signature verification process.
 //
-// 1) Decode the JWS (handled by caller)
-// 2) Match the key id to an existing digital certificate
-// 3) Check that the digital certificate is from the correct platform
-// 4) Check that the signature matches with the public key (handled by caller)
-// 5) Validate checksums in the JWS payload (handled by caller)
+// 1: Decode the JWS
 //
-// # Platform Identification  (TODO: confirm with DCSA)
+//	→ Implementation: Parse JWS and extract kid from header (handled by caller)
+//
+// 2: Match the key id to an existing digital certificate
+//
+//	a) Extract kid from JWS header
+//	b) Fetch the JWKS from JWK endpoint (or local store if manually stored)
+//	c) Filter JWKS by kid to find the specific public key
+//	d) Extract x5c certificate chain from JWS header
+//	e) Extract public key from x5c certificate
+//	f) Verify public key from JWK matches public key from x5c (security check: prevents key substitution)
+//
+// 3: Check that the digital certificate is from the correct platform
+//
+//	a) Validate certificate chain to trusted CA
+//	b) Check certificate expiry and revocation status (OCSP/CRL)
+//	c) Extract domain from certificate (CN or SAN)
+//	d) Verify certificate domain matches expected platform domain
+//	e) Verify domain is in DCSA registry (prevents typosquatting)
+//	f) Determine trust level (EV/OV/DV) - EV/OV recommended for production
+//
+// 4: Check that the signature matches with the public key
+//
+//	Verify JWS signature cryptographically
+//
+// 5: Validate checksums in the JWS payload
+//
+//	Verify payload integrity (handled by caller)
+//
+// # Platform Identification
 //
 // Platform identification is achieved through JWS signature verification combined with DCSA's approved
-// domain registry. This registry is used below as the **authorization allowlist
+// list of domains. This registry is used below as the authorization allowlist and the app will check the domain
+// extracted from the x5c certificate against the DCSA registry.
 //
 // # Trust Hierarchy
-// DCSA says 'The use of EV or OV certificates is recommended by DCSA for digital signatures,
-// but it is not a conformance requirement.'
 //
-// this app implements a trust hierarchy for key sources - 1 is highest trust, 5 is lowest (see below)
+// The use of EV or OV certificates is recommended by DCSA for digital signatures,
+// but it is not a conformance requirement.
+//
+// This app implements a trust hierarchy based on certificate validation level (levels 1-5)
+// Trust levels are determined by the x5c (X.509 certificate chain) in the JWS,
+//
+// # Key Distribution
+//
+// Key are distributed two ways:
+// 1. Manually (shared out of band)
+// 2. Dynamically discovered keys (via JWK endpoint)
 //
 // # Key ID (kid) Usage
+// This app uses the JWK thumbprint as the key ID.
 //
 // DCSA Digital Signatures guide states:
 // "When the certificates are exchanged, the parties must agree on how to identify the key pair in
 // question. This is the key id (kid) used in the digital signature. A common approach (e.g. in
 // OpenID Connect) is to generate a JWK thumbprint of the public key. Therefore, this is a
-//
-// TODO:
-// - Load manual keys from configured directory (Trust Level 1)
-// - Certificate validation and trust level assignment
-// - Revocation checking (OCSP/CRL)
-
+// recommended default."
 package crypto
 
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/csv"
 	"errors"
@@ -48,6 +83,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,42 +92,52 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-// TrustLevel represents the trust level of a key source.
-// Lower numbers indicate higher trust.
-// levels 1 or 2 are  recommended for production eBL transfers.
+// TrustLevel represents the trust level of a key and is determined by the x5c (X.509 certificate chain) in the JWS header.
+// Trust level can be calculated independently of how the key was obtained (manual or JWK endpoint).
+// Production eBL signatures should include x5c (certificate chain) embedded in the JWS header
+// If x5c is present in both JWS and JWK, they should be identical
 type TrustLevel int
 
 const (
-	// TrustLevelManual represents manually configured keys (highest trust).
-	//	- Keys exchanged out of band stored locally by the operator
-	//	- No automatic refresh - requires manual updates
-	//	- Highest trust - operator has verified authenticity
-	TrustLevelManual TrustLevel = 1
+	// TrustLevelEVOV represents keys with Extended Validation (EV) or Organization Validation (OV) certificates.
+	// - Highest trust level
+	// - Provides non-repudiation through organizational identity validation
+	// - Certificate Authority has verified the organization's legal identity
+	// - DCSA recommends EV/OV for production digital signatures
+	TrustLevelEVOV TrustLevel = 1
 
-	// TrustLevelOVEV represents keys from HTTPS endpoint with OV/EV certificate.
-	//	- Provides non-repudiation through organizational identity validation.
-	//	- Keys fetched from HTTPS JWK endpoint with Organization Validation (OV) or
-	//      Extended Validation (EV) certificate
-	//	- Certificate validation confirms organizational identity
-	//	- Auto-refreshed from remote endpoint
-	TrustLevelOVEV TrustLevel = 2
+	// TrustLevelDV represents keys with Domain Validation (DV) certificates.
+	// - this trust level may be acceptable for production depending on policy
+	// - Validates domain ownership but not organizational identity
+	// - Certificate Authority has verified control of the domain only
+	// - Fallback when we can't determine if cert is EV/OV (CA doesn't publish validation level)
+	TrustLevelDV TrustLevel = 2
 
-	// TrustLevelDV represents keys from HTTPS endpoint with DV certificate.
-	//	- Validates domain ownership but not organizational identity.
-	//	- Keys from HTTPS endpoint with Domain Validation (DV) certificate
-	//	- Validates domain ownership but not organizational identity
-	TrustLevelDV TrustLevel = 3
+	// TrustLevelSelfSigned - Self-signed certificates
+	// - No third-party validation of identity
+	// - Cannot provide non-repudiation
+	// - Development/testing only
+	TrustLevelSelfSigned TrustLevel = 3
 
-	// TrustLevelCNMatch represents keys from endpoint where TLS certificate
-	// CN/SAN matches the expected domain
-	//	- Provides basic transport security.
-	// 	- Fallback when certificate validation level cannot be determined.
-	TrustLevelCNMatch TrustLevel = 4
+	// TrustLevelNoX5C represents keys without any certificate chain (raw public keys).
+	// - Lowest trust level - development/testing ONLY
+	// - No x5c in the JWK - just a raw public key
+	// - The signature itself has no identity proof
+	TrustLevelNoX5C TrustLevel = 4
+)
 
-	// TrustLevelSelfSigned represents keys from endpoint with self-signed certificate.
-	// - No third-party validation of identity.
-	// - Testing/development only
-	TrustLevelSelfSigned TrustLevel = 5
+// KeySource represents how a key was obtained (manual vs JWK endpoint).
+type KeySource int
+
+const (
+	// KeySourceManual represents keys manually configured by an operator.
+	// - Keys exchanged out of band and stored locally
+	// - No automatic refresh - requires manual updates
+	KeySourceManual KeySource = 1
+
+	// KeySourceJWKEndpoint represents keys fetched from a JWK endpoint.
+	// Keys auto-refreshed from remote HTTPS endpoint (e.g., /.well-known/jwks.json)
+	KeySourceJWKEndpoint KeySource = 2
 )
 
 // eblSolutionProvider represents an eBL solution provider from the DCSA registry.
@@ -114,10 +161,14 @@ type KeyMetadata struct {
 	// Domain is the domain this key belongs to (e.g., "wave.example.com").
 	Domain string
 
-	// TrustLevel is the trust level of this key.
+	// TrustLevel is the trust level of this key based on certificate validation.
+	// Determined by x5c certificate chain
 	TrustLevel TrustLevel
 
-	// CertificateChain is the TLS certificate chain
+	// KeySource indicates how this key was obtained (manual, JWK endpoint)
+	KeySource KeySource
+
+	// CertificateChain is the X.509 certificate chain from x5c (if present).
 	CertificateChain []*x509.Certificate
 
 	// CertificateFingerprint is the SHA-256 fingerprint of the leaf certificate.
@@ -191,6 +242,13 @@ type Config struct {
 	SkipJWKCache bool
 }
 
+// the manual key naming convention is domain.public.jwk
+// TODO: support for a custom JWK field, "ext_domain": "example.com", rather than filename?
+// TODO consider support for PEMs?
+const (
+	publicJWKFileNameSuffix = ".public.jwk"
+)
+
 // NewConfig creates a new Config with the specified parameters.
 func NewConfig(registryURL *url.URL, manualKeysDir string, minTrustLevel TrustLevel, httpTimeout time.Duration, skipJWKCache bool) *Config {
 	return &Config{
@@ -247,6 +305,14 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 	}
 
 	km.logger.Info("DCSA registry loaded", slog.Int("providers", len(km.eblSolutionProviders)))
+
+	// Load manual keys (Trust Level 1)
+	if config.ManualKeysDir != "" {
+		if err := km.loadManualKeys(); err != nil {
+			return nil, fmt.Errorf("failed to load manual keys: %w", err)
+		}
+		km.logger.Info("manual keys loaded", slog.Int("keys", len(km.manualKeys)))
+	}
 
 	// Initialize JWK cache
 	// TODO: async?
@@ -355,6 +421,171 @@ func (km *KeyManager) fetchRegistryData(ctx context.Context) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unsupported URL scheme: %s (expected https:// or a local directory path)", km.config.eblSolutionProvidersRegistryURL.Scheme)
 	}
+}
+
+// loadManualKeys loads manually configured JWK public keys from the configured directory.
+// if both a PEM file and a JWK file exists for a domain, the JWK file takes precedence
+// The expected filename is domain.public.pem or domain.public.jwk, however, the file content is validated.
+// private keys are ignored.
+// TODO: x5c - reject if EV/EO cert is not included?
+// TODO: tighten up the association between domain and key - embed in the key file?
+// TODO: confirm with DCSA if we can rely on the reference data to 'allow list' domains.
+func (km *KeyManager) loadManualKeys() error {
+	km.logger.Info("loading manual keys", slog.String("dir", km.config.ManualKeysDir))
+
+	// Check if directory exists
+	info, err := os.Stat(km.config.ManualKeysDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			km.logger.Error("manual keys directory does not exist", slog.String("dir", km.config.ManualKeysDir))
+			return fmt.Errorf("specified manual keys directory (%v) does not exist", km.config.ManualKeysDir)
+		}
+		return fmt.Errorf("failed to stat manual keys directory: %w", err)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("manual keys path is not a directory: %s", km.config.ManualKeysDir)
+	}
+
+	// Read all files in directory
+	entries, err := os.ReadDir(km.config.ManualKeysDir)
+	if err != nil {
+		return fmt.Errorf("failed to read manual keys directory: %w", err)
+	}
+
+	km.mu.Lock()
+	defer km.mu.Unlock()
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+
+		// Only process .jwk files
+		if !strings.HasSuffix(filename, publicJWKFileNameSuffix) {
+			km.logger.Debug("skipping non-public-JWK file", slog.String("file", filename))
+			continue
+		}
+
+		// Extract domain from filename: example.com.jwk.json -> example.com
+		domain := strings.TrimSuffix(filename, publicJWKFileNameSuffix)
+		if domain == "" {
+			km.logger.Warn("invalid manual key filename", slog.String("file", filename))
+			continue
+		}
+
+		// Check if domain is in approved registry
+		if _, exists := km.eblSolutionProviders[domain]; !exists {
+			km.logger.Warn("manual key for unapproved domain - skipping",
+				slog.String("domain", domain),
+				slog.String("file", filename))
+			continue
+		}
+
+		// Read and parse JWK file
+		filePath := filepath.Join(km.config.ManualKeysDir, filename)
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			km.logger.Warn("failed to read manual key file",
+				slog.String("file", filename),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		// Parse as JWK Set
+		keySet, err := jwk.Parse(data)
+		if err != nil {
+			km.logger.Warn("failed to parse manual key file",
+				slog.String("file", filename),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		// Store each key in the set
+		for i := 0; i < keySet.Len(); i++ {
+			key, ok := keySet.Key(i)
+			if !ok {
+				continue
+			}
+
+			kid, ok := key.KeyID()
+			if !ok || kid == "" {
+				km.logger.Warn("manual key missing kid",
+					slog.String("domain", domain),
+					slog.Int("key_index", i))
+				continue
+			}
+
+			// Only allow RSA public keys or Ed25519 public keys
+			var raw any
+			if err := jwk.Export(key, &raw); err != nil {
+				km.logger.Warn("failed to export manual key",
+					slog.String("domain", domain),
+					slog.String("kid", kid),
+					slog.String("error", err.Error()))
+				continue
+			}
+
+			isValidPublicKey := false
+			var keyType string
+
+			switch v := raw.(type) {
+			case *rsa.PublicKey:
+				isValidPublicKey = true
+				keyType = "RSA public key"
+			case ed25519.PublicKey:
+				isValidPublicKey = true
+				keyType = "Ed25519 public key"
+			case *rsa.PrivateKey:
+				keyType = "RSA private key"
+			case ed25519.PrivateKey:
+				keyType = fmt.Sprintf("Ed25519 private key (%d bytes)", len(v))
+			default:
+				keyType = fmt.Sprintf("unknown type: %T", v)
+			}
+
+			if !isValidPublicKey {
+				km.logger.Warn("the key in the .public.jwk file is not a RSA or ED25519 public key - skipping",
+					slog.String("domain", domain),
+					slog.String("kid", kid),
+					slog.String("file", filename),
+					slog.String("key_type", keyType))
+				continue
+			}
+
+			km.logger.Debug("validated public key",
+				slog.String("domain", domain),
+				slog.String("kid", kid),
+				slog.String("key_type", keyType))
+
+			// Determine trust level based on x5c certificate (if present)
+			// For now, default to TrustLevelNoX5C - will be updated when we implement
+			// certificate validation
+			trustLevel := TrustLevelNoX5C
+			// TODO: Check for x5c in key and validate certificate chain to determine actual trust level
+
+			// Store key with composite key: domain:kid
+			keyID := fmt.Sprintf("%s:%s", domain, kid)
+			km.manualKeys[keyID] = key
+
+			// Store metadata
+			km.metadata[keyID] = &KeyMetadata{
+				Domain:      domain,
+				TrustLevel:  trustLevel,
+				KeySource:   KeySourceManual,
+				LastRefresh: time.Now(),
+			}
+
+			km.logger.Debug("loaded manual key",
+				slog.String("domain", domain),
+				slog.String("kid", kid),
+				slog.Int("trust_level", int(trustLevel)))
+		}
+	}
+
+	return nil
 }
 
 // initJWKCache initializes the JWK cache and registers all eBL solution provider JWK endpoints.

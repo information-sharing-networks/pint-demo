@@ -17,7 +17,12 @@ func TestSaveAndReadEd25519Keys(t *testing.T) {
 	tmpDir := t.TempDir()
 	privateKeyPath := filepath.Join(tmpDir, "private.pem")
 
-	if err := SaveEd25519PrivateKeyToFile(privateKey, privateKeyPath); err != nil {
+	keyID, err := GenerateKeyIDFromEd25519Key(privateKey.Public().(ed25519.PublicKey))
+	if err != nil {
+		t.Fatalf("failed to generate key ID: %v", err)
+	}
+
+	if err := SaveEd25519PrivateKeyToFile(privateKey, keyID, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
 
@@ -43,8 +48,8 @@ func TestSaveAndReadEd25519Keys(t *testing.T) {
 	publicKeyPath := filepath.Join(tmpDir, "public.pem")
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
-	if err := SaveEd25519PublicKeyToFile(publicKey, publicKeyPath); err != nil {
-		t.Fatalf("could not save public key PEM file: %v", err)
+	if err := SaveEd25519PublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
+		t.Fatalf("failed to save public key: %v", err)
 	}
 
 	loadedPublicKey, err := ReadEd25519PublicKeyFromFile(publicKeyPath)
@@ -112,7 +117,12 @@ func TestSaveAndReadRSAKeys(t *testing.T) {
 	tmpDir := t.TempDir()
 	privateKeyPath := filepath.Join(tmpDir, "private.pem")
 
-	err = SaveRSAPrivateKeyToFile(privateKey, privateKeyPath)
+	keyID, err := GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("failed to generate key ID: %v", err)
+	}
+
+	err = SaveRSAPrivateKeyToFile(privateKey, keyID, privateKeyPath)
 	if err != nil {
 		t.Fatalf("error saving PEM file: %v", err)
 	}
@@ -141,7 +151,11 @@ func TestSaveAndReadRSAKeys(t *testing.T) {
 
 	publicKey := &privateKey.PublicKey
 
-	if err := SaveRSAPublicKeyToFile(publicKey, publicKeyPath); err != nil {
+	if err := SaveRSAPublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
+		t.Fatalf("failed to save public key: %v", err)
+	}
+
+	if err := SaveRSAPublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("could not save public key PEM file: %v", err)
 	}
 
