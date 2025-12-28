@@ -6,20 +6,13 @@ A demonstration implementation of the DCSA PINT (Platform Interoperability) API 
 
 This project implements both sender and receiver platforms for the PINT API, demonstrating:
 - eBL envelope transfer workflow
-- JWS digital signatures for non-repudiation
+- JWS digital signatures 
 - SHA-256 checksum validation
 - Additional document transfers
 - Transfer chain tracking
 
-## tech stack
-
-- **Go 1.25.4** with modern patterns
-- **Chi router** for HTTP routing
-- **PostgreSQL** with pgx/v5 driver
-- **SQLC** for type-safe database queries
-- **Cobra** for CLI commands
-- **JWS** signatures using go-jose
-
+## file layout
+```
 pint-demo/
 ├── app/
 │   ├── cmd/
@@ -44,10 +37,9 @@ pint-demo/
 
 ### Prerequisites
 
-- Docker and Docker Compose (recommended)
-- OR Go 1.25.4+ with PostgreSQL 17 for local development
+- Docker and Docker Compose 
 
-### Quick Start (Docker - Recommended)
+### Quick Start
 
 1. **Start the development environment**:
    ```bash
@@ -75,41 +67,6 @@ pint-demo/
    make logs
    ```
 
-If you prefer to run Go locally:
-
-1. **Start PostgreSQL**:
-   ```bash
-   make docker-up  # Just starts the database
-   ```
-
-2. **Copy environment file**:
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Install Go tools** (if not using Docker):
-   ```bash
-   go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-   go install github.com/pressly/goose/v3/cmd/goose@latest
-   ```
-
-4. **Generate SQLC code and run migrations**:
-   ```bash
-   cd app
-   sqlc generate
-   export DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable"
-   goose -dir sql/schema postgres "$DATABASE_URL" up
-   ```
-
-5. **Run the receiver**:
-   ```bash
-   make run-receiver
-   ```
-
-6. **Run the sender CLI**:
-   ```bash
-   make run-sender
-   ```
 
 #### Development Tools
 

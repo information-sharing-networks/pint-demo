@@ -1,5 +1,4 @@
 # Docker-based Makefile for pint-demo
-# Uses tools installed in Docker containers instead of local installations
 
 .PHONY: help build run-receiver run-sender test clean migrate sqlc docker-up docker-down restart logs psql check fmt vet
 
@@ -20,7 +19,6 @@ help: ## Show this help message
 	@echo "  make psql            - Run psql against the dev database"
 	@echo "  make sqlc            - Generate sqlc code"
 	@echo "  make migrate         - Run database migrations (up)"
-	@echo "  make build           - Build both sender and receiver binaries (in Docker)"
 	@echo "  make run-receiver    - Run receiver locally (expects docker db to be running)"
 	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
 	@echo "  make test            - Run tests"
@@ -51,7 +49,7 @@ psql:
 	@echo "🐘 Connecting to PostgreSQL..."
 	@docker compose exec db psql -U $(DB_ACCOUNT) -d $(DB_NAME)
 
-# Generate type-safe SQL code
+# Generate sqlc code
 sqlc:
 	@echo "🔄 Generating sqlc code..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && sqlc generate"
@@ -60,11 +58,6 @@ sqlc:
 migrate:
 	@echo "🔄 Running database migrations..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none up"
-
-# Build binaries (in Docker)
-build:
-	@echo "🔨 Building binaries in Docker..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go build -o bin/pint-receiver ./cmd/pint-receiver && go build -o bin/pint-sender ./cmd/pint-sender"
 
 # Run receiver locally (expects docker db to be running)
 run-receiver:
