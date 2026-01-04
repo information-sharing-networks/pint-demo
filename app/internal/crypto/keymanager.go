@@ -424,10 +424,8 @@ func (km *KeyManager) fetchRegistryData(ctx context.Context) ([]byte, error) {
 }
 
 // loadManualKeys loads manually configured JWK public keys from the configured directory.
-// if both a PEM file and a JWK file exists for a domain, the JWK file takes precedence
-// The expected filename is domain.public.pem or domain.public.jwk, however, the file content is validated.
-// private keys are ignored.
-// TODO: x5c - reject if EV/EO cert is not included?
+// The expected filename is domain.public.jwk, however, the file content is validated to make sure it is a public key.
+// TODO: x5c - validate cert chain
 // TODO: tighten up the association between domain and key - embed in the key file?
 // TODO: confirm with DCSA if we can rely on the reference data to 'allow list' domains.
 func (km *KeyManager) loadManualKeys() error {
@@ -561,10 +559,8 @@ func (km *KeyManager) loadManualKeys() error {
 				slog.String("key_type", keyType))
 
 			// Determine trust level based on x5c certificate (if present)
-			// For now, default to TrustLevelNoX5C - will be updated when we implement
-			// certificate validation
-			trustLevel := TrustLevelNoX5C
 			// TODO: Check for x5c in key and validate certificate chain to determine actual trust level
+			trustLevel := TrustLevelNoX5C
 
 			// Store key with composite key: domain:kid
 			keyID := fmt.Sprintf("%s:%s", domain, kid)
@@ -606,9 +602,9 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			km.logger.Warn("JWK cache creation timed out - will retry in background",
 				slog.String("error", err.Error()))
-			return nil // Recoverable: start server anyway
+			return nil
 		}
-		// System error - fatal
+		// fatal error
 		return fmt.Errorf("failed to create JWK cache: %w", err)
 	}
 	km.jwkCache = cache

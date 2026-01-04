@@ -11,7 +11,6 @@ This project implements both sender and receiver platforms for the PINT API, dem
 - Additional document transfers
 - Transfer chain tracking
 
-## file layout
 ```
 pint-demo/
 ├── app/
@@ -20,13 +19,14 @@ pint-demo/
 │   │   └── pint-sender/      # Sender platform CLI
 │   ├── internal/
 │   │   ├── cli/              # Sender CLI commands
-│   │   ├── config/           # Configuration management
-│   │   ├── logger/           # Structured logging
+│   │   ├── crypto/           # Cryptographic operations
+│   │   ├── config/           
+│   │   ├── logger/           
 │   │   ├── server/           # HTTP server
-│   │   └── database/         # SQLC generated code (gitignored)
+│   │   └── database/         # SQLC generated code
 │   ├── sql/
 │   │   ├── schema/           # Database migrations
-│   │   └── queries/          # SQLC queries
+│   │   └── queries/          # SQL queries
 │   ├── go.mod
 │   └── sqlc.yaml
 ├── docker-compose.yml
@@ -37,7 +37,7 @@ pint-demo/
 
 ### Prerequisites
 
-- Docker and Docker Compose 
+- Docker 
 
 ### Quick Start
 
