@@ -18,10 +18,17 @@ pint-sender
 /bin/
 
 # keys, secrets and env
-keys/
-**/*.pem
-**/*.jwk
-**/*.jwk.json
 **/.env*
+
+# Ignore all key files by default
+*.pem
+*.key
+*.jwk
+
+# But allow test keys in any testdata directory
+!**/testdata/**/*.pem
+!**/testdata/**/*.key
+!**/testdata/**/*.jwk
+
 
 

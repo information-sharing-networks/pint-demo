@@ -17,7 +17,7 @@ import (
 // TODO: end2end test with jwk endpoint
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
-	url, _ := url.Parse("../../testdata/eblsolutionproviders.csv")
+	url, _ := url.Parse("testdata/platform-registry/eblsolutionproviders.csv")
 	config := NewConfig(url, "", TrustLevelDV, 30*time.Second, true)
 
 	// Create a test logger that discards output
@@ -77,12 +77,12 @@ func TestKeyManager_FetchRegistryData(t *testing.T) {
 		},
 		{
 			name:    "local file",
-			urlStr:  "../../testdata/eblsolutionproviders.csv",
+			urlStr:  "testdata/platform-registry/eblsolutionproviders.csv",
 			wantErr: false,
 		},
 		{
 			name:    "file not found",
-			urlStr:  "../../testdata/nonexistent.csv",
+			urlStr:  "testdata/nonexistent.csv",
 			wantErr: true,
 		},
 	}
@@ -132,7 +132,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Generate keys
-	domain := "example.com"
+	hostname := "eblplatform.example.com"
 
 	privateKey, err := GenerateEd25519KeyPair()
 	if err != nil {
@@ -147,13 +147,13 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	}
 
 	// Save public key file
-	publicKeyPath := filepath.Join(tempDir, domain+".public.jwk")
+	publicKeyPath := filepath.Join(tempDir, hostname+".public.jwk")
 	if err := SaveEd25519PublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
 	// Save private key file (should not be loaded)
-	privateKeyPath := filepath.Join(tempDir, domain+".private.jwk")
+	privateKeyPath := filepath.Join(tempDir, hostname+".private.jwk")
 	if err := SaveEd25519PrivateKeyToFile(privateKey, keyID, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	// Create a KeyManager with that will load the public key we just saved
 	// Use TrustLevelNoX5C as testing keys without certificates
 	ctx := context.Background()
-	registryURL, _ := url.Parse("../../testdata/eblsolutionproviders.csv")
+	registryURL, _ := url.Parse("testdata/platform-registry/eblsolutionproviders.csv")
 	config := NewConfig(registryURL, tempDir, TrustLevelNoX5C, 30*time.Second, true)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -174,7 +174,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	}
 
 	// Test 1: Verify public key was loaded
-	compositeKeyID := domain + ":" + keyID
+	compositeKeyID := hostname + ":" + keyID
 	key, exists := km.manualKeys[compositeKeyID]
 	if !exists {
 		t.Fatalf("expected manual key %s to be loaded", compositeKeyID)
@@ -201,8 +201,8 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 		t.Fatalf("expected metadata for key %s", compositeKeyID)
 	}
 
-	if metadata.Domain != domain {
-		t.Errorf("expected domain %s, got %s", domain, metadata.Domain)
+	if metadata.Hostname != hostname {
+		t.Errorf("expected domain %s, got %s", hostname, metadata.Hostname)
 	}
 
 	if metadata.TrustLevel != TrustLevelNoX5C {

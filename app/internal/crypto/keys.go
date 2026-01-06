@@ -13,7 +13,9 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"os"
 
@@ -272,4 +274,126 @@ func ReadRSAPublicKeyFromFile(filepath string) (*rsa.PublicKey, error) {
 	}
 
 	return publicKey, nil
+}
+
+// ReadCertificateFromPEMFile reads a single X.509 certificate from a PEM file.
+// If the file contains multiple certificates, only the first one is returned (this will be the leaf cert).
+func ReadCertificateFromPEMFile(filepath string) (*x509.Certificate, error) {
+	pemData, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	block, _ := pem.Decode(pemData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	if block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("PEM block is not a certificate (type: %s)", block.Type)
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	return cert, nil
+}
+
+// ReadPrivateKeyFromPEMFile reads an RSA or Ed25519 private key from a PEM file
+// Supports both PKCS#1 (RSA PRIVATE KEY) and PKCS#8 (PRIVATE KEY) formats - other formats are not supported and return an error
+func ReadPrivateKeyFromPEMFile(filepath string) (any, error) {
+	pemData, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	block, _ := pem.Decode(pemData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	switch block.Type {
+	case "RSA PRIVATE KEY":
+		// PKCS#1 format
+		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse PKCS#1 private key: %w", err)
+		}
+		return key, nil
+
+	case "PRIVATE KEY":
+		// PKCS#8 format - could be RSA or Ed25519
+		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse PKCS#8 private key: %w", err)
+		}
+
+		// Validate it's a supported key type
+		switch k := key.(type) {
+		case *rsa.PrivateKey:
+			return k, nil
+		case ed25519.PrivateKey:
+			return k, nil
+		default:
+			return nil, fmt.Errorf("unsupported private key type in PKCS#8: %T", key)
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported PEM block type: %s (expected 'RSA PRIVATE KEY' or 'PRIVATE KEY')", block.Type)
+	}
+}
+
+// SaveEd25519PrivateKeyToPEMFile saves an Ed25519 private key to a PEM file in PKCS#8 format
+// the app uses JWK for key exchange - this function is primarily for generating a PEM file for creating a CSR
+func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, filepath string) error {
+	// Marshal to PKCS#8 format
+	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	pemBlock := &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privBytes,
+	}
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	if err := pem.Encode(file, pemBlock); err != nil {
+		return fmt.Errorf("failed to encode PEM: %w", err)
+	}
+
+	return nil
+}
+
+// SaveRSAPrivateKeyToPEMFile saves an RSA private key to a PEM file in PKCS#8 format
+func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, filepath string) error {
+	// Marshal to PKCS#8 format (more modern than PKCS#1)
+	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	pemBlock := &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privBytes,
+	}
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	if err := pem.Encode(file, pemBlock); err != nil {
+		return fmt.Errorf("failed to encode PEM: %w", err)
+	}
+
+	return nil
 }

@@ -3,32 +3,9 @@
 // these functions convert raw RSA/Ed25519 public keys to JWK format (and vice versa)
 // Reference: https://datatracker.ietf.org/doc/html/rfc7517 (JSON Web Key standard)
 //
-// DCSA Guidance:
-// The DCSA Digital Signatures Guide v03 states: "The API could even work without
-// certificates (unclear how non-repudiation would be achieved)"
-// - DCSA Digital Signatures Guide v03: https://github.com/dcsaorg/DCSA-Digital-Signatures-Guide
-//
-// This implementation uses certificates as the mechanism for achieving non-repudiation.
-//
-// Security Model:
-// ==============
-// - Certificate chain validation against system trust store
-// - Message-level signatures with X.509 certificate chain (x5c) are REQUIRED for production (EV/OV certs only)
-// - Signatures with raw public keys (no x5c) will fallback to domain validation (testing only)
-// - Self-signed certificates are only allowed for testing
-// - Platform authorization via DCSA registry of approved platforms/MSPIA signatories
-//
-// Key Distribution Methods:
-// =========================
-// 1. JWK Endpoint - Dynamic discovery via HTTPS
-//    - TLS certificate validates domain ownership
-//
-// 2. JWK Endpoint with x5c (RECOMMENDED) - JWK with X.509 certificate chain
-//    - CA validates organization identity (EV/OV only)
-//    - Provides non-repudiation
-//
-// 3. Manual Certificate Exchange (High Security) - Out-of-band exchange during onboarding
-//    - Direct validation of organization
+// these functions are used by keymanager.go to convert JWKs to native crypto types for signature verification
+// ... and by keygen CLI to generate JWKs for distribution via /.well-known/jwks.json
+// keygen also uses the PEM functions below to create a PEM file that can be used to create a CA CSR (certificate signing request)).
 //
 
 package crypto
@@ -38,7 +15,6 @@ import (
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rsa"
-	"crypto/x509"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -110,24 +86,6 @@ func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey, keyID string) (jwk.Key, erro
 	return key, nil
 }
 
-// RSAPublicKeyToJWKWithCerts converts an RSA public key to JWK format with X.509 certificate chain
-func RSAPublicKeyToJWKWithCerts(publicKey *rsa.PublicKey, keyID string, certChain []*x509.Certificate) (jwk.Key, error) {
-	// Create base JWK
-	key, err := RSAPublicKeyToJWK(publicKey, keyID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add certificate chain (x5c)
-	if len(certChain) > 0 {
-		if err := key.Set(jwk.X509CertChainKey, certChain); err != nil {
-			return nil, fmt.Errorf("failed to assign certificate chain: %w", err)
-		}
-	}
-
-	return key, nil
-}
-
 // Ed25519PublicKeyToJWK converts an Ed25519 public key to JWK format
 func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey, keyID string) (jwk.Key, error) {
 	if publicKey == nil {
@@ -189,24 +147,6 @@ func Ed25519PrivateKeyToJWK(privateKey ed25519.PrivateKey, keyID string) (jwk.Ke
 	// Set key usage
 	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
 		return nil, fmt.Errorf("failed to set key usage: %w", err)
-	}
-
-	return key, nil
-}
-
-// Ed25519PublicKeyToJWKWithCerts converts an Ed25519 public key to JWK format with X.509 certificate chain
-func Ed25519PublicKeyToJWKWithCerts(publicKey ed25519.PublicKey, keyID string, certChain []*x509.Certificate) (jwk.Key, error) {
-	// Create base JWK
-	key, err := Ed25519PublicKeyToJWK(publicKey, keyID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add certificate chain (x5c)
-	if len(certChain) > 0 {
-		if err := key.Set(jwk.X509CertChainKey, certChain); err != nil {
-			return nil, fmt.Errorf("failed to assign certificate chain: %w", err)
-		}
 	}
 
 	return key, nil

@@ -1,4 +1,16 @@
-// keygen is a CLI tool for generating JWK sets for testing and manual key configuration.
+// keygen is a CLI tool for creating JWK sets for PINT platforms.
+//
+// Generates key pairs in both JWK and PEM formats:
+// - JWK format for PINT message signing (private) and publishing (public)
+// - PEM format for creating Certificate Signing Requests (CSR) to send to a CA
+//
+// Workflow:
+// 1. Generate keys with keygen → JWK files (for PINT) + PEM file (for CSR)
+// 2. Create CSR using the PEM key
+// 3. Send CSR to CA → receive signed certificate
+// 4. Publish public JWK at https://domain/.well-known/jwks.json
+// 5. Use private JWK for signing PINT messages
+
 package main
 
 import (
@@ -12,55 +24,67 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// file naming convention - domain.public.jwk and domain.private.jwk
+// file naming convention
 const (
 	publicKeyFileNameFormat  = "%s.public.jwk"
 	privateKeyFileNameFormat = "%s.private.jwk"
+	pemKeyFileNameFormat     = "%s.private.pem"
 )
 
 var (
-	domain    string
+	hostname  string
 	outputDir string
+	kid       string
 	keyType   string
 	rsaSize   int
-	kid       string
 )
 
 func main() {
 	rootCmd := &cobra.Command{
 		Use:               "keygen",
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
-		Short:             "JWK key generator for PINT platforms",
-		Long:              "Generate RSA or Ed25519 key pairs in JWK format for PINT platform testing and manual key configuration",
+		Short:             "Create JWK sets for PINT platforms",
+		Long: `Create JWK (JSON Web Key) sets for PINT platforms.
+
+Generates key pairs in both JWK and PEM formats
+
+Example:
+  keygen --type ed25519 --hostname eblplatform.example.com --outputdir ./keys
+
+Outputs:
+  eblplatform.example.com.private.jwk  (for signing PINT messages)
+  eblplatform.example.com.public.jwk   (publish at https://eblplatform.example.com/.well-known/jwks.json)
+  eblplatform.example.com.private.pem  (for creating CSR to send to CA)
+  
+  never share the private key files. 
+  `,
+		RunE: run,
 	}
 
 	v := version.Get()
 	rootCmd.Version = fmt.Sprintf("%s (built %s, commit %s)", v.Version, v.BuildDate, v.GitCommit)
 
-	generateCmd := &cobra.Command{
-		Use:   "generate",
-		Short: "Generate a new key pair",
-		Long:  "Generate a new RSA or Ed25519 key pair for a domain in JWK format",
-		RunE:  runGenerate,
-	}
+	// Common flags
+	rootCmd.Flags().StringVarP(&hostname, "hostname", "d", "", "Hostname (e.g., example.com)")
+	rootCmd.Flags().StringVarP(&outputDir, "outputdir", "o", "", "Output directory for generated JWK [required]")
+	rootCmd.Flags().StringVarP(&kid, "kid", "k", "", "Key ID (default: auto-generated from JWK thumbprint)")
 
-	generateCmd.Flags().StringVarP(&domain, "domain", "d", "", "Domain name (e.g., example.com) [required]")
-	generateCmd.Flags().StringVarP(&keyType, "type", "t", "", "Key type: rsa or ed25519 [required]")
-	generateCmd.Flags().StringVarP(&outputDir, "outputdir", "o", "", "Output directory for generated keys [required]")
-	generateCmd.Flags().IntVarP(&rsaSize, "size", "s", 4096, "RSA key size in bits (2048 or 4096, default: 4096)")
-	generateCmd.Flags().StringVarP(&kid, "kid", "k", "", "Key ID (default: auto-generated from thumbprint)")
-	generateCmd.MarkFlagRequired("domain")
-	generateCmd.MarkFlagRequired("type")
-	generateCmd.MarkFlagRequired("outputdir")
+	// Flags
+	rootCmd.Flags().StringVarP(&keyType, "type", "t", "", "Key type: rsa or ed25519 [required]")
+	rootCmd.Flags().IntVarP(&rsaSize, "size", "s", 4096, "RSA key size in bits: 2048 or 4096 (default: 4096)")
 
-	rootCmd.AddCommand(generateCmd)
+	// Required flags
+	rootCmd.MarkFlagRequired("outputdir")
+	rootCmd.MarkFlagRequired("type")
+	rootCmd.MarkFlagRequired("hostname")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-func runGenerate(cmd *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string) error {
+	// Validate flags
 	if keyType != "rsa" && keyType != "ed25519" {
 		return fmt.Errorf("invalid key type: %s (must be 'rsa' or 'ed25519')", keyType)
 	}
@@ -69,12 +93,13 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid RSA key size: %d (must be 2048 or 4096)", rsaSize)
 	}
 
-	// make the directory if it doesn't exist
+	// Create output directory if it doesn't exist
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			return fmt.Errorf("failed to create output directory: %w", err)
 		}
 	}
+
 	if keyType == "rsa" {
 		return generateRSAKeys()
 	}
@@ -82,7 +107,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 }
 
 func generateRSAKeys() error {
-	fmt.Printf("Generating %d-bit RSA key pair for domain: %s\n", rsaSize, domain)
+	fmt.Printf("Generating %d-bit RSA key pair for domain: %s\n", rsaSize, hostname)
 
 	// Use our crypto package to generate the key
 	privateKey, err := pintcrypto.GenerateRSAKeyPair(rsaSize)
@@ -99,25 +124,32 @@ func generateRSAKeys() error {
 		}
 	}
 
-	// Save public key
-	publicPath := filepath.Join(outputDir, fmt.Sprintf(publicKeyFileNameFormat, domain))
+	// Save public JWK
+	publicPath := filepath.Join(outputDir, fmt.Sprintf(publicKeyFileNameFormat, hostname))
 	if err := pintcrypto.SaveRSAPublicKeyToFile(&privateKey.PublicKey, keyID, publicPath); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)
 	}
 	fmt.Printf("✓ Public JWK:  %s (kid: %s)\n", publicPath, keyID)
 
-	// Save private key
-	privatePath := filepath.Join(outputDir, fmt.Sprintf(privateKeyFileNameFormat, domain))
+	// Save private JWK
+	privatePath := filepath.Join(outputDir, fmt.Sprintf(privateKeyFileNameFormat, hostname))
 	if err := pintcrypto.SaveRSAPrivateKeyToFile(privateKey, keyID, privatePath); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 	fmt.Printf("✓ Private JWK: %s (kid: %s)\n", privatePath, keyID)
 
+	// Save private key in PEM format (for CSR generation)
+	pemPath := filepath.Join(outputDir, fmt.Sprintf(pemKeyFileNameFormat, hostname))
+	if err := pintcrypto.SaveRSAPrivateKeyToPEMFile(privateKey, pemPath); err != nil {
+		return fmt.Errorf("failed to save PEM key: %w", err)
+	}
+	fmt.Printf("✓ Private PEM: %s (for CSR/certificate generation)\n", pemPath)
+
 	return nil
 }
 
 func generateEd25519Keys() error {
-	fmt.Printf("Generating Ed25519 key pair for domain: %s\n", domain)
+	fmt.Printf("Generating Ed25519 key pair for domain: %s\n", hostname)
 
 	// Use our crypto package to generate the key
 	privateKey, err := pintcrypto.GenerateEd25519KeyPair()
@@ -136,19 +168,26 @@ func generateEd25519Keys() error {
 		}
 	}
 
-	// Save public key
-	publicPath := filepath.Join(outputDir, fmt.Sprintf(publicKeyFileNameFormat, domain))
+	// Save public JWK
+	publicPath := filepath.Join(outputDir, fmt.Sprintf(publicKeyFileNameFormat, hostname))
 	if err := pintcrypto.SaveEd25519PublicKeyToFile(publicKey, keyID, publicPath); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)
 	}
 	fmt.Printf("✓ Public JWK:  %s (kid: %s)\n", publicPath, keyID)
 
-	// Save private key
-	privatePath := filepath.Join(outputDir, fmt.Sprintf(privateKeyFileNameFormat, domain))
+	// Save private JWK
+	privatePath := filepath.Join(outputDir, fmt.Sprintf(privateKeyFileNameFormat, hostname))
 	if err := pintcrypto.SaveEd25519PrivateKeyToFile(privateKey, keyID, privatePath); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 	fmt.Printf("✓ Private JWK: %s (kid: %s)\n", privatePath, keyID)
+
+	// Save private key in PEM format (for CSR generation)
+	pemPath := filepath.Join(outputDir, fmt.Sprintf(pemKeyFileNameFormat, hostname))
+	if err := pintcrypto.SaveEd25519PrivateKeyToPEMFile(privateKey, pemPath); err != nil {
+		return fmt.Errorf("failed to save PEM key: %w", err)
+	}
+	fmt.Printf("✓ Private PEM: %s (for CSR/certificate generation)\n", pemPath)
 
 	return nil
 }

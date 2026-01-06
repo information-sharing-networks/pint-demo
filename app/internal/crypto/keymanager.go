@@ -7,11 +7,11 @@
 //
 // # DCSA Signature Verification Process
 //
-// The KeyManager implements DCSA's standardized signature verification process.
+// The KeyManager implements DCSA's recommended signature verification process.
 //
 // 1: Decode the JWS
 //
-//	→ Implementation: Parse JWS and extract kid from header (handled by caller)
+//	Parse JWS and extract kid from header
 //
 // 2: Match the key id to an existing digital certificate
 //
@@ -20,7 +20,7 @@
 //	c) Filter JWKS by kid to find the specific public key
 //	d) Extract x5c certificate chain from JWS header
 //	e) Extract public key from x5c certificate
-//	f) Verify public key from JWK matches public key from x5c (security check: prevents key substitution)
+//	f) Verify public key from JWK matches public key from x5c
 //
 // 3: Check that the digital certificate is from the correct platform
 //
@@ -28,7 +28,7 @@
 //	b) Check certificate expiry and revocation status (OCSP/CRL)
 //	c) Extract domain from certificate (CN or SAN)
 //	d) Verify certificate domain matches expected platform domain
-//	e) Verify domain is in DCSA registry (prevents typosquatting)
+//	e) Verify domain is in DCSA registry
 //	f) Determine trust level (EV/OV/DV) - EV/OV recommended for production
 //
 // 4: Check that the signature matches with the public key
@@ -47,11 +47,7 @@
 //
 // # Trust Hierarchy
 //
-// The use of EV or OV certificates is recommended by DCSA for digital signatures,
-// but it is not a conformance requirement.
-//
-// This app implements a trust hierarchy based on certificate validation level (levels 1-5)
-// Trust levels are determined by the x5c (X.509 certificate chain) in the JWS,
+// This app implements a trust hierarchy based on certificate validation level (levels 1-3 - see below comments)
 //
 // # Key Distribution
 //
@@ -92,38 +88,31 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-// TrustLevel represents the trust level of a key and is determined by the x5c (X.509 certificate chain) in the JWS header.
+// TrustLevel represents the trust level of a signature and is determined by the x5c (X.509 certificate chain) in the JWS header.
 // Trust level can be calculated independently of how the key was obtained (manual or JWK endpoint).
 // Production eBL signatures should include x5c (certificate chain) embedded in the JWS header
 // If x5c is present in both JWS and JWK, they should be identical
 type TrustLevel int
 
 const (
-	// TrustLevelEVOV represents keys with Extended Validation (EV) or Organization Validation (OV) certificates.
+	// TrustLevelEVOV represents signatures with x5c certs that use Extended Validation (EV) or Organization Validation (OV) certificates.
 	// - Highest trust level
 	// - Provides non-repudiation through organizational identity validation
 	// - Certificate Authority has verified the organization's legal identity
-	// - DCSA recommends EV/OV for production digital signatures
+	// - recommended for production digital signatures
 	TrustLevelEVOV TrustLevel = 1
 
-	// TrustLevelDV represents keys with Domain Validation (DV) certificates.
+	// TrustLevelDV - certs with Domain Validation (DV) certificates.
 	// - this trust level may be acceptable for production depending on policy
 	// - Validates domain ownership but not organizational identity
 	// - Certificate Authority has verified control of the domain only
 	// - Fallback when we can't determine if cert is EV/OV (CA doesn't publish validation level)
 	TrustLevelDV TrustLevel = 2
 
-	// TrustLevelSelfSigned - Self-signed certificates
-	// - No third-party validation of identity
-	// - Cannot provide non-repudiation
-	// - Development/testing only
-	TrustLevelSelfSigned TrustLevel = 3
-
 	// TrustLevelNoX5C represents keys without any certificate chain (raw public keys).
 	// - Lowest trust level - development/testing ONLY
-	// - No x5c in the JWK - just a raw public key
 	// - The signature itself has no identity proof
-	TrustLevelNoX5C TrustLevel = 4
+	TrustLevelNoX5C TrustLevel = 3
 )
 
 // KeySource represents how a key was obtained (manual vs JWK endpoint).
@@ -149,7 +138,7 @@ type eblSolutionProvider struct {
 	// Code is an short code for the platform (e.g., "WAVE").
 	Code string
 
-	// Domain is the approved domain for this platform (e.g., "https://wave.example.com").
+	// URL is the approved web site for this platform (e.g., "https://wave.example.com").
 	URL *url.URL
 
 	// Description
@@ -158,8 +147,8 @@ type eblSolutionProvider struct {
 
 // KeyMetadata contains metadata about a cached key.
 type KeyMetadata struct {
-	// Domain is the domain this key belongs to (e.g., "wave.example.com").
-	Domain string
+	// Hostname is the host this key belongs to (e.g., "wave.example.com").
+	Hostname string
 
 	// TrustLevel is the trust level of this key based on certificate validation.
 	// Determined by x5c certificate chain
@@ -228,7 +217,7 @@ type Config struct {
 	eblSolutionProvidersRegistryURL *url.URL
 
 	// ManualKeysDir is the directory containing manually configured keys.
-	// Files should be named: {domain}.jwk.json or {domain}.pem
+	// Files should be JWK and named: {hostname}.jwk
 	ManualKeysDir string
 
 	// MinTrustLevel is the minimum acceptable trust level.
@@ -467,17 +456,17 @@ func (km *KeyManager) loadManualKeys() error {
 			continue
 		}
 
-		// Extract domain from filename: example.com.jwk.json -> example.com
-		domain := strings.TrimSuffix(filename, publicJWKFileNameSuffix)
-		if domain == "" {
+		// Extract hostname from filename: eblplatform.example.com.jwk -> eblplatform.example.com
+		hostname := strings.TrimSuffix(filename, publicJWKFileNameSuffix)
+		if hostname == "" {
 			km.logger.Warn("invalid manual key filename", slog.String("file", filename))
 			continue
 		}
 
 		// Check if domain is in approved registry
-		if _, exists := km.eblSolutionProviders[domain]; !exists {
+		if _, exists := km.eblSolutionProviders[hostname]; !exists {
 			km.logger.Warn("manual key for unapproved domain - skipping",
-				slog.String("domain", domain),
+				slog.String("domain", hostname),
 				slog.String("file", filename))
 			continue
 		}
@@ -511,7 +500,7 @@ func (km *KeyManager) loadManualKeys() error {
 			kid, ok := key.KeyID()
 			if !ok || kid == "" {
 				km.logger.Warn("manual key missing kid",
-					slog.String("domain", domain),
+					slog.String("domain", hostname),
 					slog.Int("key_index", i))
 				continue
 			}
@@ -520,7 +509,7 @@ func (km *KeyManager) loadManualKeys() error {
 			var raw any
 			if err := jwk.Export(key, &raw); err != nil {
 				km.logger.Warn("failed to export manual key",
-					slog.String("domain", domain),
+					slog.String("domain", hostname),
 					slog.String("kid", kid),
 					slog.String("error", err.Error()))
 				continue
@@ -546,7 +535,7 @@ func (km *KeyManager) loadManualKeys() error {
 
 			if !isValidPublicKey {
 				km.logger.Warn("the key in the .public.jwk file is not a RSA or ED25519 public key - skipping",
-					slog.String("domain", domain),
+					slog.String("domain", hostname),
 					slog.String("kid", kid),
 					slog.String("file", filename),
 					slog.String("key_type", keyType))
@@ -554,7 +543,7 @@ func (km *KeyManager) loadManualKeys() error {
 			}
 
 			km.logger.Debug("validated public key",
-				slog.String("domain", domain),
+				slog.String("domain", hostname),
 				slog.String("kid", kid),
 				slog.String("key_type", keyType))
 
@@ -563,19 +552,19 @@ func (km *KeyManager) loadManualKeys() error {
 			trustLevel := TrustLevelNoX5C
 
 			// Store key with composite key: domain:kid
-			keyID := fmt.Sprintf("%s:%s", domain, kid)
+			keyID := fmt.Sprintf("%s:%s", hostname, kid)
 			km.manualKeys[keyID] = key
 
 			// Store metadata
 			km.metadata[keyID] = &KeyMetadata{
-				Domain:      domain,
+				Hostname:    hostname,
 				TrustLevel:  trustLevel,
 				KeySource:   KeySourceManual,
 				LastRefresh: time.Now(),
 			}
 
 			km.logger.Debug("loaded manual key",
-				slog.String("domain", domain),
+				slog.String("domain", hostname),
 				slog.String("kid", kid),
 				slog.Int("trust_level", int(trustLevel)))
 		}
