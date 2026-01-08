@@ -358,8 +358,8 @@ func TestSignRSAWithX5C(t *testing.T) {
 // TestSignEd25519WithX5C tests Ed25519 signing with x5c certificate chain
 func TestSignEd25519WithX5C(t *testing.T) {
 	// Use existing test data
-	privateKey := loadEd25519PrivateKey(t, "testdata/keys/eblplatform.example.com.private.pem")
-	certChain := loadCertChainFromPEM(t, "testdata/certs/eblplatform.example.com-fullchain.crt")
+	privateKey := loadEd25519PrivateKey(t, "testdata/keys/ed25519-eblplatform.example.com.private.pem")
+	certChain := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 
 	payload := []byte(`{"documentChecksum":"abc123","issueToChecksum":"def456", "eBLVisualisationByCarrierChecksum":"789ghi"}`)
 	keyID := "test-ed25519-key"
