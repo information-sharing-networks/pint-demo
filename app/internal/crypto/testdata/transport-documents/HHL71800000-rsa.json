@@ -1,0 +1,777 @@
+{
+  "document": {
+    "transportDocumentReference": "HHL71800000",
+    "transportDocumentSubReference": "Version_1",
+    "shippingInstructionsReference": "e0559d83-00e2-438e-afd9-fdd610c1a008",
+    "transportDocumentStatus": "DRAFT",
+    "transportDocumentTypeCode": "SWB",
+    "isShippedOnBoardType": true,
+    "freightPaymentTermCode": "PRE",
+    "isElectronic": true,
+    "isToOrder": false,
+    "numberOfCopiesWithCharges": 2,
+    "numberOfCopiesWithoutCharges": 2,
+    "numberOfOriginalsWithCharges": 1,
+    "numberOfOriginalsWithoutCharges": 1,
+    "displayedNameForPlaceOfReceipt": [
+      "Strawinskylaan 4117"
+    ],
+    "displayedNameForPortOfLoad": [
+      "Strawinskylaan 4117"
+    ],
+    "displayedNameForPortOfDischarge": [
+      "Strawinskylaan 4117"
+    ],
+    "displayedNameForPlaceOfDelivery": [
+      "Strawinskylaan 4117"
+    ],
+    "shippedOnBoardDate": "2020-12-12",
+    "displayedShippedOnBoardReceivedForShipment": "Received for Shipment CMA CGM CONCORDE 28-Jul-2022 CMA CGM Agences France SAS As agents for the Carrier",
+    "termsAndConditions": "Any reference in...",
+    "receiptTypeAtOrigin": "CY",
+    "deliveryTypeAtDestination": "CY",
+    "cargoMovementTypeAtOrigin": "FCL",
+    "cargoMovementTypeAtDestination": "FCL",
+    "issueDate": "2020-12-12",
+    "receivedForShipmentDate": "2020-12-12",
+    "serviceContractReference": "HHL51800000",
+    "contractQuotationReference": "HHL1401",
+    "declaredValue": 1231.1,
+    "declaredValueCurrency": "DKK",
+    "carrierCode": "MMCU",
+    "carrierCodeListProvider": "NMFTA",
+    "carrierClauses": [
+      "It is not allowed to..."
+    ],
+    "numberOfRiderPages": 2,
+    "transports": {
+      "plannedArrivalDate": "2024-06-07",
+      "plannedDepartureDate": "2024-06-03",
+      "preCarriageBy": "RAIL",
+      "onCarriageBy": "TRUCK",
+      "placeOfReceipt": {
+        "locationName": "Hamburg",
+        "UNLocationCode": "DEHAM"
+      },
+      "portOfLoading": {
+        "locationName": "Hamburg",
+        "UNLocationCode": "DEHAM"
+      },
+      "portOfDischarge": {
+        "locationName": "Hamburg",
+        "UNLocationCode": "DEHAM"
+      },
+      "placeOfDelivery": {
+        "locationName": "Hamburg",
+        "UNLocationCode": "DEHAM"
+      },
+      "onwardInlandRouting": {
+        "locationName": "Hamburg",
+        "UNLocationCode": "DEHAM"
+      },
+      "vesselVoyages": [
+        {
+          "vesselName": "King of the Seas",
+          "carrierExportVoyageNumber": "2103S",
+          "universalExportVoyageReference": "2103N"
+        }
+      ]
+    },
+    "charges": [
+      {
+        "chargeName": "Documentation fee - Destination",
+        "currencyAmount": 1012.12,
+        "currencyCode": "DKK",
+        "paymentTermCode": "PRE",
+        "calculationBasis": "Per day",
+        "unitPrice": 3456.6,
+        "quantity": 34.4
+      }
+    ],
+    "placeOfIssue": {
+      "locationName": "Port of Amsterdam",
+      "UNLocationCode": "NLAMS"
+    },
+    "invoicePayableAt": {
+      "UNLocationCode": "NLAMS"
+    },
+    "partyContactDetails": [
+      {
+        "name": "Henrik",
+        "phone": "+45 51801234"
+      },
+      {
+        "name": "Henrik",
+        "phone": "+45 51801234"
+      }
+    ],
+    "documentParties": {
+      "shipper": {
+        "partyName": "IKEA Denmark",
+        "typeOfPerson": "NATURAL_PERSON",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "2nd",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "UNLocationCode": "NLAMS",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "displayedAddress": [
+          "Strawinskylaan 4117"
+        ],
+        "identifyingCodes": [
+          {
+            "codeListProvider": "W3C",
+            "partyCode": "MSK",
+            "codeListName": "DID"
+          }
+        ],
+        "taxLegalReferences": [
+          {
+            "type": "PAN",
+            "countryCode": "IN",
+            "value": "AAAAA0000A"
+          }
+        ],
+        "partyContactDetails": [
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          },
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          }
+        ],
+        "reference": "HHL007",
+        "purchaseOrderReferences": [
+          "HHL007"
+        ]
+      },
+      "onBehalfOfShipper": {
+        "partyName": "IKEA Denmark",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "2nd",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "UNLocationCode": "NLAMS",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "identifyingCodes": [
+          {
+            "codeListProvider": "W3C",
+            "partyCode": "MSK",
+            "codeListName": "DID"
+          }
+        ]
+      },
+      "consignee": {
+        "partyName": "IKEA Denmark",
+        "typeOfPerson": "NATURAL_PERSON",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "2nd",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "UNLocationCode": "NLAMS",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "displayedAddress": [
+          "Strawinskylaan 4117"
+        ],
+        "identifyingCodes": [
+          {
+            "codeListProvider": "W3C",
+            "partyCode": "MSK",
+            "codeListName": "DID"
+          }
+        ],
+        "taxLegalReferences": [
+          {
+            "type": "PAN",
+            "countryCode": "IN",
+            "value": "AAAAA0000A"
+          }
+        ],
+        "partyContactDetails": [
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          },
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          }
+        ],
+        "reference": "HHL007",
+        "purchaseOrderReferences": [
+          "HHL007"
+        ]
+      },
+      "onBehalfOfConsignee": {
+        "partyName": "IKEA Denmark",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "2nd",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "UNLocationCode": "NLAMS",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "identifyingCodes": [
+          {
+            "codeListProvider": "W3C",
+            "partyCode": "MSK",
+            "codeListName": "DID"
+          }
+        ]
+      },
+      "endorsee": {
+        "partyName": "IKEA Denmark",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "2nd",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "UNLocationCode": "NLAMS",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "displayedAddress": [
+          "Strawinskylaan 4117"
+        ],
+        "identifyingCodes": [
+          {
+            "codeListProvider": "W3C",
+            "partyCode": "MSK",
+            "codeListName": "DID"
+          }
+        ],
+        "taxLegalReferences": [
+          {
+            "type": "PAN",
+            "countryCode": "IN",
+            "value": "AAAAA0000A"
+          }
+        ],
+        "partyContactDetails": [
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          },
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          }
+        ]
+      },
+      "issuingParty": {
+        "partyName": "Asseco Denmark",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "2nd",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "UNLocationCode": "NLAMS",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "identifyingCodes": [
+          {
+            "codeListProvider": "W3C",
+            "partyCode": "MSK",
+            "codeListName": "DID"
+          }
+        ],
+        "taxLegalReferences": [
+          {
+            "type": "PAN",
+            "countryCode": "IN",
+            "value": "AAAAA0000A"
+          }
+        ],
+        "partyContactDetails": [
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          },
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          }
+        ]
+      },
+      "carriersAgentAtDestination": {
+        "partyName": "IKEA Denmark",
+        "address": {
+          "street": "Ruijggoordweg",
+          "streetNumber": "100",
+          "floor": "N/A",
+          "postCode": "1047 HM",
+          "POBox": "123",
+          "city": "Amsterdam",
+          "stateRegion": "North Holland",
+          "countryCode": "NL"
+        },
+        "partyContactDetails": [
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          },
+          {
+            "name": "Henrik",
+            "phone": "+45 51801234"
+          }
+        ]
+      },
+      "notifyParties": [
+        {
+          "partyName": "IKEA Denmark",
+          "typeOfPerson": "NATURAL_PERSON",
+          "address": {
+            "street": "Ruijggoordweg",
+            "streetNumber": "100",
+            "floor": "2nd",
+            "postCode": "1047 HM",
+            "POBox": "123",
+            "city": "Amsterdam",
+            "UNLocationCode": "NLAMS",
+            "stateRegion": "North Holland",
+            "countryCode": "NL"
+          },
+          "displayedAddress": [
+            "Strawinskylaan 4117"
+          ],
+          "identifyingCodes": [
+            {
+              "codeListProvider": "W3C",
+              "partyCode": "MSK",
+              "codeListName": "DID"
+            }
+          ],
+          "taxLegalReferences": [
+            {
+              "type": "PAN",
+              "countryCode": "IN",
+              "value": "AAAAA0000A"
+            }
+          ],
+          "partyContactDetails": [
+            {
+              "name": "Henrik",
+              "phone": "+45 51801234"
+            },
+            {
+              "name": "Henrik",
+              "phone": "+45 51801234"
+            }
+          ],
+          "reference": "HHL007"
+        }
+      ],
+      "other": [
+        {
+          "party": {
+            "partyName": "Asseco Denmark",
+            "address": {
+              "street": "Ruijggoordweg",
+              "streetNumber": "100",
+              "floor": "2nd",
+              "postCode": "1047 HM",
+              "POBox": "123",
+              "city": "Amsterdam",
+              "UNLocationCode": "NLAMS",
+              "stateRegion": "North Holland",
+              "countryCode": "NL"
+            },
+            "identifyingCodes": [
+              {
+                "codeListProvider": "W3C",
+                "partyCode": "MSK",
+                "codeListName": "DID"
+              }
+            ],
+            "taxLegalReferences": [
+              {
+                "type": "PAN",
+                "countryCode": "IN",
+                "value": "AAAAA0000A"
+              }
+            ],
+            "partyContactDetails": [
+              {
+                "name": "Henrik",
+                "phone": "+45 51801234"
+              },
+              {
+                "name": "Henrik",
+                "phone": "+45 51801234"
+              }
+            ],
+            "reference": "HHL007"
+          },
+          "partyFunction": "DDS"
+        }
+      ]
+    },
+    "consignmentItems": [
+      {
+        "carrierBookingReference": "ABC709951",
+        "descriptionOfGoods": [
+          "blue shoes size 47"
+        ],
+        "HSCodes": [
+          "851713"
+        ],
+        "nationalCommodityCodes": [
+          {
+            "type": "TARIC",
+            "values": [
+              "85171200"
+            ]
+          }
+        ],
+        "shippingMarks": [
+          "Made in China"
+        ],
+        "cargoItems": [
+          {
+            "equipmentReference": "APZU4812090",
+            "cargoGrossWeight": {
+              "value": 2400,
+              "unit": "KGM"
+            },
+            "cargoGrossVolume": {
+              "value": 2.4,
+              "unit": "MTQ"
+            },
+            "cargoNetWeight": {
+              "value": 2400,
+              "unit": "KGM"
+            },
+            "cargoNetVolume": {
+              "value": 2.4,
+              "unit": "MTQ"
+            },
+            "exportLicense": {
+              "isRequired": true,
+              "reference": "EMC007123",
+              "issueDate": "2024-09-14",
+              "expiryDate": "2024-09-21"
+            },
+            "importLicense": {
+              "isRequired": true,
+              "reference": "EMC007123",
+              "issueDate": "2024-09-14",
+              "expiryDate": "2024-09-21"
+            },
+            "outerPackaging": {
+              "packageCode": "5H",
+              "imoPackagingCode": "1A2",
+              "numberOfPackages": 18,
+              "description": "Drum, steel",
+              "woodDeclaration": "TREATED_AND_CERTIFIED",
+              "dangerousGoods": [
+                {
+                  "UNNumber": "1463",
+                  "codedVariantList": "2200",
+                  "properShippingName": "Chromium Trioxide, anhydrous",
+                  "technicalName": "xylene and benzene",
+                  "imoClass": "1.4S",
+                  "subsidiaryRisk1": "1.2",
+                  "subsidiaryRisk2": "1.2",
+                  "isMarinePollutant": false,
+                  "packingGroup": 3,
+                  "isLimitedQuantity": false,
+                  "isExceptedQuantity": false,
+                  "isSalvagePackings": false,
+                  "isEmptyUncleanedResidue": false,
+                  "isWaste": false,
+                  "isHot": false,
+                  "isCompetentAuthorityApprovalRequired": false,
+                  "competentAuthorityApproval": "{Name and reference...}",
+                  "segregationGroups": [
+                    "12"
+                  ],
+                  "innerPackagings": [
+                    {
+                      "quantity": 20,
+                      "material": "Plastic",
+                      "description": "Woven plastic water resistant Bag"
+                    }
+                  ],
+                  "emergencyContactDetails": {
+                    "contact": "Henrik Larsen",
+                    "provider": "GlobeTeam",
+                    "phone": "+45 70262970",
+                    "referenceNumber": "12234"
+                  },
+                  "EMSNumber": "F-A S-Q",
+                  "endOfHoldingTime": "2021-09-03",
+                  "fumigationDateTime": "2024-09-04T09:41:00Z",
+                  "isReportableQuantity": false,
+                  "inhalationZone": "A",
+                  "grossWeight": {
+                    "value": 12000.3,
+                    "unit": "KGM"
+                  },
+                  "netWeight": {
+                    "value": 2.4,
+                    "unit": "KGM"
+                  },
+                  "netExplosiveContent": {
+                    "value": 2.4,
+                    "unit": "KGM"
+                  },
+                  "netVolume": {
+                    "value": 2.4,
+                    "unit": "MTQ"
+                  },
+                  "limits": {
+                    "temperatureUnit": "CEL",
+                    "flashPoint": 42,
+                    "transportControlTemperature": 24.1,
+                    "transportEmergencyTemperature": 74.1,
+                    "SADT": 54.1,
+                    "SAPT": 70
+                  }
+                },
+                {
+                  "NANumber": "9037",
+                  "codedVariantList": "2200",
+                  "properShippingName": "Chromium Trioxide, anhydrous",
+                  "technicalName": "xylene and benzene",
+                  "imoClass": "1.4S",
+                  "subsidiaryRisk1": "1.2",
+                  "subsidiaryRisk2": "1.2",
+                  "isMarinePollutant": false,
+                  "packingGroup": 3,
+                  "isLimitedQuantity": false,
+                  "isExceptedQuantity": false,
+                  "isSalvagePackings": false,
+                  "isEmptyUncleanedResidue": false,
+                  "isWaste": false,
+                  "isHot": false,
+                  "isCompetentAuthorityApprovalRequired": false,
+                  "competentAuthorityApproval": "{Name and reference...}",
+                  "segregationGroups": [
+                    "12"
+                  ],
+                  "innerPackagings": [
+                    {
+                      "quantity": 20,
+                      "material": "Plastic",
+                      "description": "Woven plastic water resistant Bag"
+                    }
+                  ],
+                  "emergencyContactDetails": {
+                    "contact": "Henrik Larsen",
+                    "provider": "GlobeTeam",
+                    "phone": "+45 70262970",
+                    "referenceNumber": "12234"
+                  },
+                  "EMSNumber": "F-A S-Q",
+                  "endOfHoldingTime": "2021-09-03",
+                  "fumigationDateTime": "2024-09-04T09:41:00Z",
+                  "isReportableQuantity": false,
+                  "inhalationZone": "A",
+                  "grossWeight": {
+                    "value": 12000.3,
+                    "unit": "KGM"
+                  },
+                  "netWeight": {
+                    "value": 2.4,
+                    "unit": "KGM"
+                  },
+                  "netExplosiveContent": {
+                    "value": 2.4,
+                    "unit": "KGM"
+                  },
+                  "netVolume": {
+                    "value": 2.4,
+                    "unit": "MTQ"
+                  },
+                  "limits": {
+                    "temperatureUnit": "CEL",
+                    "flashPoint": 42,
+                    "transportControlTemperature": 24.1,
+                    "transportEmergencyTemperature": 74.1,
+                    "SADT": 54.1,
+                    "SAPT": 70
+                  }
+                }
+              ]
+            },
+            "nationalCommodityCodes": [
+              {
+                "type": "TARIC",
+                "values": [
+                  "85171200"
+                ]
+              }
+            ],
+            "customsReferences": [
+              {
+                "type": "CUS",
+                "countryCode": "NL",
+                "values": [
+                  "4988470982020120017"
+                ]
+              }
+            ]
+          }
+        ],
+        "exportLicense": {
+          "isRequired": true,
+          "reference": "EMC007123",
+          "issueDate": "2024-09-14",
+          "expiryDate": "2024-09-21"
+        },
+        "importLicense": {
+          "isRequired": true,
+          "reference": "EMC007123",
+          "issueDate": "2024-09-14",
+          "expiryDate": "2024-09-21"
+        },
+        "references": [
+          {
+            "type": "CR",
+            "values": [
+              "HHL00103004"
+            ]
+          }
+        ],
+        "customsReferences": [
+          {
+            "type": "CUS",
+            "countryCode": "NL",
+            "values": [
+              "4988470982020120017"
+            ]
+          }
+        ]
+      }
+    ],
+    "utilizedTransportEquipments": [
+      {
+        "equipment": {
+          "equipmentReference": "APZU4812090",
+          "ISOEquipmentCode": "22G1",
+          "tareWeight": {
+            "value": 4800,
+            "unit": "KGM"
+          }
+        },
+        "isShipperOwned": true,
+        "isNonOperatingReefer": false,
+        "activeReeferSettings": {
+          "temperatureSetpoint": -15,
+          "temperatureUnit": "CEL",
+          "o2Setpoint": 25,
+          "co2Setpoint": 25,
+          "humiditySetpoint": 95.6,
+          "airExchangeSetpoint": 15.4,
+          "airExchangeUnit": "MQH",
+          "isVentilationOpen": true,
+          "isDrainholesOpen": true,
+          "isBulbMode": true,
+          "isColdTreatmentRequired": true,
+          "isControlledAtmosphereRequired": true
+        },
+        "shippingMarks": [
+          "Made in China"
+        ],
+        "seals": [
+          {
+            "number": "VET123",
+            "source": "CUS"
+          }
+        ],
+        "references": [
+          {
+            "type": "CR",
+            "value": "HHL00103004"
+          }
+        ],
+        "customsReferences": [
+          {
+            "type": "CUS",
+            "countryCode": "NL",
+            "values": [
+              "4988470982020120017"
+            ]
+          }
+        ]
+      }
+    ],
+    "exportLicense": {
+      "isRequired": true,
+      "reference": "EMC007123",
+      "issueDate": "2024-09-14",
+      "expiryDate": "2024-09-21"
+    },
+    "importLicense": {
+      "isRequired": true,
+      "reference": "EMC007123",
+      "issueDate": "2024-09-14",
+      "expiryDate": "2024-09-21"
+    },
+    "references": [
+      {
+        "type": "CR",
+        "value": "HHL00103004"
+      }
+    ],
+    "customsReferences": [
+      {
+        "type": "CUS",
+        "countryCode": "NL",
+        "values": [
+          "4988470982020120017"
+        ]
+      }
+    ]
+  },
+  "issueTo": {
+    "partyName": "Globeteam",
+    "sendToPlatform": "BOLE",
+    "identifyingCodes": [
+      {
+        "codeListProvider": "W3C",
+        "partyCode": "MSK",
+        "codeListName": "DID"
+      }
+    ],
+    "taxLegalReferences": [
+      {
+        "type": "PAN",
+        "countryCode": "IN",
+        "value": "AAAAA0000A"
+      }
+    ]
+  },
+  "eBLVisualisationByCarrier": {
+    "name": "HHL71800000.pdf",
+    "content": "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F/v2J1WKjGqXNJqSnTC02ahn4JrhV/UwmjBWxckvNCWbXSglmCfX8BsVKLLgplbmRzdHJlYW0KZW5kb2JqCjU0IDAgb2JqCjM2MjgKZW5kb2JqCjUyIDAgb2JqCjw8IC9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9DSURGb250VHlwZTIKL0Jhc2VGb250IC9Db25zb2xhcwovQ0lEU3lzdGVtSW5mbyA8PCAvUmVnaXN0cnkgKEFkb2JlKSAvT3JkZXJpbmcgKElkZW50aXR5KSAvU3VwcGxlbWVudCAwID4+Ci9Gb250RGVzY3JpcHRvciA1MCAwIFIKL0NJRFRvR0lETWFwIC9JZGVudGl0eQovRFcgNTQ1ID4+CmVuZG9iago1MyAwIG9iago8PCAvTGVuZ3RoIDQ0MSA+PgpzdHJlYW0KL0NJREluaXQgL1Byb2NTZXQgZmluZHJlc291cmNlIGJlZ2luCjEyIGRpY3QgYmVnaW4KYmVnaW5jbWFwCi9DSURTeXN0ZW1JbmZvIDw8IC9SZWdpc3RyeSAoQWRvYmUpIC9PcmRlcmluZyAoVUNTKSAvU3VwcGxlbWVudCAwID4+IGRlZgovQ01hcE5hbWUgL0Fkb2JlLUlkZW50aXR5LVVDUyBkZWYKL0NNYXBUeXBlIDIgZGVmCjEgYmVnaW5jb2Rlc3BhY2VyYW5nZQo8MDAwMD4gPEZGRkY+CmVuZGNvZGVzcGFjZXJhbmdlCjIgYmVnaW5iZnJhbmdlCjwwMDAwPiA8MDAwMD4gPDAwMDA+CjwwMDAxPiA8MDAwQj4gWzwwMDQ4PiA8MDA0Qz4gPDAwMzc+IDwwMDMxPiA8MDAzOD4gPDAwMzA+IDwwMDJFPiA8MDA2QT4gPDAwNzM+IDwwMDZGPiA8MDA2RT4gXQplbmRiZnJhbmdlCmVuZGNtYXAKQ01hcE5hbWUgY3VycmVudGRpY3QgL0NNYXAgZGVmaW5lcmVzb3VyY2UgcG9wCmVuZAplbmQKCmVuZHN0cmVhbQplbmRvYmoKNyAwIG9iago8PCAvVHlwZSAvRm9udAovU3VidHlwZSAvVHlwZTAKL0Jhc2VGb250IC9Db25zb2xhcwovRW5jb2RpbmcgL0lkZW50aXR5LUgKL0Rlc2NlbmRhbnRGb250cyBbNTIgMCBSXQovVG9Vbmljb2RlIDUzIDAgUj4+CmVuZG9iagoyIDAgb2JqCjw8Ci9UeXBlIC9QYWdlcwovS2lkcyAKWwo1IDAgUgoxNyAwIFIKMjYgMCBSCl0KL0NvdW50IDMKL1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDXQo+PgplbmRvYmoKeHJlZgowIDU1CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDI2MDMzIDAwMDAwIG4gCjAwMDAwMDAxODcgMDAwMDAgbiAKMDAwMDAwMDI4MiAwMDAwMCBuIAowMDAwMDAwNTMwIDAwMDAwIG4gCjAwMDAwMjEwNjMgMDAwMDAgbiAKMDAwMDAyNTg5OSAwMDAwMCBuIAowMDAwMDAwMzE5IDAwMDAwIG4gCjAwMDAwMDAzNjIgMDAwMDAgbiAKMDAwMDAwMDM5OCAwMDAwMCBuIAowMDAwMDAwNDQyIDAwMDAwIG4gCjAwMDAwMDA0ODYgMDAwMDAgbiAKMDAwMDAwMDg0NyAwMDAwMCBuIAowMDAwMDA0NzcyIDAwMDAwIG4gCjAwMDAwMDA2NTEgMDAwMDAgbiAKMDAwMDAwMDgyNyAwMDAwMCBuIAowMDAwMDA0OTYyIDAwMDAwIG4gCjAwMDAwMDQ3OTMgMDAwMDAgbiAKMDAwMDAwNDgzMCAwMDAwMCBuIAowMDAwMDA0ODc0IDAwMDAwIG4gCjAwMDAwMDQ5MTggMDAwMDAgbiAKMDAwMDAwNTI3MCAwMDAwMCBuIAowMDAwMDA5MDE0IDAwMDAwIG4gCjAwMDAwMDUwODQgMDAwMDAgbiAKMDAwMDAwNTI1MCAwMDAwMCBuIAowMDAwMDEwOTU5IDAwMDAwIG4gCjAwMDAwMDkwMzUgMDAwMDAgbiAKMDAwMDAwOTA3OSAwMDAwMCBuIAowMDAwMDEwNzkyIDAwMDAwIG4gCjAwMDAwMTA2MDQgMDAwMDAgbiAKMDAwMDAwOTMwOSAwMDAwMCBuIAowMDAwMDA5NDQ5IDAwMDAwIG4gCjAwMDAwMDk2MDAgMDAwMDAgbiAKMDAwMDAwOTc1MyAwMDAwMCBuIAowMDAwMDA5OTA2IDAwMDAwIG4gCjAwMDAwMTAwNjEgMDAwMDAgbiAKMDAwMDAxMDE5MCAwMDAwMCBuIAowMDAwMDEwMzE1IDAwMDAwIG4gCjAwMDAwMTA0NjIgMDAwMDAgbiAKMDAwMDAxMDg1NSAwMDAwMCBuIAowMDAwMDExMjY3IDAwMDAwIG4gCjAwMDAwMTM3MjMgMDAwMDAgbiAKMDAwMDAxMTA4MSAwMDAwMCBuIAowMDAwMDExMjQ3IDAwMDAwIG4gCjAwMDAwMTM3NDQgMDAwMDAgbiAKMDAwMDAxNDAwOCAwMDAwMCBuIAowMDAwMDE5NjU5IDAwMDAwIG4gCjAwMDAwMjAxNTcgMDAwMDAgbiAKMDAwMDAxOTYzOCAwMDAwMCBuIAowMDAwMDIxMjAzIDAwMDAwIG4gCjAwMDAwMjE0NjEgMDAwMDAgbiAKMDAwMDAyNTIwMSAwMDAwMCBuIAowMDAwMDI1NDA2IDAwMDAwIG4gCjAwMDAwMjUxODAgMDAwMDAgbiAKdHJhaWxlcgo8PAovU2l6ZSA1NQovSW5mbyAxIDAgUgovUm9vdCA0MCAwIFIKPj4Kc3RhcnR4cmVmCjI2MTQ1CiUlRU9GCg==",
+    "contentType": "application/json"
+  },
+  "issuanceManifestSignedContent": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS1jYXJyaWVyLWtleS0wMDEiLCJ4NWMiOlsiTUlJQzFEQ0NBb2FnQXdJQkFnSVVCUEZyelVTZU11dkMza3duVTBlRDJ6MmlHNGt3QlFZREsyVndNRzR4Q3pBSkJnTlZCQVlUQWtkQ01SQXdEZ1lEVlFRSURBZEZibWRzWVc1a01ROHdEUVlEVlFRSERBWk1iMjVrYjI0eEhUQWJCZ05WQkFvTUZGUmxjM1FnU1c1MFpYSnRaV1JwWVhSbElFTkJNUjB3R3dZRFZRUUREQlJVWlhOMElFbHVkR1Z5YldWa2FXRjBaU0JEUVRBZUZ3MHlOakF4TURnd09URXpNVEphRncwek5qQXhNRFl3T1RFek1USmFNR2d4Q3pBSkJnTlZCQVlUQWtkQ01SQXdEZ1lEVlFRSURBZEZibWRzWVc1a01ROHdEUVlEVlFRSERBWk1iMjVrYjI0eEZEQVNCZ05WQkFvTUMzSnpZUzFqWVhKeWFXVnlNU0F3SGdZRFZRUUREQmR5YzJFdFkyRnljbWxsY2k1bGVHRnRjR3hsTG1OdmJUQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU1mRFA4TDA0NG9Jd3ZvTy92NmxxV1hod2lYQ3R6SW5nYkgzODFVbUJXMi85RDc1SGhERVgxU01iVnVJTUFkRE9CbU5rTWozemJnMXNsSXp5aUlWVnZ3RFJGN0VRaG94THVOYUZKT2dnR1ZsZkRoUmg0em44VlMrUU1pb0dIRzZWSDdjaUZiSytiMTZqaHp4cy9EUitWYUxBWlZpUVpHNGpBZHg0d2tkakJZRi9Od0ttMW54ZG5iZng3TEhxalZnazZJWHp5UmFET3lHT3M2R295U25jRjl2YUxTUzN5Qm92TlJKZEhEd3hQQmZQbHB2UHE4UjFsMWdzMURUeU9CUzdUajJ4VEpZZGZPeDNWSERDQ2hmVTliRFV1MDYwbzU5RTVIbWY3TmZSYzJObzBveTE3TUduazZWTC9MY2krL2N3bU8zR1BGU3FSazRRSWNaK3FlUThsTUNBd0VBQWFOQ01FQXdIUVlEVlIwT0JCWUVGUHZDRlB5eHFWZ040NHpFWmRqWlI0NDRNZG5XTUI4R0ExVWRJd1FZTUJhQUZHeG1FOS9zTnN5SWpvK1VhOU5zMVdwU0s0dVlNQVVHQXl0bGNBTkJBRmd0WFhPTGNtQjJTM1gyaEpreHAzRmFRNlNiQUlsMVh3Ti9CUGpjbzd6Z1Z6dXRKdHY5T0w1bGx5ektoK0kveUw0T0pIclRMUytKcTZ2QUYyVlJWd3c9IiwiTUlJQjNqQ0NBWkNnQXdJQkFnSVVKNERIdWhlYklkR0Y0TWxuMXc1YXIzTy96Rmd3QlFZREsyVndNRjR4Q3pBSkJnTlZCQVlUQWtkQ01SQXdEZ1lEVlFRSURBZEZibWRzWVc1a01ROHdEUVlEVlFRSERBWk1iMjVrYjI0eEZUQVRCZ05WQkFvTURGUmxjM1FnVW05dmRDQkRRVEVWTUJNR0ExVUVBd3dNVkdWemRDQlNiMjkwSUVOQk1CNFhEVEkyTURFd09EQTVNVE14TVZvWERUTTJNREV3TmpBNU1UTXhNVm93YmpFTE1Ba0dBMVVFQmhNQ1IwSXhFREFPQmdOVkJBZ01CMFZ1WjJ4aGJtUXhEekFOQmdOVkJBY01Ca3h2Ym1SdmJqRWRNQnNHQTFVRUNnd1VWR1Z6ZENCSmJuUmxjbTFsWkdsaGRHVWdRMEV4SFRBYkJnTlZCQU1NRkZSbGMzUWdTVzUwWlhKdFpXUnBZWFJsSUVOQk1Db3dCUVlESzJWd0F5RUE2WU5PUzJDZ3prb2lrYkYwczI2VUJLNmVjbURWUmE0ZVNERmFuVFcxYW1XalVEQk9NQXdHQTFVZEV3UUZNQU1CQWY4d0hRWURWUjBPQkJZRUZHeG1FOS9zTnN5SWpvK1VhOU5zMVdwU0s0dVlNQjhHQTFVZEl3UVlNQmFBRkZSYnNNVnNOd3BWNmRDelNUbkNDZ3RZVzI2dU1BVUdBeXRsY0FOQkFCTmtYLzdTZ1EvdzhHdklEK2oxREV4R2pBT1UrNXlkUGJWMWNjWkFoQXBhb0FJVmpWNHJRZmtOT0JTRkROcjlXa1A5TmNKUXRRaENCY2RLU095UFZnWT0iLCJNSUlCMFRDQ0FZT2dBd0lCQWdJVUhtd01qYWdvc2wxV2ZNdFUrdXczSGp2bXBzc3dCUVlESzJWd01GNHhDekFKQmdOVkJBWVRBa2RDTVJBd0RnWURWUVFJREFkRmJtZHNZVzVrTVE4d0RRWURWUVFIREFaTWIyNWtiMjR4RlRBVEJnTlZCQW9NREZSbGMzUWdVbTl2ZENCRFFURVZNQk1HQTFVRUF3d01WR1Z6ZENCU2IyOTBJRU5CTUI0WERUSTJNREV3T0RBNU1UTXhNVm9YRFRNMk1ERXdOakE1TVRNeE1Wb3dYakVMTUFrR0ExVUVCaE1DUjBJeEVEQU9CZ05WQkFnTUIwVnVaMnhoYm1ReER6QU5CZ05WQkFjTUJreHZibVJ2YmpFVk1CTUdBMVVFQ2d3TVZHVnpkQ0JTYjI5MElFTkJNUlV3RXdZRFZRUUREQXhVWlhOMElGSnZiM1FnUTBFd0tqQUZCZ01yWlhBRElRQlh4UUFIcjk4REdBYzJCeXY3YjkzcG5FQ2FkczlycVh5VjdPOXhnVmFOZTZOVE1GRXdIUVlEVlIwT0JCWUVGRlJic01Wc053cFY2ZEN6U1RuQ0NndFlXMjZ1TUI4R0ExVWRJd1FZTUJhQUZGUmJzTVZzTndwVjZkQ3pTVG5DQ2d0WVcyNnVNQThHQTFVZEV3RUIvd1FGTUFNQkFmOHdCUVlESzJWd0EwRUFybVRYcUdmaS9UdUROeWV2aWRCd3k1eXE1eng0S1N1V3N3MkhLbDdaRWRLZGpsM0xCTFVaa3hEQUloaVliYzNwWDN2QS9EOEZveU9XMHpYak5DSlRBdz09Il19.eyJkb2N1bWVudENoZWNrc3VtIjoiYmJhNTYyNzEwYjNmMTVhNmFlOTFiOWQ4MzRmMDhjMzJmMzJmOTY0Nzc2ODA3ZDBiMTE2YTg0NmJiZjNjNDIzOCIsImVCTFZpc3VhbGlzYXRpb25CeUNhcnJpZXJDaGVja3N1bSI6ImQ4NzBlOWQ3NjZjYTBiOTA4N2Y4NmQ4ZDA1ZWE2YmY0OGQxNjY3MTdjMGJmMzc1ZWZmZjU0Y2VkZWIzZDAwYjgiLCJpc3N1ZVRvQ2hlY2tzdW0iOiJhYWJkZjBlMjZmNzA5N2IyYzI2MTVmYmFkMDAwM2JmMjFkOGMyNGQ1YjBjZDNiMGEyN2QwNmRhNTQ0ZGI0MTU5In0.hzPeSzXWLA-9ODi-XLd_bjIv0Nlr_pyC0qUZ0kCptMh1Ov2y_kY5zoQ4MMOWXaXrWP5gW_AUA0wRv-LobdpJHfqx_6BuqLEoWs7owjVVp2x2w8jTFqRPnfx415arhKb3a6n7e5_02zZV7uOlptAPpey_H9qzRadyXXAveMGGp1jT2JNYMUOKItG5fMb04c5XNEpb_qV1cXzv2iHj_8LjpHyd1qsf7gbGQtI02IS9mGlp6f55lmnXQbR35a2Gq1PZIFVjfwwregxV6MlXBsnpGrbkuAfHLI4UcggVVxRTs7_ky8Blv5LVY1gF37sLtIkzvi8fmFtMtS-y8DlWSyI26Q"
+}

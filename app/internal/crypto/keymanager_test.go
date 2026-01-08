@@ -148,13 +148,13 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 
 	// Save public key file
 	publicKeyPath := filepath.Join(tempDir, hostname+".public.jwk")
-	if err := SaveEd25519PublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
+	if err := SaveEd25519PublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
 	// Save private key file (should not be loaded)
 	privateKeyPath := filepath.Join(tempDir, hostname+".private.jwk")
-	if err := SaveEd25519PrivateKeyToFile(privateKey, keyID, privateKeyPath); err != nil {
+	if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
 

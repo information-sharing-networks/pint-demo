@@ -1,16 +1,19 @@
-// the DCSA standard requires that JWS compact serialization is used for signing and verifying envelopes
-// ... and that the signing process MUST be performed using a library (this implementation use github.com/go-jose/go-jose/v4)
-
-// the DCSA spec does not specify which signing algorithm should be used (this implementation uses RS256 or EdDSA)
+// jws.go - Functions for signing and verifying JWS (JSON Web Signature)
+// Note the DCSA standard requires that JWS compact serialization is used for signing and verifying transport documents
+// ... and that the signing process must be performed using a library (this implementation use github.com/go-jose/go-jose/v4)
+// the DCSA spec does not say which signing algorithm should be used (this implementation can use either RS256 or EdDSA)
 package crypto
 
 import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/go-jose/go-jose/v4"
@@ -148,4 +151,146 @@ func ParseHeader(jwsString string) (JWSHeader, error) {
 	}
 
 	return header, nil
+}
+
+// CertChainToX5C converts X.509 certificate chain to x5c format
+// Returns array of Base64-encoded DER certificates
+//
+// The x5c header parameter contains the X.509 certificate chain as an array of Base64-encoded DER certificates
+// This provides non-repudiation by including the public key certificate in the JWS header
+func CertChainToX5C(certChain []*x509.Certificate) []string {
+	x5c := make([]string, len(certChain))
+	for i, cert := range certChain {
+		// cert.Raw contains the DER-encoded certificate
+		x5c[i] = base64.StdEncoding.EncodeToString(cert.Raw)
+	}
+	return x5c
+}
+
+// SignEd25519WithX5C signs payload and includes x5c certificate chain in JWS header
+// This provides non-repudiation per DCSA requirements
+//
+// Parameters:
+// - payload: The data to sign
+// - privateKey: Ed25519 private key for signing
+// - keyID: Key identifier (kid) for the JWS header
+// - certChain: X.509 certificate chain (first cert must match the private key)
+//
+// Returns:
+// - JWS compact serialization string
+// - error if signing fails
+func SignEd25519WithX5C(payload []byte, privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+	if keyID == "" {
+		return "", fmt.Errorf("keyID is required")
+	}
+	if len(certChain) == 0 {
+		return "", fmt.Errorf("certificate chain is required")
+	}
+
+	signingKey := jose.SigningKey{Algorithm: jose.EdDSA, Key: privateKey}
+
+	// Create signer options with kid and x5c headers
+	x5c := CertChainToX5C(certChain)
+	opts := (&jose.SignerOptions{}).
+		WithHeader("kid", keyID).
+		WithHeader("x5c", x5c)
+
+	signer, err := jose.NewSigner(signingKey, opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to create signer: %w", err)
+	}
+
+	// Note: Per RFC 7515, go-jose/v4's Sign function returns a *jose.JSONWebSignature
+	// containing a JWS whose signature covers both the protected header and payload.
+	jws, err := signer.Sign(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign payload: %w", err)
+	}
+
+	jwsCompactSerialize, err := jws.CompactSerialize()
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize JWS: %w", err)
+	}
+
+	return jwsCompactSerialize, nil
+}
+
+// SignRSAWithX5C signs payload and includes x5c certificate chain in JWS header
+// This provides non-repudiation per DCSA requirements
+//
+// Parameters:
+// - payload: The data to sign
+// - privateKey: RSA private key for signing
+// - keyID: Key identifier (kid) for the JWS header
+// - certChain: X.509 certificate chain
+//
+// The x5c forms part of the JWS protected header and is therefore covered by the signature.
+//
+// Returns:
+// - JWS compact serialization string
+// - error if signing fails
+func SignRSAWithX5C(payload []byte, privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+	if keyID == "" {
+		return "", fmt.Errorf("keyID is required")
+	}
+	if len(certChain) == 0 {
+		return "", fmt.Errorf("certificate chain is required")
+	}
+
+	signingKey := jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}
+
+	// Create signer options with kid and x5c headers
+	x5c := CertChainToX5C(certChain)
+	opts := (&jose.SignerOptions{}).
+		WithHeader("kid", keyID).
+		WithHeader("x5c", x5c)
+
+	signer, err := jose.NewSigner(signingKey, opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to create signer: %w", err)
+	}
+
+	jws, err := signer.Sign(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign payload: %w", err)
+	}
+
+	jwsCompactSerialize, err := jws.CompactSerialize()
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize JWS: %w", err)
+	}
+
+	return jwsCompactSerialize, nil
+}
+
+// LoadCertChainFromPEM loads a certificate chain from a PEM file
+func LoadCertChainFromPEM(path string) []*x509.Certificate {
+	pemData, err := os.ReadFile(path)
+	if err != nil {
+		panic(fmt.Sprintf("failed to read %s: %v", path, err))
+	}
+
+	var certs []*x509.Certificate
+	for {
+		block, rest := pem.Decode(pemData)
+		if block == nil {
+			break
+		}
+
+		if block.Type == "CERTIFICATE" {
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				panic(fmt.Sprintf("failed to parse certificate from %s: %v", path, err))
+			}
+			certs = append(certs, cert)
+		}
+
+		pemData = rest
+	}
+
+	if len(certs) == 0 {
+		panic(fmt.Sprintf("no certificates found in %s", path))
+	}
+
+	return certs
 }

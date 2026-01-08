@@ -6,6 +6,8 @@
 // This implementation supports both ED25519 and RSA key types.
 // ED25519 is the recommended key type since it is more secure and efficient than RSA.
 // keys are saved in JWK format
+//
+// PEM files are in PKCS#8 format (https://datatracker.ietf.org/doc/html/rfc5208)
 
 package crypto
 
@@ -32,9 +34,9 @@ func GenerateEd25519KeyPair() (ed25519.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// SaveEd25519PrivateKeyToFile saves an ED25519 private key to a JWK file
+// SaveEd25519PrivateKeyToJWKFile saves an ED25519 private key to a JWK file
 // note the key is not encrypted
-func SaveEd25519PrivateKeyToFile(privateKey ed25519.PrivateKey, keyID, filepath string) error {
+func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, filepath string) error {
 	jwkKey, err := Ed25519PrivateKeyToJWK(privateKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -55,8 +57,8 @@ func SaveEd25519PrivateKeyToFile(privateKey ed25519.PrivateKey, keyID, filepath 
 	return nil
 }
 
-// SaveEd25519PublicKeyToFile saves an ED25519 public key to a JWK file
-func SaveEd25519PublicKeyToFile(publicKey ed25519.PublicKey, keyID, filepath string) error {
+// SaveEd25519PublicKeyToJWKFile saves an ED25519 public key to a JWK file
+func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, filepath string) error {
 	jwkKey, err := Ed25519PublicKeyToJWK(publicKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -77,8 +79,8 @@ func SaveEd25519PublicKeyToFile(publicKey ed25519.PublicKey, keyID, filepath str
 	return nil
 }
 
-// ReadEd25519PrivateKeyFromFile loads an ED25519 private key from a JWK file
-func ReadEd25519PrivateKeyFromFile(filepath string) (ed25519.PrivateKey, error) {
+// ReadEd25519PrivateKeyFromJWKFile loads an ED25519 private key from a JWK file
+func ReadEd25519PrivateKeyFromJWKFile(filepath string) (ed25519.PrivateKey, error) {
 	jsonBytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -111,8 +113,8 @@ func ReadEd25519PrivateKeyFromFile(filepath string) (ed25519.PrivateKey, error) 
 	return privateKey, nil
 }
 
-// ReadEd25519PublicKeyFromFile loads an ed25519 public key from a JWK file
-func ReadEd25519PublicKeyFromFile(filepath string) (ed25519.PublicKey, error) {
+// ReadEd25519PublicKeyFromJWKFile loads an ed25519 public key from a JWK file
+func ReadEd25519PublicKeyFromJWKFile(filepath string) (ed25519.PublicKey, error) {
 	jsonBytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -164,8 +166,8 @@ func GenerateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// SaveRSAPrivateKeyToFile saves an RSA private key to a JWK file
-func SaveRSAPrivateKeyToFile(privateKey *rsa.PrivateKey, keyID, filepath string) error {
+// SaveRSAPrivateKeyToJWKFile saves an RSA private key to a JWK file
+func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, filepath string) error {
 	jwkKey, err := RSAPrivateKeyToJWK(privateKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -186,8 +188,8 @@ func SaveRSAPrivateKeyToFile(privateKey *rsa.PrivateKey, keyID, filepath string)
 	return nil
 }
 
-// SaveRSAPublicKeyToFile saves an RSA public key to a JWK file
-func SaveRSAPublicKeyToFile(publicKey *rsa.PublicKey, keyID, filepath string) error {
+// SaveRSAPublicKeyToJWKFile saves an RSA public key to a JWK file
+func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, filepath string) error {
 	jwkKey, err := RSAPublicKeyToJWK(publicKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -208,8 +210,8 @@ func SaveRSAPublicKeyToFile(publicKey *rsa.PublicKey, keyID, filepath string) er
 	return nil
 }
 
-// ReadRSAPrivateKeyFromFile loads an RSA private key from a JWK file
-func ReadRSAPrivateKeyFromFile(filepath string) (*rsa.PrivateKey, error) {
+// ReadRSAPrivateKeyFromJWKFile loads an RSA private key from a JWK file
+func ReadRSAPrivateKeyFromJWKFile(filepath string) (*rsa.PrivateKey, error) {
 	jsonBytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -242,8 +244,8 @@ func ReadRSAPrivateKeyFromFile(filepath string) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// ReadRSAPublicKeyFromFile loads an RSA public key from a JWK file
-func ReadRSAPublicKeyFromFile(filepath string) (*rsa.PublicKey, error) {
+// ReadRSAPublicKeyFromJWKFile loads an RSA public key from a JWK file
+func ReadRSAPublicKeyFromJWKFile(filepath string) (*rsa.PublicKey, error) {
 	jsonBytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -372,6 +374,32 @@ func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, filepath stri
 	return nil
 }
 
+// SaveEd25519PublicKeyToPEMFile saves an Ed25519 public key to a PEM file in SubjectPublicKeyInfo format
+func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, filepath string) error {
+	// Marshal to SubjectPublicKeyInfo format
+	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal public key: %w", err)
+	}
+
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubBytes,
+	}
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	if err := pem.Encode(file, pemBlock); err != nil {
+		return fmt.Errorf("failed to encode PEM: %w", err)
+	}
+
+	return nil
+}
+
 // SaveRSAPrivateKeyToPEMFile saves an RSA private key to a PEM file in PKCS#8 format
 func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, filepath string) error {
 	// Marshal to PKCS#8 format (more modern than PKCS#1)
@@ -386,6 +414,32 @@ func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, filepath string) err
 	}
 
 	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	if err := pem.Encode(file, pemBlock); err != nil {
+		return fmt.Errorf("failed to encode PEM: %w", err)
+	}
+
+	return nil
+}
+
+// SaveRSAPublicKeyToPEMFile saves an RSA public key to a PEM file in SubjectPublicKeyInfo format
+func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, filepath string) error {
+	// Marshal to SubjectPublicKeyInfo format
+	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal public key: %w", err)
+	}
+
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubBytes,
+	}
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}

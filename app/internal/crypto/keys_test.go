@@ -23,11 +23,11 @@ func TestSaveAndReadEd25519Keys(t *testing.T) {
 		t.Fatalf("failed to generate key ID: %v", err)
 	}
 
-	if err := SaveEd25519PrivateKeyToFile(privateKey, keyID, privateKeyPath); err != nil {
+	if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
 
-	loadedPrivateKey, err := ReadEd25519PrivateKeyFromFile(privateKeyPath)
+	loadedPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile(privateKeyPath)
 	if err != nil {
 		t.Fatalf("failed to load private key: %v", err)
 	}
@@ -49,11 +49,11 @@ func TestSaveAndReadEd25519Keys(t *testing.T) {
 	publicKeyPath := filepath.Join(tmpDir, "public.pem")
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
-	if err := SaveEd25519PublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
+	if err := SaveEd25519PublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
-	loadedPublicKey, err := ReadEd25519PublicKeyFromFile(publicKeyPath)
+	loadedPublicKey, err := ReadEd25519PublicKeyFromJWKFile(publicKeyPath)
 	if err != nil {
 		t.Fatalf("could not read public key from PEM file: %v", err)
 	}
@@ -123,12 +123,12 @@ func TestSaveAndReadRSAKeys(t *testing.T) {
 		t.Fatalf("failed to generate key ID: %v", err)
 	}
 
-	err = SaveRSAPrivateKeyToFile(privateKey, keyID, privateKeyPath)
+	err = SaveRSAPrivateKeyToJWKFile(privateKey, keyID, privateKeyPath)
 	if err != nil {
 		t.Fatalf("error saving PEM file: %v", err)
 	}
 
-	loadedPrivateKey, err := ReadRSAPrivateKeyFromFile(privateKeyPath)
+	loadedPrivateKey, err := ReadRSAPrivateKeyFromJWKFile(privateKeyPath)
 	if err != nil {
 		t.Fatalf("error reading PEM file: %v", err)
 	}
@@ -152,15 +152,15 @@ func TestSaveAndReadRSAKeys(t *testing.T) {
 
 	publicKey := &privateKey.PublicKey
 
-	if err := SaveRSAPublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
+	if err := SaveRSAPublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
-	if err := SaveRSAPublicKeyToFile(publicKey, keyID, publicKeyPath); err != nil {
+	if err := SaveRSAPublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("could not save public key PEM file: %v", err)
 	}
 
-	loadedPublicKey, err := ReadRSAPublicKeyFromFile(publicKeyPath)
+	loadedPublicKey, err := ReadRSAPublicKeyFromJWKFile(publicKeyPath)
 	if err != nil {
 		t.Fatalf("could not read public key from file: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 		}
 
 		jwkPath := filepath.Join(tmpDir, "key.jwk")
-		if err := SaveEd25519PrivateKeyToFile(privateKey, keyID, jwkPath); err != nil {
+		if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, jwkPath); err != nil {
 			t.Fatalf("failed to save JWK: %v", err)
 		}
 
@@ -289,7 +289,7 @@ func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 			t.Fatalf("failed to read PEM: %v", err)
 		}
 
-		jwkKey, err := ReadEd25519PrivateKeyFromFile(jwkPath)
+		jwkKey, err := ReadEd25519PrivateKeyFromJWKFile(jwkPath)
 		if err != nil {
 			t.Fatalf("failed to read JWK: %v", err)
 		}
@@ -327,7 +327,7 @@ func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 		}
 
 		jwkPath := filepath.Join(tmpDir, "key.jwk")
-		if err := SaveRSAPrivateKeyToFile(privateKey, keyID, jwkPath); err != nil {
+		if err := SaveRSAPrivateKeyToJWKFile(privateKey, keyID, jwkPath); err != nil {
 			t.Fatalf("failed to save JWK: %v", err)
 		}
 
@@ -337,7 +337,7 @@ func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 			t.Fatalf("failed to read PEM: %v", err)
 		}
 
-		jwkKey, err := ReadRSAPrivateKeyFromFile(jwkPath)
+		jwkKey, err := ReadRSAPrivateKeyFromJWKFile(jwkPath)
 		if err != nil {
 			t.Fatalf("failed to read JWK: %v", err)
 		}

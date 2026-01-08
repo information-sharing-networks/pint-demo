@@ -5,6 +5,11 @@
 The `platform-registry.csv` file contains a test registry of platforms for use in testing the crypto package.
 The file is based on the DCSA registry file found at https://github.com/dcsaorg/DCSA-OpenAPI/raw/master/reference-data/eblsolutionproviders-v3.0.0.csv
 
+
+## Transport Documents
+manually created test data for transport documents (ebls) - these documents are signed by the keys included in the `transport-documents/keys/` directory.
+c.f `transport-documents/README.md`
+
 ## Test Certificates and Keys
 
 The `certs/` and `keys/` directories contain test certificates and key pairs for use in testing the crypto package.
@@ -27,6 +32,8 @@ This script:
 
 ### Generated Files
 
+all certs and keys are ed2519 unless otherwise noted
+
 #### 1. Valid Certificate Chain
 - **Purpose:** Test valid certificate chain validation
 - **Root CA:** `certs/root-ca.crt`, `certs/root-ca.pem`
@@ -40,6 +47,8 @@ This script:
   - `keys/eblplatform.example.com.private.jwk` (for signing PINT messages)
   - `keys/eblplatform.example.com.public.jwk` (for publishing to JWKS endpoint)
   - `keys/eblplatform.example.com.private.pem` (used to create the certificate)
+
+  rsa-eblplatform.example.com (RSA key) and carrier.example.com are also generated and are valid.
 
 #### 2. Expired Certificate Chain
 - **Purpose:** Test expired certificate rejection

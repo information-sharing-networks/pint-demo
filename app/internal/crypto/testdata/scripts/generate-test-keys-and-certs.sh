@@ -3,7 +3,16 @@
 # make the certs needed to test pint-demo
 # the script uses the keygen CLI to generate the key pairs in JWK files and PEM files
 # the PEMs are used to create CSRs which are then signed by the test CAs to create the certificates used in testing
-# keys are ED25519 
+# 
+# four valid leaf certs are created:
+# 1. ed25519 signed cert (ed25519-eblplatform.example.com)
+# 2. rsa signed cert (rsa-eblplatform.example.com)
+# 3. ecdsa signed cert (ed25519-carrier.example.com)
+# 3. ecdsa signed cert (rsa-carrier.example.com)
+#
+# the invalid/expired certs are created by reusing the keys from the valid ed25519-eblplatform.example.com cert
+
+
 set -e
 
 function usage() {
@@ -64,7 +73,7 @@ function sign_intermediate_CA_certificate() {
 
 
 # use this to create keys for a test eblplatform 
-function generate_eblplatform_keypair() {
+function generate_platform_keypair() {
     local hostname=$1   
     go run cmd/keygen/main.go --type ed25519 --hostname $hostname --outputdir $KEYS_DIR
     if [ $? -ne 0 ]; then
@@ -73,7 +82,16 @@ function generate_eblplatform_keypair() {
     fi
 }   
 
-function create_eblplatform_signing_request() {
+function generate_rsa_platform_keypair() {
+    local hostname=$1   
+    go run cmd/keygen/main.go --type rsa -s 2048 --hostname $hostname --outputdir $KEYS_DIR
+    if [ $? -ne 0 ]; then
+        echo "Error: keygen failed" >&2
+        return 1
+    fi
+}   
+
+function create_platform_signing_request() {
     local hostname=$1
     local O=$2
 
@@ -95,7 +113,7 @@ function create_eblplatform_signing_request() {
     fi
 }
 
-function sign_eblplatform_certificate() {
+function sign_platform_certificate() {
     local ca=$1
     local cert=$2
     openssl x509 -req -in "$CERTS_DIR/${cert}.csr" \
@@ -209,51 +227,103 @@ create_intermediate_CA_signing_request "intermediate-ca" "Test Intermediate CA"
 echo -e "\n   Signing Intermediate CA..."
 sign_intermediate_CA_certificate root-ca intermediate-ca 
 
+# valid ed25519 eblplatform keys
 echo -e "\n   Generating key pair for valid server leaf certificate (eblplatform.example.com)..."
-generate_eblplatform_keypair "eblplatform.example.com"
+generate_platform_keypair "ed25519-eblplatform.example.com"
 
 echo -e "\n   Creating CSR from keygen key..."
-create_eblplatform_signing_request "eblplatform.example.com" "eblplatform" 
+create_platform_signing_request "ed25519-eblplatform.example.com" "eblplatform" 
 
 echo -e "\n   Signing valid server leaf certificate..."
-sign_eblplatform_certificate intermediate-ca eblplatform.example.com
+sign_platform_certificate intermediate-ca ed25519-eblplatform.example.com
 
-echo -e "\n   Creating full chain file... (eblplatform-fullchain.crt)"
-cat "$CERTS_DIR/eblplatform.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/eblplatform.example.com-fullchain.crt"
+echo -e "\n   Creating full chain file... (ed25519-eblplatform-fullchain.crt)"
+cat "$CERTS_DIR/ed25519-eblplatform.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/ed25519-eblplatform.example.com-fullchain.crt"
 
-echo -e "\n2. Generating expired certificate (eblplatform-expired.example.com)..."
+# expired ed25519 eblplatform keys
+echo -e "\n2. Generating expired certificate (ed25519-eblplatform-expired.example.com)..."
 
 echo -e "\n   Generating key pair for expired certificate..."
-generate_eblplatform_keypair "eblplatform-expired.example.com"
+generate_platform_keypair "ed25519-eblplatform-expired.example.com"
 
 echo -e "\n   Creating CSR from keygen key..."
-create_eblplatform_signing_request "eblplatform-expired.example.com" "eblplatform-expired" 
+create_platform_signing_request "ed25519-eblplatform-expired.example.com" "ed25519-eblplatform-expired" 
 
 echo -e "\n   Signing expired server leaf certificate..."
-sign_expired_eblplatform_certificate intermediate-ca eblplatform-expired.example.com
+sign_expired_eblplatform_certificate intermediate-ca ed25519-eblplatform-expired.example.com
 
-echo -e "\n   Creating expired full chain file (eblplatform-expired-fullchain.crt)..."
-cat "$CERTS_DIR/eblplatform-expired.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/eblplatform-expired.example.com-fullchain.crt"
+echo -e "\n   Creating expired full chain file (ed25519-eblplatform-expired-fullchain.crt)..."
+cat "$CERTS_DIR/ed25519-eblplatform-expired.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/ed25519-eblplatform-expired.example.com-fullchain.crt"
 
+# invalid cert chain
 echo -e "\n3. Generating invalid certificate chain ..."
 
 echo -e "\n   Creating untrusted CA..."
 create_root_CA_cert "untrusted-ca" "Untrusted CA"
 
-echo -e "\n   Generating key pair for invalid certificate (eblplatform-invalid.example.com)..."
-generate_eblplatform_keypair "eblplatform-invalid.example.com"
+echo -e "\n   Generating key pair for invalid certificate (ed25519-eblplatform-invalid.example.com)..."
+generate_platform_keypair "ed25519-eblplatform-invalid.example.com"
 
 echo -e "\n   Creating CSR from keygen key..."
-create_eblplatform_signing_request "eblplatform-invalid.example.com" "eblplatform-invalid" 
+create_platform_signing_request "ed25519-eblplatform-invalid.example.com" "ed25519-eblplatform-invalid" 
 
 echo -e "\n   Signing server leaf cert with untrusted CA..."
-sign_eblplatform_certificate untrusted-ca eblplatform-invalid.example.com
+sign_platform_certificate untrusted-ca ed25519-eblplatform-invalid.example.com
 
-echo -e "\n   Creating invalid chain file (eblplatform-invalid-fullchain.crt)..."
-cat "$CERTS_DIR/eblplatform-invalid.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/eblplatform-invalid.example.com-fullchain.crt"
+echo -e "\n   Creating invalid chain file (ed25519-eblplatform-invalid-fullchain.crt)..."
+cat "$CERTS_DIR/ed25519-eblplatform-invalid.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/ed25519-eblplatform-invalid.example.com-fullchain.crt"
 
+# valid rsa eblplatform keys
+echo -e "\n4. Generating valid RSA certificate (rsa-eblplatform.example.com)..."
+
+echo -e "\n   Generating RSA key pair for valid server leaf certificate (rsa-eblplatform.example.com)..."
+generate_rsa_platform_keypair "rsa-eblplatform.example.com"
+
+echo -e "\n   Creating CSR from keygen key..."
+create_platform_signing_request "rsa-eblplatform.example.com" "rsa-eblplatform" 
+
+echo -e "\n   Signing valid RSA server leaf certificate..."
+sign_platform_certificate intermediate-ca rsa-eblplatform.example.com
+
+echo -e "\n   Creating RSA full chain file... (rsa-eblplatform-fullchain.crt)"
+cat "$CERTS_DIR/rsa-eblplatform.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/rsa-eblplatform.example.com-fullchain.crt"
+
+# carrier cert (ed25519)
+echo -e "\n5. Generating valid carrier certificate (ed25519-carrier.example.com)..."
+
+echo -e "\n   Generating ECDSA key pair for valid server leaf certificate (ed25519-carrier.example.com)..." 
+generate_platform_keypair "ed25519-carrier.example.com"
+
+echo -e "\n   Creating CSR from keygen key..."
+create_platform_signing_request "ed25519-carrier.example.com" "ed25519-carrier" 
+
+echo -e "\n   Signing valid ed25519-carrier leaf certificate..."    
+sign_platform_certificate intermediate-ca ed25519-carrier.example.com    
+
+echo -e "\n   Creating ed25519-carrier full chain file... (ed25519-carrier-fullchain.crt)"
+cat "$CERTS_DIR/ed25519-carrier.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/ed25519-carrier.example.com-fullchain.crt"
+
+# carrier cert (rsa)    
+echo -e "\n6. Generating valid carrier certificate (rsa-carrier.example.com)..."
+
+echo -e "\n   Generating ECDSA key pair for valid server leaf certificate (ed25519-carrier.example.com)..." 
+generate_rsa_platform_keypair "rsa-carrier.example.com"
+
+echo -e "\n   Creating CSR from keygen key..."
+create_platform_signing_request "rsa-carrier.example.com" "rsa-carrier" 
+
+echo -e "\n   Signing valid rsa-carrier leaf certificate..."    
+sign_platform_certificate intermediate-ca rsa-carrier.example.com    
+
+echo -e "\n   Creating rsa-carrier full chain file... (rsa-carrier-fullchain.crt)"
+cat "$CERTS_DIR/rsa-carrier.example.com.crt" "$CERTS_DIR/intermediate-ca.crt" "$CERTS_DIR/root-ca.crt" > "$CERTS_DIR/rsa-carrier.example.com-fullchain.crt"
+
+
+# clean up
 echo -e "\n   Cleaning up temporary files..."
 rm -f "$CERTS_DIR"/*.csr "$CERTS_DIR"/*.srl
+
+
 
 echo
 echo "===================================================="
