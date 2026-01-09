@@ -141,10 +141,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
-	keyID, err := GenerateKeyIDFromEd25519Key(publicKey)
-	if err != nil {
-		t.Fatalf("failed to generate key ID: %v", err)
-	}
+	keyID := "test_kid"
 
 	// Save public key file
 	publicKeyPath := filepath.Join(tempDir, hostname+".public.jwk")

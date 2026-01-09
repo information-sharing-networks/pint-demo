@@ -13,6 +13,12 @@ import (
 )
 
 func TestParseX5CFromJWS(t *testing.T) {
+
+	certs, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load test certificates: %v", err)
+	}
+
 	testCases := []struct {
 		name          string
 		setupJWS      func(t *testing.T) string // Function to create the JWS string
@@ -24,7 +30,7 @@ func TestParseX5CFromJWS(t *testing.T) {
 		{
 			name: "single certificate (leaf only)",
 			setupJWS: func(t *testing.T) string {
-				fullChain := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+				fullChain := certs
 				leafOnly := fullChain[0:1] // Just the leaf cert, not the full chain
 				return makeJWS(t, leafOnly)
 			},
@@ -34,7 +40,7 @@ func TestParseX5CFromJWS(t *testing.T) {
 		{
 			name: "certificate chain (3 certs)",
 			setupJWS: func(t *testing.T) string {
-				certs := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+				certs := certs
 				return makeJWS(t, certs)
 			},
 			expectedCerts: 3,
@@ -139,6 +145,16 @@ func TestParseX5CFromJWS(t *testing.T) {
 
 // TestValidateCertificateChain tests certificate chain validation
 func TestValidateCertificateChain(t *testing.T) {
+
+	certs, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load test certificates: %v", err)
+	}
+
+	invalidCerts, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform-invalid.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load test certificates: %v", err)
+	}
 	testCases := []struct {
 		name          string
 		setupChain    func(t *testing.T) ([]*x509.Certificate, *x509.CertPool)
@@ -146,19 +162,17 @@ func TestValidateCertificateChain(t *testing.T) {
 		wantError     bool
 		expectedError string
 	}{
-		// Valid cases
 		{
 			name: "valid chain with correct domain",
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
-				certs := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+				fullChain := certs
 				roots := x509.NewCertPool()
-				roots.AddCert(certs[len(certs)-1]) // Add root CA to trusted roots
-				return certs, roots
+				roots.AddCert(fullChain[len(fullChain)-1]) // Add root CA to trusted roots
+				return fullChain, roots
 			},
 			hostname:  "ed25519-eblplatform.example.com",
 			wantError: false,
 		},
-
 		{
 			name: "nil chain",
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
@@ -180,10 +194,10 @@ func TestValidateCertificateChain(t *testing.T) {
 		{
 			name: "invalid chain (signature mismatch)",
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
-				certs := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform-invalid.example.com-fullchain.crt")
+				fullChain := invalidCerts
 				roots := x509.NewCertPool()
-				roots.AddCert(certs[len(certs)-1])
-				return certs, roots
+				roots.AddCert(fullChain[len(fullChain)-1])
+				return fullChain, roots
 			},
 			hostname:      "ed25519-eblplatform-invalid.example.com",
 			wantError:     true,
@@ -192,10 +206,10 @@ func TestValidateCertificateChain(t *testing.T) {
 		{
 			name: "wrong domain",
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
-				certs := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+				fullChain := certs
 				roots := x509.NewCertPool()
-				roots.AddCert(certs[len(certs)-1])
-				return certs, roots
+				roots.AddCert(fullChain[len(fullChain)-1])
+				return fullChain, roots
 			},
 			hostname:      "wrong.com",
 			wantError:     true,
@@ -204,10 +218,10 @@ func TestValidateCertificateChain(t *testing.T) {
 		{
 			name: "empty domain",
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
-				certs := loadCertChainFromPEM(t, "testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+				fullChain := certs
 				roots := x509.NewCertPool()
-				roots.AddCert(certs[len(certs)-1])
-				return certs, roots
+				roots.AddCert(fullChain[len(fullChain)-1])
+				return fullChain, roots
 			},
 			hostname:      "",
 			wantError:     true,
@@ -273,42 +287,6 @@ func TestValidateCertificateChain_ExpiredCert(t *testing.T) {
 	if !errors.As(err, &certErr) || certErr.Reason != x509.Expired {
 		t.Errorf("expected x509.Expired error, got: %v", err)
 	}
-}
-
-func loadCertChainFromPEM(t *testing.T, path string) []*x509.Certificate {
-	t.Helper()
-
-	pemData, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-
-	var certs []*x509.Certificate
-	rest := pemData
-
-	for len(rest) > 0 {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-
-		if block.Type != "CERTIFICATE" {
-			continue
-		}
-
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			t.Fatalf("failed to parse certificate in %s: %v", path, err)
-		}
-		certs = append(certs, cert)
-	}
-
-	if len(certs) == 0 {
-		t.Fatalf("no certificates found in %s", path)
-	}
-
-	return certs
 }
 
 // makeJWS creates a JWS token (uses a fake signature) - returns JWS string "header.payload.signature"

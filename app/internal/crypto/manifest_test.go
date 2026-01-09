@@ -2,6 +2,8 @@ package crypto
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"os"
 	"testing"
 )
 
@@ -122,6 +124,139 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 					len(*manifest.EBLVisualisationByCarrierChecksum))
 			}
 		})
+	}
+}
+
+// EnvelopeManifest tests TODO
+
+// sanity check to confirm we can correctly recreate the signtures in the manually computed
+// in HHL71800000-ed25519.json and HHL71800000-rsa.json
+func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
+
+	sampleRecordPath := "testdata/transport-documents/HHL71800000-ed25519.json"
+	privateKeyPath := "testdata/transport-documents/keys/ed25519-carrier.example.com.private.jwk"
+	keyID := "testkid"
+	certPath := "testdata/transport-documents/certs/ed25519-carrier.example.com-fullchain.crt"
+
+	data, err := os.ReadFile(sampleRecordPath)
+	if err != nil {
+		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
+	}
+
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
+	}
+
+	certChain, err := LoadCertChainFromPEM(certPath)
+	if err != nil {
+		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
+	}
+
+	var sampleIssuanceRequest struct {
+		Document                  json.RawMessage `json:"document"`
+		IssueTo                   json.RawMessage `json:"issueTo"`
+		EBLVisualisationByCarrier struct {
+			Name        string `json:"name"`
+			Content     string `json:"content"`
+			ContentType string `json:"contentType"`
+		} `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string `json:"issuanceManifestSignedContent"`
+	}
+	err = json.Unmarshal(data, &sampleIssuanceRequest)
+	if err != nil {
+		t.Fatalf("could not marshal bl json: %v", err)
+	}
+
+	// recreate issuance manifest
+	manifest := NewIssuanceManifestBuilder()
+	manifest.WithDocument(sampleIssuanceRequest.Document)
+	manifest.WithIssueTo(sampleIssuanceRequest.IssueTo)
+	// content is already base64 encoded
+	manifest.WithEBLVisualisation([]byte(sampleIssuanceRequest.EBLVisualisationByCarrier.Content))
+
+	issuanceManifest, err := manifest.Build()
+	if err != nil {
+		t.Fatalf("could not build issuance manifest: %v", err)
+	}
+	if issuanceManifest == nil {
+		t.Fatalf("issuanceManifest is nil")
+	}
+
+	// sign the manifest and check it matches sample record
+	signature, err := issuanceManifest.SignWithEd25519AndX5C(privateKey, keyID, certChain)
+	if err != nil {
+		t.Fatalf("could not sign issuance manifest: %v", err)
+	}
+
+	//t.Logf("signature: %v", signature)
+	if signature != sampleIssuanceRequest.IssuanceManifestSignedContent {
+		t.Errorf("signature does not match sample")
+	}
+}
+
+func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
+
+	sampleRecordPath := "testdata/transport-documents/HHL71800000-RSA.json"
+	privateKeyPath := "testdata/transport-documents/keys/RSA-carrier.example.com.private.jwk"
+	keyID := "testkid"
+	certPath := "testdata/transport-documents/certs/RSA-carrier.example.com-fullchain.crt"
+
+	data, err := os.ReadFile(sampleRecordPath)
+	if err != nil {
+		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
+	}
+
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
+	}
+
+	certChain, err := LoadCertChainFromPEM(certPath)
+	if err != nil {
+		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
+	}
+
+	var sampleIssuanceRequest struct {
+		Document                  json.RawMessage `json:"document"`
+		IssueTo                   json.RawMessage `json:"issueTo"`
+		EBLVisualisationByCarrier struct {
+			Name        string `json:"name"`
+			Content     string `json:"content"`
+			ContentType string `json:"contentType"`
+		} `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string `json:"issuanceManifestSignedContent"`
+	}
+	err = json.Unmarshal(data, &sampleIssuanceRequest)
+	if err != nil {
+		t.Fatalf("could not marshal bl json: %v", err)
+	}
+
+	// recreate issuance manifest
+	manifest := NewIssuanceManifestBuilder()
+	manifest.WithDocument(sampleIssuanceRequest.Document)
+	manifest.WithIssueTo(sampleIssuanceRequest.IssueTo)
+	// content is already base64 encoded
+
+	manifest.WithEBLVisualisation([]byte(sampleIssuanceRequest.EBLVisualisationByCarrier.Content))
+
+	issuanceManifest, err := manifest.Build()
+	if err != nil {
+		t.Fatalf("could not build issuance manifest: %v", err)
+	}
+	if issuanceManifest == nil {
+		t.Fatalf("issuanceManifest is nil")
+	}
+
+	// sign the manifest and check it matches sample record
+	signature, err := issuanceManifest.SignWithRSAAndX5C(privateKey, keyID, certChain)
+	if err != nil {
+		t.Fatalf("could not sign issuance manifest: %v", err)
+	}
+
+	//t.Logf("signature: %v", signature)
+	if signature != sampleIssuanceRequest.IssuanceManifestSignedContent {
+		t.Errorf("signature does not match sample")
 	}
 }
 

@@ -134,22 +134,16 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 	return manifest, nil
 }
 
-// SignWithRSA creates the issuanceManifestSignedContent JWS string using RSA
+// SignWithEd25519AndX5C creates the issuanceManifestSignedContent JWS string using Ed25519
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
 	}
-
-	canonical, err := CanonicalizeJSON(jsonBytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
-	}
-
-	jws, err := SignRSAWithX5C(canonical, privateKey, keyID, certChain)
+	jws, err := SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
@@ -157,22 +151,50 @@ func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string,
 	return jws, nil
 }
 
-// SignWithEd25519 creates the issuanceManifestSignedContent JWS string using Ed25519
+// SignWithEd25519 creates the issuanceManifestSignedContent JWS string using Ed25519 (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
-
+func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (string, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
 	}
 
-	canonical, err := CanonicalizeJSON(jsonBytes)
+	jws, err := SignJSONWithEd25519(jsonBytes, privateKey, keyID)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
+		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	jws, err := SignEd25519WithX5C(canonical, privateKey, keyID, certChain)
+	return jws, nil
+}
+
+// SignWithRSAAndX5C creates the issuanceManifestSignedContent JWS string using RSA
+//
+// Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
+func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+
+	jsonBytes, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
+	}
+	jws, err := SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign manifest: %w", err)
+	}
+
+	return jws, nil
+}
+
+// SignWithRSA creates the issuanceManifestSignedContent JWS string using RSA (no x5c header)
+//
+// Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
+func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (string, error) {
+	jsonBytes, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
+	}
+
+	jws, err := SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
@@ -270,21 +292,17 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 	return manifest, nil
 }
 
-// SignWithRSA creates the envelopeManifestSignedContent JWS string using RSA
+// SignWithEd25519AndX5C creates the envelopeManifestSignedContent JWS string using Ed25519
 // This performs DCSA step iv: sign the canonical EnvelopeManifest
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *EnvelopeManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
 	}
 
-	canonical, err := CanonicalizeJSON(jsonBytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
-	}
-	jws, err := SignRSAWithX5C(canonical, privateKey, keyID, certChain)
+	jws, err := SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
@@ -292,21 +310,50 @@ func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string,
 	return jws, nil
 }
 
-// SignWithEd25519 creates the envelopeManifestSignedContent JWS string using Ed25519
-// This performs DCSA step iv: sign the canonical EnvelopeManifest
+// SignWithEd25519 creates the envelopeManifestSignedContent JWS string using Ed25519 (no x5c header
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (string, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
 	}
 
-	canonical, err := CanonicalizeJSON(jsonBytes)
+	jws, err := SignJSONWithEd25519(jsonBytes, privateKey, keyID)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign manifest: %w", err)
+	}
+
+	return jws, nil
+}
+
+// SignWithRSAAndX5C creates the envelopeManifestSignedContent JWS string using RSA
+//
+// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
+func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
 	}
-	jws, err := SignEd25519WithX5C(canonical, privateKey, keyID, certChain)
+
+	jws, err := SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign manifest: %w", err)
+	}
+
+	return jws, nil
+}
+
+// SignWithRSA creates the envelopeManifestSignedContent JWS string using RSA (no x5c header)
+//
+// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
+func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (string, error) {
+	jsonBytes, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("failed to canonicalize manifest: %w", err)
+	}
+
+	jws, err := SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}

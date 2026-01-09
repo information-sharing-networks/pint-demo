@@ -5,7 +5,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -157,4 +159,58 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 	}
 
 	return nil
+}
+
+// ParseCertificateChain parses one or more X.509 certificates from PEM-encoded data.
+// The certificates are returned in the order they appear in the PEM data.
+//
+// This function is useful for loading certificate chains from files where multiple
+// certificates are concatenated in PEM format (common for certificate bundles).
+//
+// Parameters:
+// - pemData: PEM-encoded certificate data (can contain multiple certificates)
+//
+// Returns:
+// - []*x509.Certificate: Slice of parsed certificates in order
+// - error: If no certificates are found or parsing fails
+func ParseCertificateChain(pemData []byte) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	var block *pem.Block
+	remaining := pemData
+
+	for {
+		block, remaining = pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+
+		// Skip non-certificate blocks
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		}
+
+		certs = append(certs, cert)
+	}
+
+	if len(certs) == 0 {
+		return nil, fmt.Errorf("no certificates found in PEM data")
+	}
+
+	return certs, nil
+}
+
+// LoadCertChainFromPEM loads a certificate chain from a PEM file and returns a slice of x509.Certificates.
+// The certificates are returned in the order they appear in the PEM file.
+func LoadCertChainFromPEM(path string) ([]*x509.Certificate, error) {
+	pemData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	return ParseCertificateChain(pemData)
 }
