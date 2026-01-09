@@ -129,8 +129,8 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 
 // EnvelopeManifest tests TODO
 
-// sanity check to confirm we can correctly recreate the signtures in the manually computed
-// in HHL71800000-ed25519.json and HHL71800000-rsa.json
+// sanity check to confirm we can correctly recreate the manually computed signtures in
+// HHL71800000-ed25519.json and HHL71800000-rsa.json
 func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
 	sampleRecordPath := "testdata/transport-documents/HHL71800000-ed25519.json"
