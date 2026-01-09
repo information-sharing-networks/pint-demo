@@ -5,8 +5,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/pem"
-	"os"
 	"strings"
 	"testing"
 )
@@ -235,38 +233,14 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 
 }
 
-// loadRSAPrivateKey loads an RSA private key from PEM file
-func loadRSAPrivateKey(t *testing.T, path string) *rsa.PrivateKey {
-	t.Helper()
-
-	pemData, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-
-	block, _ := pem.Decode(pemData)
-	if block == nil {
-		t.Fatalf("failed to decode PEM block from %s", path)
-	}
-
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		t.Fatalf("failed to parse private key from %s: %v", path, err)
-	}
-
-	rsaKey, ok := key.(*rsa.PrivateKey)
-	if !ok {
-		t.Fatalf("key is not RSA private key")
-	}
-
-	return rsaKey
-}
-
 // TestSignRSAWithX5C tests RSA signing with x5c certificate chain
 func TestSignRSAWithX5C(t *testing.T) {
 	// Use existing RSA test data
-	privateKey := loadRSAPrivateKey(t, "testdata/keys/rsa-eblplatform.example.com.private.pem")
-	certChain, err := LoadCertChainFromPEM("testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	privateKey, err := ReadRSAPrivateKeyFromPEMFile("testdata/keys/rsa-eblplatform.example.com.private.pem")
+	if err != nil {
+		t.Fatalf("failed to load test private key: %v", err)
+	}
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -348,7 +322,7 @@ func TestSignEd25519WithX5C(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load test private key: %v", err)
 	}
-	certChain, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}

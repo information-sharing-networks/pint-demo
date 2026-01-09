@@ -204,9 +204,9 @@ func ParseCertificateChain(pemData []byte) ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
-// LoadCertChainFromPEM loads a certificate chain from a PEM file and returns a slice of x509.Certificates.
+// ReadCertChainFromPEMFile loads a certificate chain from a PEM file and returns a slice of x509.Certificates.
 // The certificates are returned in the order they appear in the PEM file.
-func LoadCertChainFromPEM(path string) ([]*x509.Certificate, error) {
+func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 	pemData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read %s: %w", path, err)

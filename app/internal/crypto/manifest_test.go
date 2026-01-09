@@ -148,7 +148,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
 	}
 
-	certChain, err := LoadCertChainFromPEM(certPath)
+	certChain, err := ReadCertChainFromPEMFile(certPath)
 	if err != nil {
 		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
 	}
@@ -212,7 +212,7 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
 	}
 
-	certChain, err := LoadCertChainFromPEM(certPath)
+	certChain, err := ReadCertChainFromPEMFile(certPath)
 	if err != nil {
 		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
 	}

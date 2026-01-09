@@ -14,7 +14,7 @@ import (
 
 func TestParseX5CFromJWS(t *testing.T) {
 
-	certs, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certs, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -146,12 +146,12 @@ func TestParseX5CFromJWS(t *testing.T) {
 // TestValidateCertificateChain tests certificate chain validation
 func TestValidateCertificateChain(t *testing.T) {
 
-	certs, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certs, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
 
-	invalidCerts, err := LoadCertChainFromPEM("testdata/certs/ed25519-eblplatform-invalid.example.com-fullchain.crt")
+	invalidCerts, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform-invalid.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
