@@ -28,7 +28,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 )
@@ -52,7 +51,7 @@ type IssuanceManifest struct {
 type IssuanceManifestBuilder struct {
 	documentJSON                     []byte
 	issueToJSON                      []byte
-	eblVisualisationByCarrierContent []byte // Base64
+	eblVisualisationByCarrierContent string // Base64-encoded string from JSON
 }
 
 // NewIssuanceManifestBuilder creates a new builder for IssuanceManifest
@@ -76,10 +75,10 @@ func (b *IssuanceManifestBuilder) WithIssueTo(issueToJSON []byte) *IssuanceManif
 
 // WithEBLVisualisation sets the eBL visualisation content.
 //
-// Expects the base64-encoded value from eblVisualisationByCarrier.content field.
+// Expects the base64-encoded string from eblVisualisationByCarrier.content field in the JSON.
 // The content will be decoded before calculating the checksum - Build() will return an error if the content is not valid base64.
-func (b *IssuanceManifestBuilder) WithEBLVisualisation(content []byte) *IssuanceManifestBuilder {
-	b.eblVisualisationByCarrierContent = content
+func (b *IssuanceManifestBuilder) WithEBLVisualisation(base64Content string) *IssuanceManifestBuilder {
+	b.eblVisualisationByCarrierContent = base64Content
 	return b
 }
 
@@ -110,8 +109,14 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 	}
 
 	// Step ii: Calculate SHA-256 checksums
-	documentChecksum := CalculateSHA256Hex(canonicalDocument)
-	issueToChecksum := CalculateSHA256Hex(canonicalIssueTo)
+	documentChecksum, err := Hash(canonicalDocument)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash document: %w", err)
+	}
+	issueToChecksum, err := Hash(canonicalIssueTo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash issueTo: %w", err)
+	}
 
 	// Step iii: Create IssuanceManifest
 	manifest := &IssuanceManifest{
@@ -122,12 +127,13 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 	// BL visualisation checksum (if provided) - content is base64 encoded
 	if len(b.eblVisualisationByCarrierContent) > 0 {
 
-		// Per DCSA: "Decode from BASE64 to binary" before calculating checksum
-		decodedContent, err := base64.StdEncoding.DecodeString(string(b.eblVisualisationByCarrierContent))
+		visualisationChecksum, err := HashFromBase64(
+			b.eblVisualisationByCarrierContent,
+			MaxDocumentSize,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode eBL visualisation content: %w", err)
+			return nil, fmt.Errorf("failed to hash eBL visualisation: %w", err)
 		}
-		visualisationChecksum := CalculateSHA256Hex(decodedContent)
 		manifest.EBLVisualisationByCarrierChecksum = &visualisationChecksum
 	}
 
@@ -218,7 +224,7 @@ type EnvelopeManifest struct {
 type EnvelopeManifestBuilder struct {
 	transportDocumentJSON            []byte
 	lastTransferChainJWS             string // JWS compact serialization
-	eblVisualisationByCarrierContent []byte
+	eblVisualisationByCarrierContent string // Base64-encoded string from JSON
 }
 
 // NewEnvelopeManifestBuilder creates a new builder for EnvelopeManifest
@@ -239,9 +245,12 @@ func (b *EnvelopeManifestBuilder) WithLastTransferChainEntry(jwsString string) *
 	return b
 }
 
-// WithEBLVisualisation sets the eBL visualisation content (already decoded from Base64)
-func (b *EnvelopeManifestBuilder) WithEBLVisualisation(content []byte) *EnvelopeManifestBuilder {
-	b.eblVisualisationByCarrierContent = content
+// WithEBLVisualisation sets the eBL visualisation content.
+//
+// Expects the base64-encoded string from eblVisualisationByCarrier.content field in the JSON.
+// The content will be decoded before calculating the checksum - Build() will return an error if the content is not valid base64.
+func (b *EnvelopeManifestBuilder) WithEBLVisualisation(base64Content string) *EnvelopeManifestBuilder {
+	b.eblVisualisationByCarrierContent = base64Content
 	return b
 }
 
@@ -271,11 +280,17 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 	}
 
 	// Calculate checksums
-	transportDocumentChecksum := CalculateSHA256Hex(canonicalDocument)
+	transportDocumentChecksum, err := Hash(canonicalDocument)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash transport document: %w", err)
+	}
 
 	// Per DCSA: "The checksum is computed over the entire EnvelopeTransferChainEntrySignedContent entry"
 	// The JWS string itself is the signed content, so we hash the entire JWS string
-	lastTransferChainChecksum := CalculateSHA256Hex([]byte(b.lastTransferChainJWS))
+	lastTransferChainChecksum, err := Hash([]byte(b.lastTransferChainJWS))
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash last transfer chain entry: %w", err)
+	}
 
 	// Create EnvelopeManifest
 	manifest := &EnvelopeManifest{
@@ -285,7 +300,16 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 
 	// Optional: eBL visualisation checksum
 	if len(b.eblVisualisationByCarrierContent) > 0 {
-		visualisationChecksum := CalculateSHA256Hex(b.eblVisualisationByCarrierContent)
+		// Per DCSA: Decode from BASE64 to binary before calculating checksum
+		// Use streaming decode to avoid loading large PDFs into memory
+		// MaxDocumentSize limit is enforced on the base64 string length
+		visualisationChecksum, err := HashFromBase64(
+			b.eblVisualisationByCarrierContent,
+			MaxDocumentSize,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash eBL visualisation: %w", err)
+		}
 		manifest.EBLVisualisationByCarrierChecksum = &visualisationChecksum
 	}
 

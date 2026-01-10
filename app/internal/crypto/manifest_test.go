@@ -7,14 +7,12 @@ import (
 	"testing"
 )
 
-// TODO - tests for envelopeTransferChain and envelopeManifestSignedContent
-// todo use the real test data from testdata/transport-documents/HHL71800000.json as a sanity check after the unit tests
 // Test data for issuance manifest tests
 var (
 	testDocument                         = []byte(`{"transportDocumentReference":"MAEU123456"}`)
 	testIssueTo                          = []byte(`{"partyName":"Test Company"}`)
 	testEblVisualisationByCarrier        = []byte(`mock pdf binary content here`)
-	testEblVisualisationByCarrierContent = []byte(base64.StdEncoding.EncodeToString(testEblVisualisationByCarrier))
+	testEblVisualisationByCarrierContent = base64.StdEncoding.EncodeToString(testEblVisualisationByCarrier)
 )
 
 func TestIssuanceManifestBuilderNew(t *testing.T) {
@@ -22,7 +20,7 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 		name          string
 		document      []byte
 		issueTo       []byte
-		visualization []byte
+		visualization string
 		wantErr       bool
 	}{
 		{
@@ -66,14 +64,14 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			name:          "valid base64 encoded visualization",
 			document:      testDocument,
 			issueTo:       testIssueTo,
-			visualization: []byte(base64.StdEncoding.EncodeToString([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34})),
+			visualization: base64.StdEncoding.EncodeToString([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}),
 			wantErr:       false,
 		},
 		{
 			name:          "invalid - raw binary visualization (not base64)",
 			document:      testDocument,
 			issueTo:       testIssueTo,
-			visualization: []byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}, // Raw PDF binary content
+			visualization: string([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}), // Raw binary as string (not base64)
 			wantErr:       true,
 		},
 	}
@@ -86,7 +84,7 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			if tt.issueTo != nil {
 				builder.WithIssueTo(tt.issueTo)
 			}
-			if tt.visualization != nil {
+			if tt.visualization != "" {
 				builder.WithEBLVisualisation(tt.visualization)
 			}
 			manifest, err := builder.Build()
@@ -97,7 +95,6 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			if tt.wantErr {
 				return
 			}
-
 			// Ensure manifest is not nil before accessing fields
 			if manifest == nil {
 				t.Fatal("Build() returned nil manifest without error")
@@ -116,18 +113,16 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			if len(manifest.IssueToChecksum) != 64 {
 				t.Errorf("IssueToChecksum length = %d, want 64", len(manifest.IssueToChecksum))
 			}
-			if tt.visualization != nil && (manifest.EBLVisualisationByCarrierChecksum == nil || *manifest.EBLVisualisationByCarrierChecksum == "") {
-				t.Error("EBLVisualisationByCarrierChecksum should set")
+			if tt.visualization != "" && (manifest.EBLVisualisationByCarrierChecksum == nil || *manifest.EBLVisualisationByCarrierChecksum == "") {
+				t.Error("EBLVisualisationByCarrierChecksum should be set")
 			}
-			if tt.visualization != nil && len(*manifest.EBLVisualisationByCarrierChecksum) != 64 {
+			if tt.visualization != "" && len(*manifest.EBLVisualisationByCarrierChecksum) != 64 {
 				t.Errorf("EBLVisualisationByCarrierChecksum length = %d, want 64",
 					len(*manifest.EBLVisualisationByCarrierChecksum))
 			}
 		})
 	}
 }
-
-// EnvelopeManifest tests TODO
 
 // sanity check to confirm we can correctly recreate the manually computed signtures in
 // HHL71800000-ed25519.json and HHL71800000-rsa.json
@@ -173,7 +168,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	manifest.WithDocument(sampleIssuanceRequest.Document)
 	manifest.WithIssueTo(sampleIssuanceRequest.IssueTo)
 	// content is already base64 encoded
-	manifest.WithEBLVisualisation([]byte(sampleIssuanceRequest.EBLVisualisationByCarrier.Content))
+	manifest.WithEBLVisualisation(sampleIssuanceRequest.EBLVisualisationByCarrier.Content)
 
 	issuanceManifest, err := manifest.Build()
 	if err != nil {
@@ -236,9 +231,7 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	manifest := NewIssuanceManifestBuilder()
 	manifest.WithDocument(sampleIssuanceRequest.Document)
 	manifest.WithIssueTo(sampleIssuanceRequest.IssueTo)
-	// content is already base64 encoded
-
-	manifest.WithEBLVisualisation([]byte(sampleIssuanceRequest.EBLVisualisationByCarrier.Content))
+	manifest.WithEBLVisualisation(sampleIssuanceRequest.EBLVisualisationByCarrier.Content) // content is already base64 encoded
 
 	issuanceManifest, err := manifest.Build()
 	if err != nil {

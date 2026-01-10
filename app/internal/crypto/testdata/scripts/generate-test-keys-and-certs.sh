@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# make the certs needed to test pint-demo
-# the script uses the keygen CLI to generate the key pairs in JWK files and PEM files
-# the PEMs are used to create CSRs which are then signed by the test CAs to create the certificates used in testing
+# makes the certs needed to test pint-demo
+#
+# the script uses the keygen.go CLI to generate the key pairs in JWK files and PEM files
+# the PEMs are used by openssl to create CSRs which are then signed by the test CAs to create the certificates used in testing
 # 
-# four valid leaf certs are created:
+# Four valid leaf certs are created for testing purposes:
 # 1. ed25519 signed cert (ed25519-eblplatform.example.com)
 # 2. rsa signed cert (rsa-eblplatform.example.com)
 # 3. ecdsa signed cert (ed25519-carrier.example.com)
@@ -12,6 +13,10 @@
 #
 # the invalid/expired certs are created by reusing the keys from the valid ed25519-eblplatform.example.com cert
 
+# 
+# NOTE Mac users - this script requires openssl 3.6+ for cert generation
+# as of Jan 2026 openssl on Mac does not support ed25519 - install the latest version with; brew install openssl
+#
 
 set -e
 
