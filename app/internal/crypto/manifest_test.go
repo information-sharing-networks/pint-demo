@@ -192,10 +192,10 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
 func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 
-	sampleRecordPath := "testdata/transport-documents/HHL71800000-RSA.json"
-	privateKeyPath := "testdata/transport-documents/keys/RSA-carrier.example.com.private.jwk"
+	sampleRecordPath := "testdata/transport-documents/HHL71800000-rsa.json"
+	privateKeyPath := "testdata/transport-documents/keys/rsa-carrier.example.com.private.jwk"
 	keyID := "testkid"
-	certPath := "testdata/transport-documents/certs/RSA-carrier.example.com-fullchain.crt"
+	certPath := "testdata/transport-documents/certs/rsa-carrier.example.com-fullchain.crt"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
