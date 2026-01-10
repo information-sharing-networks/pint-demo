@@ -45,6 +45,11 @@ func Hash(data []byte) (string, error) {
 // use this function when you have base64-encoded binary content (e.g. PDF visualizations)
 //
 // Per DCSA spec: The checksum is calculated over the decoded binary content, not the base64 string.
+//
+// TODO: this function requires the entire base64-encoded string in memory
+// (unavoidable for eblVisualisationByCarrier.Content since JSON unmarshaling already loaded it)
+// The streaming decode avoids creating a second copy of the decoded bytes.
+// Revisit when handling associated docs - those could potentially be streamed from client...
 func HashFromBase64(encoded string, maxSize int64) (string, error) {
 
 	if len(encoded) == 0 {
@@ -56,7 +61,7 @@ func HashFromBase64(encoded string, maxSize int64) (string, error) {
 			len(encoded), maxSize)
 	}
 
-	// decode before hashing - stream decode to avoid loading large PDFs into memory
+	// decode before hashing - stream decode to reduce memory overhead
 	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(encoded))
 	hasher := sha256.New()
 
