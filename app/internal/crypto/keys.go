@@ -47,7 +47,9 @@ func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, baseDi
 	}
 
 	jwkSet := jwk.NewSet()
-	jwkSet.AddKey(jwkKey)
+	if err := jwkSet.AddKey(jwkKey); err != nil {
+		return fmt.Errorf("failed to add key to JWK set: %w", err)
+	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
@@ -79,7 +81,9 @@ func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, baseDir, 
 	}
 
 	jwkSet := jwk.NewSet()
-	jwkSet.AddKey(jwkKey)
+	if err := jwkSet.AddKey(jwkKey); err != nil {
+		return fmt.Errorf("failed to add key to JWK set: %w", err)
+	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
@@ -369,7 +373,9 @@ func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, baseDir, file
 	}
 
 	jwkSet := jwk.NewSet()
-	jwkSet.AddKey(jwkKey)
+	if err := jwkSet.AddKey(jwkKey); err != nil {
+		return fmt.Errorf("failed to add key to JWK set: %w", err)
+	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
@@ -401,7 +407,9 @@ func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, baseDir, filenam
 	}
 
 	jwkSet := jwk.NewSet()
-	jwkSet.AddKey(jwkKey)
+	if err := jwkSet.AddKey(jwkKey); err != nil {
+		return fmt.Errorf("failed to add key to JWK set: %w", err)
+	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {

@@ -77,9 +77,15 @@ Outputs:
 	rootCmd.Flags().IntVarP(&rsaSize, "size", "s", 4096, "RSA key size in bits: 2048 or 4096 (default: 4096)")
 
 	// Required flags
-	rootCmd.MarkFlagRequired("outputdir")
-	rootCmd.MarkFlagRequired("type")
-	rootCmd.MarkFlagRequired("hostname")
+	if err := rootCmd.MarkFlagRequired("outputdir"); err != nil {
+		panic(err)
+	}
+	if err := rootCmd.MarkFlagRequired("type"); err != nil {
+		panic(err)
+	}
+	if err := rootCmd.MarkFlagRequired("hostname"); err != nil {
+		panic(err)
+	}
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

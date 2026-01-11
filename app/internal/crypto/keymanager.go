@@ -478,9 +478,9 @@ func (km *KeyManager) loadManualKeys() error {
 				slog.String("error", err.Error()))
 			continue
 		}
+		defer root.Close()
 
 		data, err := root.ReadFile(filename)
-		root.Close()
 		if err != nil {
 			km.logger.Warn("failed to read manual key file",
 				slog.String("file", filename),
