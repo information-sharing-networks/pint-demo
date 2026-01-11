@@ -23,8 +23,10 @@ help: ## Show this help message
 	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
 	@echo "  make test            - Run tests"
 	@echo "  make fmt             - Format code"
+	@echo "  make lint            - Run staticcheck"
+	@echo "  make security        - Run gosec security analysis"
 	@echo "  make vet             - Run go vet"
-	@echo "  make check           - Run all checks (fmt, vet, test)"
+	@echo "  make check           - Run all pre-commit checks (recommended before committing)"
 	@echo "  make clean           - Clean build artifacts"
 
 # Docker management
@@ -79,13 +81,23 @@ vet:
 	@echo "🔍 Running go vet..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go vet ./..."
 
+# Run staticcheck linter
+lint:
+	@echo "🔄 Running staticcheck..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && staticcheck ./..."
+
+# Run security analysis
+security:
+	@echo "🔄 Running security analysis..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && gosec -exclude-generated ./..."
+
 # Run tests
 test:
 	@echo "🧪 Running tests..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go test -v ./..."
 
 # Run all checks
-check: fmt vet test
+check: fmt vet test lint security
 	@echo ""
 	@echo "✅ All checks passed! Ready to commit."
 
