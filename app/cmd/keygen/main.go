@@ -128,32 +128,36 @@ func generateRSAKeys() error {
 	}
 
 	// Save public JWK
-	publicPath := filepath.Join(outputDir, fmt.Sprintf(publicKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveRSAPublicKeyToJWKFile(&privateKey.PublicKey, keyID, publicPath); err != nil {
+	publicFilename := fmt.Sprintf(publicKeyFileNameFormat, hostname)
+	publicPath := filepath.Join(outputDir, publicFilename)
+	if err := pintcrypto.SaveRSAPublicKeyToJWKFile(&privateKey.PublicKey, keyID, outputDir, publicFilename); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)
 	}
 	fmt.Printf("✓ Public JWK:  %s (kid: %s)\n", publicPath, keyID)
 
 	// Save private JWK
-	privatePath := filepath.Join(outputDir, fmt.Sprintf(privateKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveRSAPrivateKeyToJWKFile(privateKey, keyID, privatePath); err != nil {
+	privateFilename := fmt.Sprintf(privateKeyFileNameFormat, hostname)
+	privatePath := filepath.Join(outputDir, privateFilename)
+	if err := pintcrypto.SaveRSAPrivateKeyToJWKFile(privateKey, keyID, outputDir, privateFilename); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 	fmt.Printf("✓ Private JWK: %s (kid: %s)\n", privatePath, keyID)
 
 	// Save private key in PEM format (for CSR generation)
-	pemPath := filepath.Join(outputDir, fmt.Sprintf(privatePemKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveRSAPrivateKeyToPEMFile(privateKey, pemPath); err != nil {
+	privatePemFilename := fmt.Sprintf(privatePemKeyFileNameFormat, hostname)
+	privatePemPath := filepath.Join(outputDir, privatePemFilename)
+	if err := pintcrypto.SaveRSAPrivateKeyToPEMFile(privateKey, outputDir, privatePemFilename); err != nil {
 		return fmt.Errorf("failed to save PEM key: %w", err)
 	}
-	fmt.Printf("✓ Private PEM: %s (for CSR/certificate generation)\n", pemPath)
+	fmt.Printf("✓ Private PEM: %s (for CSR/certificate generation)\n", privatePemPath)
 
 	// Save public key in PEM format (for testing)
-	pemPath = filepath.Join(outputDir, fmt.Sprintf(publicPemKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveRSAPublicKeyToPEMFile(&privateKey.PublicKey, pemPath); err != nil {
+	publicPemFilename := fmt.Sprintf(publicPemKeyFileNameFormat, hostname)
+	publicPemPath := filepath.Join(outputDir, publicPemFilename)
+	if err := pintcrypto.SaveRSAPublicKeyToPEMFile(&privateKey.PublicKey, outputDir, publicPemFilename); err != nil {
 		return fmt.Errorf("failed to save PEM key: %w", err)
 	}
-	fmt.Printf("✓ Public PEM:  %s (for testing)\n", pemPath)
+	fmt.Printf("✓ Public PEM:  %s (for testing)\n", publicPemPath)
 
 	return nil
 }
@@ -179,32 +183,36 @@ func generateEd25519Keys() error {
 	}
 
 	// Save public JWK
-	publicPath := filepath.Join(outputDir, fmt.Sprintf(publicKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveEd25519PublicKeyToJWKFile(publicKey, keyID, publicPath); err != nil {
+	publicFilename := fmt.Sprintf(publicKeyFileNameFormat, hostname)
+	publicPath := filepath.Join(outputDir, publicFilename)
+	if err := pintcrypto.SaveEd25519PublicKeyToJWKFile(publicKey, keyID, outputDir, publicFilename); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)
 	}
 	fmt.Printf("✓ Public JWK:  %s (kid: %s)\n", publicPath, keyID)
 
 	// Save private JWK
-	privatePath := filepath.Join(outputDir, fmt.Sprintf(privateKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, privatePath); err != nil {
+	privateFilename := fmt.Sprintf(privateKeyFileNameFormat, hostname)
+	privatePath := filepath.Join(outputDir, privateFilename)
+	if err := pintcrypto.SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, outputDir, privateFilename); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 	fmt.Printf("✓ Private JWK: %s (kid: %s)\n", privatePath, keyID)
 
 	// Save private key in PEM format (for CSR generation)
-	pemPath := filepath.Join(outputDir, fmt.Sprintf(privatePemKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveEd25519PrivateKeyToPEMFile(privateKey, pemPath); err != nil {
+	privatePemFilename := fmt.Sprintf(privatePemKeyFileNameFormat, hostname)
+	privatePemPath := filepath.Join(outputDir, privatePemFilename)
+	if err := pintcrypto.SaveEd25519PrivateKeyToPEMFile(privateKey, outputDir, privatePemFilename); err != nil {
 		return fmt.Errorf("failed to save PEM key: %w", err)
 	}
-	fmt.Printf("✓ Private PEM: %s (for CSR/certificate generation)\n", pemPath)
+	fmt.Printf("✓ Private PEM: %s (for CSR/certificate generation)\n", privatePemPath)
 
 	// Save public key in PEM format (for testing)
-	pemPath = filepath.Join(outputDir, fmt.Sprintf(publicPemKeyFileNameFormat, hostname))
-	if err := pintcrypto.SaveEd25519PublicKeyToPEMFile(publicKey, pemPath); err != nil {
+	publicPemFilename := fmt.Sprintf(publicPemKeyFileNameFormat, hostname)
+	publicPemPath := filepath.Join(outputDir, publicPemFilename)
+	if err := pintcrypto.SaveEd25519PublicKeyToPEMFile(publicKey, outputDir, publicPemFilename); err != nil {
 		return fmt.Errorf("failed to save PEM key: %w", err)
 	}
-	fmt.Printf("✓ Public PEM:  %s (for testing)\n", pemPath)
+	fmt.Printf("✓ Public PEM:  %s (for testing)\n", publicPemPath)
 
 	return nil
 }

@@ -138,12 +138,12 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
 	}
 
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile(privateKeyPath)
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/transport-documents/keys", "ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile(certPath)
+	certChain, err := ReadCertChainFromPEMFile("testdata/transport-documents/certs", "ed25519-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
 	}
@@ -202,12 +202,12 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
 	}
 
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile(privateKeyPath)
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/transport-documents/keys", "rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile(certPath)
+	certChain, err := ReadCertChainFromPEMFile("testdata/transport-documents/certs", "rsa-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
 	}

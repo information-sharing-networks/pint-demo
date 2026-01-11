@@ -206,10 +206,20 @@ func ParseCertificateChain(pemData []byte) ([]*x509.Certificate, error) {
 
 // ReadCertChainFromPEMFile loads a certificate chain from a PEM file and returns a slice of x509.Certificates.
 // The certificates are returned in the order they appear in the PEM file.
-func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
-	pemData, err := os.ReadFile(path)
+//
+// Parameters:
+//   - baseDir: The base directory to scope file access (e.g., "./certs" or "testdata/certs")
+//   - filename: The filename within the base directory (e.g., "cert.pem")
+func ReadCertChainFromPEMFile(baseDir, filename string) ([]*x509.Certificate, error) {
+	root, err := os.OpenRoot(baseDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+	}
+	defer root.Close()
+
+	pemData, err := root.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", filename, err)
 	}
 
 	return ParseCertificateChain(pemData)

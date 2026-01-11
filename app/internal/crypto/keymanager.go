@@ -79,7 +79,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -471,9 +470,17 @@ func (km *KeyManager) loadManualKeys() error {
 			continue
 		}
 
-		// Read and parse JWK file
-		filePath := filepath.Join(km.config.ManualKeysDir, filename)
-		data, err := os.ReadFile(filePath)
+		// Read and parse JWK file using os.Root for directory traversal protection
+		root, err := os.OpenRoot(km.config.ManualKeysDir)
+		if err != nil {
+			km.logger.Warn("failed to open manual keys directory",
+				slog.String("dir", km.config.ManualKeysDir),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		data, err := root.ReadFile(filename)
+		root.Close()
 		if err != nil {
 			km.logger.Warn("failed to read manual key file",
 				slog.String("file", filename),

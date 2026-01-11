@@ -236,11 +236,11 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 // TestSignRSAWithX5C tests RSA signing with x5c certificate chain
 func TestSignRSAWithX5C(t *testing.T) {
 	// Use existing RSA test data
-	privateKey, err := ReadRSAPrivateKeyFromPEMFile("testdata/keys/rsa-eblplatform.example.com.private.pem")
+	privateKey, err := ReadRSAPrivateKeyFromPEMFile("testdata/keys", "rsa-eblplatform.example.com.private.pem")
 	if err != nil {
 		t.Fatalf("failed to load test private key: %v", err)
 	}
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "rsa-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -318,11 +318,11 @@ func TestSignRSAWithX5C(t *testing.T) {
 // TestSignEd25519WithX5C tests Ed25519 signing with x5c certificate chain
 func TestSignEd25519WithX5C(t *testing.T) {
 	// Use existing test data
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys", "ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load test private key: %v", err)
 	}
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
