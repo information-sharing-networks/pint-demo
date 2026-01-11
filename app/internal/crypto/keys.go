@@ -159,6 +159,7 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, baseDir, filenam
 	}
 	defer root.Close()
 
+	// #nosec G302 -- Public key file, doesn't contain sensitive data
 	file, err := root.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -479,6 +480,7 @@ func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, baseDir, filename strin
 	}
 	defer root.Close()
 
+	// #nosec G302 -- Public key file, doesn't contain sensitive data
 	file, err := root.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
