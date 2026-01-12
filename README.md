@@ -33,6 +33,19 @@ pint-demo/
 ├── Makefile
 ```
 
+# the crypto package supports:
+- Signature creation and verification per DCSA Digital Signatures Implementation Guide
+- Option to use Ed25519 or RSA algorithms
+- Option to include x5c certificate chain in JWS for non-repudiation 
+- Trust levels - EV/OV, DV, NoX5C
+- manual and dymanic key distribution
+- JWK cache with auto-refresh
+- PINT transfers and carrier eBL issuance 
+
+
+# TODO 
+end2end demo : carrier issuance > PINT TRANSFER > Surrender 
+
 ## Getting Started
 
 ### Prerequisites
@@ -75,8 +88,6 @@ All development tools are available via Docker (no local installation needed):
 ```bash
 make sqlc      # Generate SQLC code
 make migrate   # Run database migrations
-make fmt       # Format code
-make vet       # Run go vet
 make test      # Run tests
-make check     # Run all checks (fmt, vet, test)
+make check     # Run all checks (fmt, vet, test , lint , security)
 ```

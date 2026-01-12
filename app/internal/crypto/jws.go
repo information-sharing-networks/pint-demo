@@ -99,7 +99,7 @@ func CertChainToX5C(certChain []*x509.Certificate) []string {
 // Parameters:
 // - Payload: json payload (will be canonicalized by the function below)
 // - privateKey: Ed25519 private key for signing
-// - keyID: Key identifier (kid) for the JWS header
+// - keyID: Key identifier (kid) for the JWS header (DCSA recommends using the JWK thumbprint)
 // - certChain: X.509 certificate chain (first cert must match the private key)
 func SignJSONWithEd25519AndX5C(payload []byte, privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 	if keyID == "" {

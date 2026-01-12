@@ -9,70 +9,102 @@ import (
 
 // Test data for issuance manifest tests
 var (
-	testDocument                         = []byte(`{"transportDocumentReference":"MAEU123456"}`)
-	testIssueTo                          = []byte(`{"partyName":"Test Company"}`)
-	testEblVisualisationByCarrier        = []byte(`mock pdf binary content here`)
-	testEblVisualisationByCarrierContent = base64.StdEncoding.EncodeToString(testEblVisualisationByCarrier)
+	validDocument      = []byte(`{"transportDocumentReference":"MAEU123456"}`)
+	validIssueTo       = []byte(`{"partyName":"Test Company"}`)
+	validBinaryContent = []byte(`mock pdf binary content here`)
+	validContentBase64 = base64.StdEncoding.EncodeToString(validBinaryContent)
 )
 
 func TestIssuanceManifestBuilderNew(t *testing.T) {
 	tests := []struct {
-		name          string
-		document      []byte
-		issueTo       []byte
-		visualization string
-		wantErr       bool
+		name                      string
+		document                  []byte
+		issueTo                   []byte
+		eBLVisualisationByCarrier *EBLVisualisationByCarrier
+		wantErr                   bool
 	}{
 		{
 			name:     "valid - no visualization",
-			document: testDocument,
-			issueTo:  testIssueTo,
+			document: validDocument,
+			issueTo:  validIssueTo,
 			wantErr:  false,
 		},
 		{
-			name:          "valid - including visualization",
-			document:      testDocument,
-			issueTo:       testIssueTo,
-			visualization: testEblVisualisationByCarrierContent,
-			wantErr:       false,
+			name:     "valid - including visualization",
+			document: validDocument,
+			issueTo:  validIssueTo,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     validContentBase64,
+				ContentType: "application/pdf",
+			},
+			wantErr: false,
 		},
 		{
 			name:     "missing document",
 			document: nil,
-			issueTo:  testIssueTo,
-			wantErr:  true,
+			issueTo:  validIssueTo,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     validContentBase64,
+				ContentType: "application/pdf",
+			},
+			wantErr: true,
 		},
 		{
 			name:     "missing issueTo",
-			document: testDocument,
-			issueTo:  nil,
-			wantErr:  true,
+			document: validDocument,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     validContentBase64,
+				ContentType: "application/pdf",
+			},
+			issueTo: nil,
+			wantErr: true,
 		},
 		{
 			name:     "invalid document json",
 			document: []byte(`invalid json`),
-			issueTo:  testIssueTo,
-			wantErr:  true,
+			issueTo:  validIssueTo,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     validContentBase64,
+				ContentType: "application/pdf",
+			},
+			wantErr: true,
 		},
 		{
 			name:     "invalid issueTo json",
-			document: testDocument,
-			issueTo:  []byte(`invalid json`),
-			wantErr:  true,
+			document: validDocument,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     validContentBase64,
+				ContentType: "application/pdf",
+			},
+			issueTo: []byte(`invalid json`),
+			wantErr: true,
 		},
 		{
-			name:          "valid base64 encoded visualization",
-			document:      testDocument,
-			issueTo:       testIssueTo,
-			visualization: base64.StdEncoding.EncodeToString([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}),
-			wantErr:       false,
+			name:     "valid base64 encoded visualization",
+			document: validDocument,
+			issueTo:  validIssueTo,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     validContentBase64,
+				ContentType: "application/pdf",
+			},
+			wantErr: false,
 		},
 		{
-			name:          "invalid - raw binary visualization (not base64)",
-			document:      testDocument,
-			issueTo:       testIssueTo,
-			visualization: string([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}), // Raw binary as string (not base64)
-			wantErr:       true,
+			name:     "invalid - raw binary visualization (not base64)",
+			document: validDocument,
+			issueTo:  validIssueTo,
+			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
+				Name:        "test.pdf",
+				Content:     string([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}), // Raw binary as string (not base64)
+				ContentType: "application/pdf",
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
@@ -84,8 +116,8 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			if tt.issueTo != nil {
 				builder.WithIssueTo(tt.issueTo)
 			}
-			if tt.visualization != "" {
-				builder.WithEBLVisualisation(tt.visualization)
+			if tt.eBLVisualisationByCarrier != nil {
+				builder.WithEBLVisualisation(tt.eBLVisualisationByCarrier)
 			}
 			manifest, err := builder.Build()
 			if (err != nil) != tt.wantErr {
@@ -113,18 +145,14 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			if len(manifest.IssueToChecksum) != 64 {
 				t.Errorf("IssueToChecksum length = %d, want 64", len(manifest.IssueToChecksum))
 			}
-			if tt.visualization != "" && (manifest.EBLVisualisationByCarrierChecksum == nil || *manifest.EBLVisualisationByCarrierChecksum == "") {
+			if tt.eBLVisualisationByCarrier != nil && (manifest.EBLVisualisationByCarrierChecksum == nil || *manifest.EBLVisualisationByCarrierChecksum == "") {
 				t.Error("EBLVisualisationByCarrierChecksum should be set")
-			}
-			if tt.visualization != "" && len(*manifest.EBLVisualisationByCarrierChecksum) != 64 {
-				t.Errorf("EBLVisualisationByCarrierChecksum length = %d, want 64",
-					len(*manifest.EBLVisualisationByCarrierChecksum))
 			}
 		})
 	}
 }
 
-// sanity check to confirm we can correctly recreate the manually computed signtures in
+// sanity check to confirm we can correctly recreate the manually computed signatures in
 // HHL71800000-ed25519.json and HHL71800000-rsa.json
 func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
@@ -149,14 +177,10 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	}
 
 	var sampleIssuanceRequest struct {
-		Document                  json.RawMessage `json:"document"`
-		IssueTo                   json.RawMessage `json:"issueTo"`
-		EBLVisualisationByCarrier struct {
-			Name        string `json:"name"`
-			Content     string `json:"content"`
-			ContentType string `json:"contentType"`
-		} `json:"eBLVisualisationByCarrier"`
-		IssuanceManifestSignedContent string `json:"issuanceManifestSignedContent"`
+		Document                      json.RawMessage            `json:"document"`
+		IssueTo                       json.RawMessage            `json:"issueTo"`
+		EBLVisualisationByCarrier     *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string                     `json:"issuanceManifestSignedContent"`
 	}
 	err = json.Unmarshal(data, &sampleIssuanceRequest)
 	if err != nil {
@@ -168,7 +192,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	manifest.WithDocument(sampleIssuanceRequest.Document)
 	manifest.WithIssueTo(sampleIssuanceRequest.IssueTo)
 	// content is already base64 encoded
-	manifest.WithEBLVisualisation(sampleIssuanceRequest.EBLVisualisationByCarrier.Content)
+	manifest.WithEBLVisualisation(sampleIssuanceRequest.EBLVisualisationByCarrier)
 
 	issuanceManifest, err := manifest.Build()
 	if err != nil {
@@ -213,14 +237,10 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	}
 
 	var sampleIssuanceRequest struct {
-		Document                  json.RawMessage `json:"document"`
-		IssueTo                   json.RawMessage `json:"issueTo"`
-		EBLVisualisationByCarrier struct {
-			Name        string `json:"name"`
-			Content     string `json:"content"`
-			ContentType string `json:"contentType"`
-		} `json:"eBLVisualisationByCarrier"`
-		IssuanceManifestSignedContent string `json:"issuanceManifestSignedContent"`
+		Document                      json.RawMessage            `json:"document"`
+		IssueTo                       json.RawMessage            `json:"issueTo"`
+		EBLVisualisationByCarrier     *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string                     `json:"issuanceManifestSignedContent"`
 	}
 	err = json.Unmarshal(data, &sampleIssuanceRequest)
 	if err != nil {
@@ -231,7 +251,7 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	manifest := NewIssuanceManifestBuilder()
 	manifest.WithDocument(sampleIssuanceRequest.Document)
 	manifest.WithIssueTo(sampleIssuanceRequest.IssueTo)
-	manifest.WithEBLVisualisation(sampleIssuanceRequest.EBLVisualisationByCarrier.Content) // content is already base64 encoded
+	manifest.WithEBLVisualisation(sampleIssuanceRequest.EBLVisualisationByCarrier) // content is already base64 encoded
 
 	issuanceManifest, err := manifest.Build()
 	if err != nil {
@@ -252,5 +272,3 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 		t.Errorf("signature does not match sample")
 	}
 }
-
-// EnvelopeManifest tests TODO
