@@ -19,14 +19,6 @@ import (
 	"fmt"
 )
 
-// EnvelopeManifestSignedContent represents a JWS compact serialization of an EnvelopeManifest.
-// This type matches the DCSA PINT specification schema for envelopeManifestSignedContent.
-type EnvelopeManifestSignedContent string
-
-// EnvelopeTransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
-// This type matches the DCSA PINT specification schema for envelopeTransferChainEntrySignedContent.
-type EnvelopeTransferChainEntrySignedContent string
-
 // EnvelopeManifest is used to verify the transport document and the transfer chain have not been tampered with
 // and to provide details of any supporting documents transferred via PINT.
 // this is the payload that gets signed and included in eblEnvelope.envelopeManifestSignedContent
@@ -36,9 +28,10 @@ type EnvelopeManifest struct {
 	// This is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.
 	TransportDocumentChecksum string `json:"transportDocumentChecksum"`
 
-	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the last entry
-	// in the transfer chain. Since each transfer chain entry contains the hash of the previous entry, this
-	// checksum ensures no entries have been added, removed, or modified.
+	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the most recent entry
+	// in the transfer chain.
+	// This allows the receiving platform to verify that the envelope manifest was created by the
+	// sending platform specifically for this transfer, preventing replay attacks
 	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum"`
 
 	// EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).
@@ -47,6 +40,12 @@ type EnvelopeManifest struct {
 	// SupportingDocuments contains metadata for supporting documents (optional).
 	SupportingDocuments []DocumentMetadata `json:"supportingDocuments,omitempty"`
 }
+
+// EnvelopeManifestSignedContent represents a JWS compact serialization of an EnvelopeManifest.
+type EnvelopeManifestSignedContent string
+
+// EnvelopeTransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
+type EnvelopeTransferChainEntrySignedContent string
 
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (e *EnvelopeManifest) Validate() error {
@@ -75,7 +74,7 @@ type EnvelopeManifestBuilder struct {
 	// transportDocumentJSON is the raw JSON bytes of the transport document.
 	transportDocumentJSON []byte
 
-	// lastEnvelopeTransferChainEntrySignedContent is the JWS compact serialization of the last EnvelopeTransferChainEntry
+	// lastEnvelopeTransferChainEntrySignedContent is the JWS compact serialization of the most recent EnvelopeTransferChainEntry
 	lastEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
 
 	// Optional: eBL visualisation metadata - contains the checksum of the decoded binary content

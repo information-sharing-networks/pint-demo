@@ -1,0 +1,25 @@
+{
+  "transportDocumentChecksum": "bba562710b3f15a6ae91b9d834f08c32f32f964776807d0b116a846bbf3c4238",
+  "lastEnvelopeTransferChainEntrySignedContentChecksum": "8122ac283ed73a206be1f068ef1941c72873b4482251c960a5d4341e62a06f67",
+  "eBLVisualisationByCarrier": {
+    "name": "HHL71800000.pdf",
+    "size": 123456,
+    "mediaType": "application/pdf",
+    "documentChecksum": "d870e9d766ca0b9087f86d8d05ea6bf48d166717c0bf375efff54cedeb3d00b8"
+  },
+  "supportingDocuments": [
+    {
+      "name": "HHL71800000-invoice.pdf",
+      "size": 13312,
+      "mediaType": "application/pdf",
+      "documentChecksum": "6e270fd7f8694ce33b1c4bbb6fd810a68ecd5967a81a660888aced555a2a8e98"
+    },
+    {
+      "name": "HHL71800000-packing-list.pdf",
+      "size": 15360,
+      "mediaType": "application/pdf",
+      "documentChecksum": "3871269f0d95b20f4b30b840fbe596f7799a2b155e86abb2c38376aae70ff126"
+    }
+  ]
+}
+

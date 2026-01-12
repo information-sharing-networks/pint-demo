@@ -1,0 +1,3 @@
+ step crypto jws sign \
+    --key keys/rsa-eblplatform.example.com.private.pem \
+    --alg RS256

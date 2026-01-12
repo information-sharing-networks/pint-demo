@@ -1,0 +1,34 @@
+{
+  "eblPlatform": "WAVE",
+  "transportDocumentChecksum": "bba562710b3f15a6ae91b9d834f08c32f32f964776807d0b116a846bbf3c4238",
+  "previousEnvelopeTransferChainEntrySignedContentChecksum": "a4645df2fd9df98ee41af3d68653e51b93553d08d9c9fb84faa4d39fed1d5710",
+  "transactions": [
+    {
+      "actionCode": "TRNS",
+      "actor": {
+        "partyName": "IKEA Denmark",
+        "eblPlatform": "WAVE",
+        "identifyingCodes": [
+          {
+            "codeListProvider": "GLEIF",
+            "partyCode": "213800HX6IZM1QNBAJ33",
+            "codeListName": "LEI"
+          }
+        ]
+      },
+      "recipient": {
+        "partyName": "Henrik Larsen",
+        "eblPlatform": "BOLE",
+        "taxLegalReferences": [
+          {
+            "type": "CVR",
+            "countryCode": "DK",
+            "value": "33991282"
+          }
+        ]
+      },
+      "actionDateTime": "2024-01-16T14:22:00.000Z"
+    }
+  ]
+}
+

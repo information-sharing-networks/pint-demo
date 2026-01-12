@@ -19,6 +19,7 @@ import (
 )
 
 // IssuanceManifest represents the DCSA IssuanceManifest structure
+// the issuance manifest is used to verify the transport document and the issueTo party have not been tampered with.
 // This is the payload that gets signed in issuanceManifestSignedContent
 type IssuanceManifest struct {
 

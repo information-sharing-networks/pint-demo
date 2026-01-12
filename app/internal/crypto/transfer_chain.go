@@ -14,16 +14,19 @@ import (
 )
 
 // EnvelopeTransferChainEntry represents a DCSA EnvelopeTransferChainEntry
+// A transfer chain entry represents a batch of transactions that happened on a single platform.
 // This is the payload that gets signed in EnvelopeTransferChainEntrySignedContent
 type EnvelopeTransferChainEntry struct {
 
 	// EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX")
 	EblPlatform string `json:"eblPlatform"`
 
-	// ransportDocumentChecksum: SHA-256 of canonicalized transport document JSON
+	// TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON
 	TransportDocumentChecksum string `json:"transportDocumentChecksum"`
 
 	// PreviousEnvelopeTransferChainEntrySignedContentChecksum: SHA-256 of previous entry JWS (omitted for first entry)
+	// this is the checksum of the previous entry in the transfer chain, and should only be included if this is not the first entry in the transfer chain.
+	// This ensures the integrity of the transfer chain.
 	PreviousEnvelopeTransferChainEntrySignedContentChecksum *string `json:"previousEnvelopeTransferChainEntrySignedContentChecksum,omitempty"`
 
 	// IssuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)
