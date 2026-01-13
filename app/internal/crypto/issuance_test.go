@@ -157,21 +157,21 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
 	sampleRecordPath := "testdata/transport-documents/HHL71800000-ed25519.json"
-	privateKeyPath := "testdata/transport-documents/keys/ed25519-carrier.example.com.private.jwk"
+	privateKeyPath := "testdata/keys/ed25519-carrier.example.com.private.jwk"
 	keyID := "testkid"
-	certPath := "testdata/transport-documents/certs/ed25519-carrier.example.com-fullchain.crt"
+	certPath := "testdata/certs/ed25519-carrier.example.com-fullchain.crt"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
 		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
 	}
 
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/transport-documents/keys", "ed25519-carrier.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys", "ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/transport-documents/certs", "ed25519-carrier.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "ed25519-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
 	}
@@ -217,21 +217,21 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 
 	sampleRecordPath := "testdata/transport-documents/HHL71800000-rsa.json"
-	privateKeyPath := "testdata/transport-documents/keys/rsa-carrier.example.com.private.jwk"
+	privateKeyPath := "testdata/keys/rsa-carrier.example.com.private.jwk"
 	keyID := "testkid"
-	certPath := "testdata/transport-documents/certs/rsa-carrier.example.com-fullchain.crt"
+	certPath := "testdata/certs/rsa-carrier.example.com-fullchain.crt"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
 		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
 	}
 
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/transport-documents/keys", "rsa-carrier.example.com.private.jwk")
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys", "rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key file %s: %e", privateKeyPath, err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/transport-documents/certs", "rsa-carrier.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "rsa-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("could not load cert chain from %s: %e", certPath, err)
 	}

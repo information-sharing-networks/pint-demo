@@ -34,12 +34,12 @@ func createTestEntry() *EnvelopeTransferChainEntry {
 // TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C tests the core signing functionality
 // This is the MAIN test - it verifies that transfer chain entries can be signed and verified
 func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/transport-documents/keys", "ed25519-carrier.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys", "ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/transport-documents/certs", "ed25519-carrier.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "ed25519-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithEd25519 tests signing without x5c
 func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/transport-documents/keys", "ed25519-carrier.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys", "ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -140,12 +140,12 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithRSAAndX5C tests signing with RSA and x5c
 func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/transport-documents/keys", "rsa-carrier.example.com.private.jwk")
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys", "rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/transport-documents/certs", "rsa-carrier.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "rsa-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithRSA tests signing without x5c
 func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/transport-documents/keys", "rsa-carrier.example.com.private.jwk")
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys", "rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -565,4 +565,317 @@ func TestActorParty_Validate(t *testing.T) {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
+	validTransaction := Transaction{
+		ActionCode:     "ISSU",
+		Actor:          testActor,
+		ActionDateTime: "2024-01-15T10:30:00.000Z",
+	}
+
+	issuanceManifest := IssuanceManifestSignedContent("test-issuance-manifest-jws")
+	prevChecksum := "abcd1234"
+
+	ctrURI := "https://ctr.example.com"
+
+	tests := []struct {
+		name    string
+		entry   *EnvelopeTransferChainEntry
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid first entry",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:                   "WAVE",
+				TransportDocumentChecksum:     "checksum123",
+				Transactions:                  []Transaction{validTransaction},
+				IssuanceManifestSignedContent: &issuanceManifest,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid first entry with CTR",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:                   "WAVE",
+				TransportDocumentChecksum:     "checksum123",
+				Transactions:                  []Transaction{validTransaction},
+				IssuanceManifestSignedContent: &issuanceManifest,
+				ControlTrackingRegistry:       &ctrURI,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid subsequent entry",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:               "WAVE",
+				TransportDocumentChecksum: "checksum123",
+				Transactions:              []Transaction{validTransaction},
+				PreviousEnvelopeTransferChainEntrySignedContentChecksum: &prevChecksum,
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid - both issuance manifest and previous entry",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:                   "WAVE",
+				TransportDocumentChecksum:     "checksum123",
+				Transactions:                  []Transaction{validTransaction},
+				IssuanceManifestSignedContent: &issuanceManifest,
+				PreviousEnvelopeTransferChainEntrySignedContentChecksum: &prevChecksum,
+			},
+			wantErr: true,
+			errMsg:  "entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum",
+		},
+		{
+			name: "invalid - neither issuance manifest nor previous entry",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:               "WAVE",
+				TransportDocumentChecksum: "checksum123",
+				Transactions:              []Transaction{validTransaction},
+			},
+			wantErr: true,
+			errMsg:  "entry must have either issuanceManifestSignedContent",
+		},
+		{
+			name: "invalid - subsequent entry with CTR",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:               "WAVE",
+				TransportDocumentChecksum: "checksum123",
+				Transactions:              []Transaction{validTransaction},
+				PreviousEnvelopeTransferChainEntrySignedContentChecksum: &prevChecksum,
+				ControlTrackingRegistry:                                 &ctrURI,
+			},
+			wantErr: true,
+			errMsg:  "controlTrackingRegistry should only be present in first entry",
+		},
+		{
+			name: "invalid - missing eblPlatform",
+			entry: &EnvelopeTransferChainEntry{
+				TransportDocumentChecksum:     "checksum123",
+				Transactions:                  []Transaction{validTransaction},
+				IssuanceManifestSignedContent: &issuanceManifest,
+			},
+			wantErr: true,
+			errMsg:  "eblPlatform is required",
+		},
+		{
+			name: "invalid - missing transportDocumentChecksum",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:                   "WAVE",
+				Transactions:                  []Transaction{validTransaction},
+				IssuanceManifestSignedContent: &issuanceManifest,
+			},
+			wantErr: true,
+			errMsg:  "transportDocumentChecksum is required",
+		},
+		{
+			name: "invalid - missing transactions",
+			entry: &EnvelopeTransferChainEntry{
+				EblPlatform:                   "WAVE",
+				TransportDocumentChecksum:     "checksum123",
+				IssuanceManifestSignedContent: &issuanceManifest,
+			},
+			wantErr: true,
+			errMsg:  "at least one transaction is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.entry.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Validate() expected error but got none")
+				} else if !contains(err.Error(), tt.errMsg) {
+					t.Errorf("Validate() error = %q, want to contain %q", err.Error(), tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Validate() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
+var (
+	testTransportDoc = []byte(`{"transportDocumentReference":"TEST123456"}`)
+	testActor        = ActorParty{
+		PartyName:   "Test Carrier",
+		EblPlatform: "WAVE",
+		IdentifyingCodes: []IdentifyingCode{
+			{CodeListProvider: "GLEIF", PartyCode: "TEST123456789"},
+		},
+	}
+	testRecipient = RecipientParty{
+		PartyName:   "Test Consignee",
+		EblPlatform: "BOLE",
+		IdentifyingCodes: []IdentifyingCode{
+			{CodeListProvider: "GLEIF", PartyCode: "RECIPIENT123456"},
+		},
+	}
+	testTransaction = Transaction{
+		ActionCode:     "ISSU",
+		Actor:          testActor,
+		Recipient:      &testRecipient,
+		ActionDateTime: "2024-01-15T10:30:00.000Z",
+	}
+	testIssuanceManifestJWS = IssuanceManifestSignedContent("eyJhbGci...MOCK_ISSUANCE_MANIFEST")
+	testPreviousEntryJWS    = EnvelopeTransferChainEntrySignedContent("eyJhbGci...MOCK_PREVIOUS_ENTRY")
+)
+
+func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
+	entry, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+		WithTransportDocument(testTransportDoc).
+		WithTransaction(testTransaction).
+		WithEBLPlatform("WAVE").
+		Build()
+
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	// Verify first entry has issuance manifest, not previous entry
+	if entry.IssuanceManifestSignedContent == nil || *entry.IssuanceManifestSignedContent != testIssuanceManifestJWS {
+		t.Error("IssuanceManifestSignedContent should be set for first entry")
+	}
+	if entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != nil {
+		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum should be nil for first entry")
+	}
+
+	// Verify checksums are calculated (SHA-256 = 64 hex chars)
+	if len(entry.TransportDocumentChecksum) != 64 {
+		t.Errorf("TransportDocumentChecksum length = %d, want 64", len(entry.TransportDocumentChecksum))
+	}
+}
+
+func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
+	entry, err := NewSubsequentEnvelopeTransferChainEntryBuilder(testPreviousEntryJWS).
+		WithTransportDocument(testTransportDoc).
+		WithTransaction(testTransaction).
+		WithEBLPlatform("WAVE").
+		Build()
+
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	// Verify subsequent entry has previous entry checksum, not issuance manifest
+	if entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum == nil {
+		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum should be set for subsequent entry")
+	}
+	if entry.IssuanceManifestSignedContent != nil {
+		t.Error("IssuanceManifestSignedContent should be nil for subsequent entry")
+	}
+
+	// Verify previous entry checksum is correct
+	expectedChecksum, _ := Hash([]byte(testPreviousEntryJWS))
+	if *entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != expectedChecksum {
+		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum mismatch")
+	}
+}
+
+func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		builder func() *EnvelopeTransferChainEntryBuilder
+		errMsg  string
+	}{
+		{
+			name: "missing transport document",
+			builder: func() *EnvelopeTransferChainEntryBuilder {
+				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+					WithEBLPlatform("WAVE").
+					WithTransaction(testTransaction)
+			},
+			errMsg: "transport document is required",
+		},
+		{
+			name: "missing eBL platform",
+			builder: func() *EnvelopeTransferChainEntryBuilder {
+				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+					WithTransportDocument(testTransportDoc).
+					WithTransaction(testTransaction)
+			},
+			errMsg: "eBL platform is required",
+		},
+		{
+			name: "missing transaction",
+			builder: func() *EnvelopeTransferChainEntryBuilder {
+				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+					WithTransportDocument(testTransportDoc).
+					WithEBLPlatform("WAVE")
+			},
+			errMsg: "at least one transaction is required",
+		},
+		{
+			name: "empty previous entry JWS",
+			builder: func() *EnvelopeTransferChainEntryBuilder {
+				return NewSubsequentEnvelopeTransferChainEntryBuilder("").
+					WithTransportDocument(testTransportDoc).
+					WithEBLPlatform("WAVE").
+					WithTransaction(testTransaction)
+			},
+			errMsg: "entry must have either issuanceManifestSignedContent",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.builder().Build()
+			if err == nil {
+				t.Error("Expected error but got none")
+			} else if !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("Expected error to contain %q, got %q", tt.errMsg, err.Error())
+			}
+		})
+	}
+}
+
+func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T) {
+	ctrURI := "https://ctr.example.com/v1"
+
+	t.Run("valid CTR on first entry", func(t *testing.T) {
+		entry, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+			WithTransportDocument(testTransportDoc).
+			WithTransaction(testTransaction).
+			WithEBLPlatform("WAVE").
+			WithControlTrackingRegistry(ctrURI).
+			Build()
+
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		if entry.ControlTrackingRegistry == nil || *entry.ControlTrackingRegistry != ctrURI {
+			t.Error("ControlTrackingRegistry should be set on first entry")
+		}
+	})
+
+	t.Run("CTR on subsequent entry should fail", func(t *testing.T) {
+		_, err := NewSubsequentEnvelopeTransferChainEntryBuilder(testPreviousEntryJWS).
+			WithTransportDocument(testTransportDoc).
+			WithTransaction(testTransaction).
+			WithEBLPlatform("WAVE").
+			WithControlTrackingRegistry(ctrURI).
+			Build()
+
+		if err == nil || !strings.Contains(err.Error(), "controlTrackingRegistry should only be present in first entry") {
+			t.Errorf("Expected CTR validation error on subsequent entry, got: %v", err)
+		}
+	})
+
+	t.Run("invalid CTR URL should fail", func(t *testing.T) {
+		_, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+			WithTransportDocument(testTransportDoc).
+			WithTransaction(testTransaction).
+			WithEBLPlatform("WAVE").
+			WithControlTrackingRegistry("://invalid").
+			Build()
+
+		if err == nil || !strings.Contains(err.Error(), "invalid controlTrackingRegistry URL") {
+			t.Errorf("Expected invalid URL error, got: %v", err)
+		}
+	})
 }

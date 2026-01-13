@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net/url"
 )
 
 // EnvelopeTransferChainEntry represents a DCSA EnvelopeTransferChainEntry
@@ -18,7 +19,7 @@ import (
 // This is the payload that gets signed in EnvelopeTransferChainEntrySignedContent
 type EnvelopeTransferChainEntry struct {
 
-	// EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX")
+	// EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX") responsible for this entry
 	EblPlatform string `json:"eblPlatform"`
 
 	// TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON
@@ -49,6 +50,36 @@ func (e *EnvelopeTransferChainEntry) Validate() error {
 	}
 	if len(e.Transactions) == 0 {
 		return fmt.Errorf("at least one transaction is required")
+	}
+
+	// Validate first vs subsequent entry rules
+	hasIssuanceManifest := e.IssuanceManifestSignedContent != nil
+	hasPreviousEntry := e.PreviousEnvelopeTransferChainEntrySignedContentChecksum != nil
+
+	if hasIssuanceManifest && hasPreviousEntry {
+		return fmt.Errorf("entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum")
+	}
+
+	if !hasIssuanceManifest && !hasPreviousEntry {
+		return fmt.Errorf("entry must have either issuanceManifestSignedContent (first entry) or previousEnvelopeTransferChainEntrySignedContentChecksum (subsequent entry)")
+	}
+
+	// First entry specific validation
+	if hasIssuanceManifest {
+		// TODO - is there a register of valid CTRs - or is this something that is configured at service start up?
+		if e.ControlTrackingRegistry != nil {
+			// Validate CTR URL format
+			if _, err := url.Parse(*e.ControlTrackingRegistry); err != nil {
+				return fmt.Errorf("invalid controlTrackingRegistry URL: %w", err)
+			}
+		}
+	}
+
+	// Subsequent entry specific validation
+	if hasPreviousEntry {
+		if e.ControlTrackingRegistry != nil {
+			return fmt.Errorf("controlTrackingRegistry should only be present in first entry")
+		}
 	}
 
 	// Validate each transaction
@@ -361,4 +392,138 @@ func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, key
 	}
 
 	return EnvelopeTransferChainEntrySignedContent(jws), nil
+}
+
+// EnvelopeTransferChainEntryBuilder helps build transfer chain entries and handles checksum calculations, validations and so on.
+type EnvelopeTransferChainEntryBuilder struct {
+	// isFirstEntry: Entry position in chain - the first entry must include an issuance manifest,
+	// all subsequent entries must include a previous entry checksum
+	isFirstEntry bool
+
+	// transportDocumentJSON: original transport document supplied by the carrier
+	transportDocumentJSON []byte
+
+	// eblPlatform: ebl platform code responsible for this entry
+	eblPlatform string
+
+	// issuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)
+	issuanceManifestSignedContent *IssuanceManifestSignedContent
+
+	// controlTrackingRegistry: URI of CTR (optional, only in first entry). Example: https://ctr.dcsa.org/v1
+	controlTrackingRegistry *string
+
+	// previousEnvelopeTransferChainEntrySignedContent: JWS of previous entry in the transfer chain (required for subsequent entries only)
+	previousEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
+
+	// transactions: List of transactions for this entry
+	transactions []Transaction
+}
+
+// NewFirstEnvelopeTransferChainEntryBuilder creates a builder for the first entry in the transfer chain.
+// The first entry must include an issuance manifest.
+func NewFirstEnvelopeTransferChainEntryBuilder(issuanceManifestSignedContent IssuanceManifestSignedContent) *EnvelopeTransferChainEntryBuilder {
+	return &EnvelopeTransferChainEntryBuilder{
+		isFirstEntry:                  true,
+		issuanceManifestSignedContent: &issuanceManifestSignedContent,
+	}
+}
+
+// NewSubsequentEnvelopeTransferChainEntryBuilder creates a builder for a subsequent entry in the transfer chain.
+// The previous entry checksum will be calculated automatically in Build().
+func NewSubsequentEnvelopeTransferChainEntryBuilder(previousJWS EnvelopeTransferChainEntrySignedContent) *EnvelopeTransferChainEntryBuilder {
+	return &EnvelopeTransferChainEntryBuilder{
+		isFirstEntry: false,
+		previousEnvelopeTransferChainEntrySignedContent: previousJWS,
+	}
+}
+
+// WithTransportDocument sets the transport document JSON
+// The document will be canonicalized and checksummed automatically during Build()
+func (b *EnvelopeTransferChainEntryBuilder) WithTransportDocument(documentJSON []byte) *EnvelopeTransferChainEntryBuilder {
+	b.transportDocumentJSON = documentJSON
+	return b
+}
+
+// WithEBLPlatform sets the eBL platform code (e.g., "WAVE", "BOLE", "CARX")
+func (b *EnvelopeTransferChainEntryBuilder) WithEBLPlatform(platform string) *EnvelopeTransferChainEntryBuilder {
+	b.eblPlatform = platform
+	return b
+}
+
+// WithTransaction adds a transaction to this entry
+// You can call this multiple times to add multiple transactions to a single entry
+func (b *EnvelopeTransferChainEntryBuilder) WithTransaction(transaction Transaction) *EnvelopeTransferChainEntryBuilder {
+	b.transactions = append(b.transactions, transaction)
+	return b
+}
+
+// WithTransactions sets all transactions for this entry at once
+func (b *EnvelopeTransferChainEntryBuilder) WithTransactions(transactions []Transaction) *EnvelopeTransferChainEntryBuilder {
+	b.transactions = transactions
+	return b
+}
+
+// WithControlTrackingRegistry sets the CTR URI (optional, only for first entry)
+// Example: "https://ctr.dcsa.org/v1"
+func (b *EnvelopeTransferChainEntryBuilder) WithControlTrackingRegistry(uri string) *EnvelopeTransferChainEntryBuilder {
+	b.controlTrackingRegistry = &uri
+	return b
+}
+
+// Build creates the EnvelopeTransferChainEntry with all checksums calculated
+// returns *EnvelopeTransferChainEntry: Ready to sign
+//
+//   - error: If validation fails or checksum calculation fails
+func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry, error) {
+
+	// check required builder fields
+	if len(b.transportDocumentJSON) == 0 {
+		return nil, fmt.Errorf("transport document is required - use WithTransportDocument()")
+	}
+
+	if b.eblPlatform == "" {
+		return nil, fmt.Errorf("eBL platform is required - use WithEBLPlatform()")
+	}
+
+	if len(b.transactions) == 0 {
+		return nil, fmt.Errorf("at least one transaction is required - use WithTransaction()")
+	}
+
+	// Calculate transport document checksum
+	canonical, err := CanonicalizeJSON(b.transportDocumentJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to canonicalize transport document: %w", err)
+	}
+
+	transportDocChecksum, err := Hash(canonical)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash transport document: %w", err)
+	}
+
+	// Build the entry
+	entry := &EnvelopeTransferChainEntry{
+		EblPlatform:               b.eblPlatform,
+		TransportDocumentChecksum: transportDocChecksum,
+		Transactions:              b.transactions,
+	}
+
+	// Add optional fields (Validate() will check they're used correctly)
+	entry.IssuanceManifestSignedContent = b.issuanceManifestSignedContent
+	entry.ControlTrackingRegistry = b.controlTrackingRegistry
+
+	// Calculate and add previous entry checksum if provided
+	if b.previousEnvelopeTransferChainEntrySignedContent != "" {
+		prevChecksum, err := Hash([]byte(b.previousEnvelopeTransferChainEntrySignedContent))
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash previous entry: %w", err)
+		}
+		entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum = &prevChecksum
+	}
+
+	// Validate the final entry (this will check first/subsequent entry rules)
+	if err := entry.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid transfer chain entry: %w", err)
+	}
+
+	return entry, nil
 }
