@@ -53,14 +53,14 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 	}
 
 	// Verify JWS format (header.payload.signature)
-	parts := strings.Split(jws, ".")
+	parts := strings.Split(string(jws), ".")
 	if len(parts) != 3 {
 		t.Fatalf("JWS should have 3 parts (header.payload.signature), got %d", len(parts))
 	}
 
 	// check the signature can be verified
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	payload, err := VerifyEd25519(jws, publicKey)
+	payload, err := VerifyEd25519(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 	}
 
 	// Verify x5c header is present
-	extractedCerts, err := ParseX5CFromJWS(jws)
+	extractedCerts, err := ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse x5c from JWS: %v", err)
 	}
@@ -107,14 +107,14 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 	}
 
 	// Verify JWS format
-	parts := strings.Split(jws, ".")
+	parts := strings.Split(string(jws), ".")
 	if len(parts) != 3 {
 		t.Fatalf("JWS should have 3 parts, got %d", len(parts))
 	}
 
 	// Verify the signature
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	payload, err := VerifyEd25519(jws, publicKey)
+	payload, err := VerifyEd25519(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 	}
 
 	// Verify NO x5c header
-	extractedCerts, err := ParseX5CFromJWS(jws)
+	extractedCerts, err := ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse JWS: %v", err)
 	}
@@ -159,14 +159,14 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 	}
 
 	// Verify JWS format (header.payload.signature)
-	parts := strings.Split(jws, ".")
+	parts := strings.Split(string(jws), ".")
 	if len(parts) != 3 {
 		t.Fatalf("JWS should have 3 parts (header.payload.signature), got %d", len(parts))
 	}
 
 	// Verify the signature
 	publicKey := &privateKey.PublicKey
-	payload, err := VerifyRSA(jws, publicKey)
+	payload, err := VerifyRSA(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 	}
 
 	// Verify x5c header is present
-	extractedCerts, err := ParseX5CFromJWS(jws)
+	extractedCerts, err := ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse x5c from JWS: %v", err)
 	}
@@ -213,14 +213,14 @@ func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
 	}
 
 	// Verify JWS format
-	parts := strings.Split(jws, ".")
+	parts := strings.Split(string(jws), ".")
 	if len(parts) != 3 {
 		t.Fatalf("JWS should have 3 parts, got %d", len(parts))
 	}
 
 	// Verify the signature
 	publicKey := &privateKey.PublicKey
-	payload, err := VerifyRSA(jws, publicKey)
+	payload, err := VerifyRSA(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
 	}
 
 	// Verify NO x5c header
-	extractedCerts, err := ParseX5CFromJWS(jws)
+	extractedCerts, err := ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse JWS: %v", err)
 	}

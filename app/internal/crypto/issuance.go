@@ -32,6 +32,9 @@ type IssuanceManifest struct {
 	EBLVisualisationByCarrierChecksum *string `json:"eBLVisualisationByCarrierChecksum,omitempty"`
 }
 
+// IssuanceManifestSignedContent represents a JWS compact serialization of an IssuanceManifest.
+type IssuanceManifestSignedContent string
+
 // Validate checks that all required fields are present per DCSA EBL_ISS specification
 func (i *IssuanceManifest) Validate() error {
 	if i.DocumentChecksum == "" {
@@ -174,7 +177,7 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 // SignWithEd25519AndX5C creates the issuanceManifestSignedContent JWS string using Ed25519
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (IssuanceManifestSignedContent, error) {
 
 	// serialize to JSON
 	jsonBytes, err := json.Marshal(m)
@@ -188,13 +191,13 @@ func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, 
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return IssuanceManifestSignedContent(jws), nil
 }
 
 // SignWithEd25519 creates the issuanceManifestSignedContent JWS string using Ed25519 (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (string, error) {
+func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (IssuanceManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
@@ -206,13 +209,13 @@ func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID 
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return IssuanceManifestSignedContent(jws), nil
 }
 
 // SignWithRSAAndX5C creates the issuanceManifestSignedContent JWS string using RSA
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (IssuanceManifestSignedContent, error) {
 
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
@@ -225,13 +228,13 @@ func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID s
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return IssuanceManifestSignedContent(jws), nil
 }
 
 // SignWithRSA creates the issuanceManifestSignedContent JWS string using RSA (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (string, error) {
+func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (IssuanceManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
@@ -243,5 +246,5 @@ func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string)
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return IssuanceManifestSignedContent(jws), nil
 }

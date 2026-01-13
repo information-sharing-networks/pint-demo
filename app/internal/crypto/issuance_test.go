@@ -209,7 +209,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	}
 
 	//t.Logf("signature: %v", signature)
-	if signature != sampleIssuanceRequest.IssuanceManifestSignedContent {
+	if string(signature) != sampleIssuanceRequest.IssuanceManifestSignedContent {
 		t.Errorf("signature does not match sample")
 	}
 }
@@ -268,7 +268,7 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	}
 
 	//t.Logf("signature: %v", signature)
-	if signature != sampleIssuanceRequest.IssuanceManifestSignedContent {
+	if string(signature) != sampleIssuanceRequest.IssuanceManifestSignedContent {
 		t.Errorf("signature does not match sample")
 	}
 }

@@ -27,7 +27,7 @@ type EnvelopeTransferChainEntry struct {
 	PreviousEnvelopeTransferChainEntrySignedContentChecksum *string `json:"previousEnvelopeTransferChainEntrySignedContentChecksum,omitempty"`
 
 	// IssuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)
-	IssuanceManifestSignedContent *string `json:"issuanceManifestSignedContent,omitempty"`
+	IssuanceManifestSignedContent *IssuanceManifestSignedContent `json:"issuanceManifestSignedContent,omitempty"`
 
 	// ControlTrackingRegistry: URI of CTR (optional, only in first entry). Example: https://ctr.dcsa.org/v1
 	ControlTrackingRegistry *string `json:"controlTrackingRegistry,omitempty"`
@@ -291,7 +291,7 @@ type TaxLegalReference struct {
 // SignWithEd25519AndX5C creates the envelopeTransferChainEntrySignedContent JWS string using Ed25519
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize envelope transfer chain entry: %w", err)
@@ -303,13 +303,13 @@ func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.Pr
 		return "", fmt.Errorf("failed to sign envelope transfer chain entry: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }
 
 // SignWithEd25519 creates the envelopeTransferChainEntrySignedContent JWS string using Ed25519 (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (string, error) {
+func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (EnvelopeTransferChainEntrySignedContent, error) {
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize envelope transfer chain entry: %w", err)
@@ -321,13 +321,13 @@ func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateK
 		return "", fmt.Errorf("failed to sign envelope transfer chain entry: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }
 
 // SignWithRSAAndX5C creates the envelopeTransferChainEntrySignedContent JWS string using RSA
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize envelope transfer chain entry: %w", err)
@@ -339,13 +339,13 @@ func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKe
 		return "", fmt.Errorf("failed to sign envelope transfer chain entry: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }
 
 // SignWithRSA creates the envelopeTransferChainEntrySignedContent JWS string using RSA (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (string, error) {
+func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (EnvelopeTransferChainEntrySignedContent, error) {
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize envelope transfer chain entry: %w", err)
@@ -357,5 +357,5 @@ func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, key
 		return "", fmt.Errorf("failed to sign envelope transfer chain entry: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }

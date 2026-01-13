@@ -19,7 +19,16 @@ import (
 	"fmt"
 )
 
-// EnvelopeManifest represents the DCSA EnvelopeManifest structure.
+// EnvelopeManifestSignedContent represents a JWS compact serialization of an EnvelopeManifest.
+// This type matches the DCSA PINT specification schema for envelopeManifestSignedContent.
+type EnvelopeManifestSignedContent string
+
+// EnvelopeTransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
+// This type matches the DCSA PINT specification schema for envelopeTransferChainEntrySignedContent.
+type EnvelopeTransferChainEntrySignedContent string
+
+// EnvelopeManifest is used to verify the transport document and the transfer chain have not been tampered with
+// and to provide details of any supporting documents transferred via PINT.
 // this is the payload that gets signed and included in eblEnvelope.envelopeManifestSignedContent
 type EnvelopeManifest struct {
 
@@ -27,8 +36,9 @@ type EnvelopeManifest struct {
 	// This is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.
 	TransportDocumentChecksum string `json:"transportDocumentChecksum"`
 
-	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the
-	// last transfer chain entry JWS.
+	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the last entry
+	// in the transfer chain. Since each transfer chain entry contains the hash of the previous entry, this
+	// checksum ensures no entries have been added, removed, or modified.
 	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum"`
 
 	// EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).
@@ -66,7 +76,7 @@ type EnvelopeManifestBuilder struct {
 	transportDocumentJSON []byte
 
 	// lastEnvelopeTransferChainEntrySignedContent is the JWS compact serialization of the last EnvelopeTransferChainEntry
-	lastEnvelopeTransferChainEntrySignedContent string
+	lastEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
 
 	// Optional: eBL visualisation metadata - contains the checksum of the decoded binary content
 	eblVisualisationByCarrierContent *DocumentMetadata
@@ -121,7 +131,7 @@ func (b *EnvelopeManifestBuilder) WithTransportDocument(transportDocumentJSON []
 }
 
 // WithLastTransferChainEntry sets the last transfer chain entry JWS
-func (b *EnvelopeManifestBuilder) WithLastTransferChainEntry(jwsString string) *EnvelopeManifestBuilder {
+func (b *EnvelopeManifestBuilder) WithLastTransferChainEntry(jwsString EnvelopeTransferChainEntrySignedContent) *EnvelopeManifestBuilder {
 	b.lastEnvelopeTransferChainEntrySignedContent = jwsString
 	return b
 }
@@ -201,7 +211,7 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 // SignWithEd25519AndX5C creates the envelopeManifestSignedContent JWS string with x5c headers using Ed25519
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *EnvelopeManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
@@ -214,13 +224,13 @@ func (m *EnvelopeManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, 
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeManifestSignedContent(jws), nil
 }
 
 // SignWithEd25519 creates the envelopeManifestSignedContent JWS string using Ed25519 (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (string, error) {
+func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (EnvelopeManifestSignedContent, error) {
 
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
@@ -239,13 +249,13 @@ func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID 
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeManifestSignedContent(jws), nil
 }
 
 // SignWithRSAAndX5C creates the envelopeManifestSignedContent JWS string with x5c headers using RSA
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
+func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
@@ -258,13 +268,13 @@ func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID s
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeManifestSignedContent(jws), nil
 }
 
 // SignWithRSA creates the envelopeManifestSignedContent JWS string using RSA (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (string, error) {
+func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (EnvelopeManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
@@ -277,5 +287,95 @@ func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string)
 		return "", fmt.Errorf("failed to sign manifest: %w", err)
 	}
 
-	return jws, nil
+	return EnvelopeManifestSignedContent(jws), nil
+}
+
+// EblEnvelope represents the complete DCSA PINT envelope containing the transport document,
+// the signed envelope manifest, and the full transfer chain.
+//
+// This is the top-level structure that gets transferred between eBL platforms.
+type EblEnvelope struct {
+
+	// TransportDocument: The transport document (Bill of Lading) as a JSON object.
+	TransportDocument []byte `json:"transportDocument"`
+
+	// EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest.
+	// This is signed by the sending platform and contains checksums to verify integrity.
+	EnvelopeManifestSignedContent EnvelopeManifestSignedContent `json:"envelopeManifestSignedContent"`
+
+	// EnvelopeTransferChain: Ordered list of JWS strings representing the complete transfer chain.
+	// Each entry is a signed EnvelopeTransferChainEntry. The full chain is required to verify
+	// the complete history and detect tampering or double-spending.
+	EnvelopeTransferChain []EnvelopeTransferChainEntrySignedContent `json:"envelopeTransferChain"`
+}
+
+// Validate checks that all required fields are present per DCSA EBL_PINT specification
+func (e *EblEnvelope) Validate() error {
+	if len(e.TransportDocument) == 0 {
+		return fmt.Errorf("transportDocument is required")
+	}
+	if e.EnvelopeManifestSignedContent == "" {
+		return fmt.Errorf("envelopeManifestSignedContent is required")
+	}
+	if len(e.EnvelopeTransferChain) == 0 {
+		return fmt.Errorf("envelopeTransferChain must contain at least one entry")
+	}
+	// Validate that transportDocument is valid JSON
+	if !json.Valid(e.TransportDocument) {
+		return fmt.Errorf("transportDocument must be valid JSON")
+	}
+	return nil
+}
+
+// EblEnvelopeBuilder helps build EblEnvelope for PINT transfers
+type EblEnvelopeBuilder struct {
+	transportDocument             []byte
+	envelopeManifestSignedContent EnvelopeManifestSignedContent
+	envelopeTransferChain         []EnvelopeTransferChainEntrySignedContent
+}
+
+// NewEblEnvelopeBuilder creates a new builder for EblEnvelope
+func NewEblEnvelopeBuilder() *EblEnvelopeBuilder {
+	return &EblEnvelopeBuilder{
+		envelopeTransferChain: make([]EnvelopeTransferChainEntrySignedContent, 0),
+	}
+}
+
+// WithTransportDocument sets the transport document (must be valid JSON)
+func (b *EblEnvelopeBuilder) WithTransportDocument(transportDocumentJSON []byte) *EblEnvelopeBuilder {
+	b.transportDocument = transportDocumentJSON
+	return b
+}
+
+// WithEnvelopeManifestSignedContent sets the signed envelope manifest JWS
+func (b *EblEnvelopeBuilder) WithEnvelopeManifestSignedContent(jws EnvelopeManifestSignedContent) *EblEnvelopeBuilder {
+	b.envelopeManifestSignedContent = jws
+	return b
+}
+
+// WithEnvelopeTransferChain sets the complete transfer chain (array of JWS strings)
+func (b *EblEnvelopeBuilder) WithEnvelopeTransferChain(chain []EnvelopeTransferChainEntrySignedContent) *EblEnvelopeBuilder {
+	b.envelopeTransferChain = chain
+	return b
+}
+
+// AddTransferChainEntry appends a single transfer chain entry JWS to the chain
+func (b *EblEnvelopeBuilder) AddTransferChainEntry(jws EnvelopeTransferChainEntrySignedContent) *EblEnvelopeBuilder {
+	b.envelopeTransferChain = append(b.envelopeTransferChain, jws)
+	return b
+}
+
+// Build creates the EblEnvelope
+func (b *EblEnvelopeBuilder) Build() (*EblEnvelope, error) {
+	envelope := &EblEnvelope{
+		TransportDocument:             b.transportDocument,
+		EnvelopeManifestSignedContent: b.envelopeManifestSignedContent,
+		EnvelopeTransferChain:         b.envelopeTransferChain,
+	}
+
+	if err := envelope.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid envelope: %w", err)
+	}
+
+	return envelope, nil
 }
