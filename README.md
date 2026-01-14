@@ -91,3 +91,10 @@ make migrate   # Run database migrations
 make test      # Run tests
 make check     # Run all checks (fmt, vet, test , lint , security)
 ```
+# Usage
+## Creating an Issuance Request 
+
+To simulate the initial issuance request from the carrier to the ebl platform (PUT /v3/ebl-issuance-requests), use the high-level `CreateIssuanceRequest` function.
+See `app/internal/crypto/issuance_request_test.go` for example usage.
+
+
