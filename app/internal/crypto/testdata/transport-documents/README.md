@@ -19,7 +19,7 @@ If you change this file you must also update the `eBLVisualisationByCarrier.cont
 # issuanceManifestSignedContent 
 this field is used by receiving parties to verify the 3 parts of the transport docuement (document details, issueTo, and eBLVisualisationByCarrier) have not been tampered with since issuance.
 
-This field is created in two steps - firstly create the intermediary `IssuanceManifest.json` file, and then sign that file with the private key of the carrier.  
+This field is created in two steps - firstly create the intermediary `IssuanceManifest.json` file, and then sign that file with the private key of the carrier 
 
 ## IssuanceManifest.json
 this file is created by:
@@ -36,10 +36,11 @@ this file is created by:
 The output from steps 3, 6, and 8 are the values for the `documentChecksum`, `issueToChecksum`, and `eBLVisualisationByCarrierChecksum` fields in the `IssuanceManifest.json` file.
 
 ## Sign the IssuanceManifest.json
-1. Canonicalize the `IssuanceManifest.json`
-2. Sign the canonicalized json with the private key of the carrier
-3. Encode the signed content in JWS compact serialization format
-4. update the `issuanceManifestSignedContent` field in `testdata/transport-documents/HHL71800000.json` with the value from step 3
+1. Calculate the key-id by calculating the JWK thumbprint of the public key of the carrier.  
+2. Canonicalize the `IssuanceManifest.json`
+3. Sign the canonicalized json with the private key of the carrier (testdata/keys/ed25519-carrier.example.com.private.jwk)
+4. Encode the signed content in JWS compact serialization format
+5. update the `issuanceManifestSignedContent` field in `testdata/transport-documents/HHL71800000.json` with the value from step 3
 
 There are three sample json records in this directory:
 - `HHL71800000-unsigned.json` - this is the complete issuance request payload with an unsigned `issuanceManifestSignedContent` field

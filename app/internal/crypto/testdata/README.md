@@ -16,6 +16,8 @@ The `certs/` and `keys/` directories contain test certificates and key pairs for
 
 ### Regenerating Test Keys and Certificates
 
+** Note ** the sample data in `transport-documents/` and `pint-transfers/` depends on the keys and certificates in this directory.  If you regenerate the keys and certificates, you will need to regenerate the signatures in the sample data.
+
 To regenerate all test keys and certificates:
 
 ```bash
