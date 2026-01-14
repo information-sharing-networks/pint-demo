@@ -13,7 +13,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	sampleRecordPath := "testdata/transport-documents/HHL71800000-ed25519.json"
 	privateKeyPath := "testdata/keys/ed25519-carrier.example.com.private.jwk"
 	certPath := "testdata/certs/ed25519-carrier.example.com-fullchain.crt"
-	visualizationPath := "testdata/transport-documents/HHL71800000.pdf"
+	eBLVisualisationPath := "testdata/transport-documents/HHL71800000.pdf"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
@@ -36,7 +36,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	newIssuanceRequestInput := IssuanceRequestInput{
 		Document:                 sampleIssuanceRequest.Document,
 		IssueTo:                  sampleIssuanceRequest.IssueTo,
-		EBLVisualizationFilePath: visualizationPath, //TODO z to s to confirm with uk eng used in spec
+		EBLVisualisationFilePath: eBLVisualisationPath,
 	}
 
 	newIssuanceRequest, err := CreateIssuanceRequest(
@@ -83,7 +83,7 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	sampleRecordPath := "testdata/transport-documents/HHL71800000-rsa.json"
 	privateKeyPath := "testdata/keys/rsa-carrier.example.com.private.jwk"
 	certPath := "testdata/certs/rsa-carrier.example.com-fullchain.crt"
-	visualizationPath := "testdata/transport-documents/HHL71800000.pdf"
+	VisualisationPath := "testdata/transport-documents/HHL71800000.pdf"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	newIssuanceRequestInput := IssuanceRequestInput{
 		Document:                 sampleIssuanceRequest.Document,
 		IssueTo:                  sampleIssuanceRequest.IssueTo,
-		EBLVisualizationFilePath: visualizationPath, //TODO z to s to confirm with uk eng used in spec
+		EBLVisualisationFilePath: VisualisationPath, //TODO z to s to confirm with uk eng used in spec
 	}
 
 	newIssuanceRequest, err := CreateIssuanceRequest(

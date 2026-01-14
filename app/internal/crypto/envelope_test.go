@@ -8,7 +8,7 @@ import (
 var (
 	validTransportDocument = []byte(`{"transportDocumentReference":"MAEU123456","shippingInstructionReference":"SI123456"}`)
 	validLastTransferChain = "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3RraWQifQ.eyJ0cmFuc3BvcnREb2N1bWVudENoZWNrc3VtIjoiYWJjMTIzIn0.c2lnbmF0dXJl" // mock JWS
-	validEblVisualization  = &DocumentMetadata{
+	validEblVisualisation  = &DocumentMetadata{
 		Name:             "ebl.pdf",
 		Size:             100,
 		MediaType:        "application/pdf",
@@ -50,7 +50,7 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 			name:              "valid - with eBL visualisation",
 			transportDocument: validTransportDocument,
 			lastTransferChain: validLastTransferChain,
-			eblVisualisation:  validEblVisualization,
+			eblVisualisation:  validEblVisualisation,
 			wantErr:           false,
 		},
 		{
@@ -64,7 +64,7 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 			name:                "valid - with both eBL visualisation and supporting documents",
 			transportDocument:   validTransportDocument,
 			lastTransferChain:   validLastTransferChain,
-			eblVisualisation:    validEblVisualization,
+			eblVisualisation:    validEblVisualisation,
 			supportingDocuments: validSupportingDocuments,
 			wantErr:             false,
 		},

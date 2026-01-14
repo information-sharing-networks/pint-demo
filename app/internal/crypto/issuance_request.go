@@ -2,7 +2,7 @@
 //
 // CreateIssuanceRequest is used in the demo app to simulate the initial issuance request from the carrier to the ebl platform (PUT /v3/ebl-issuance-requests)
 //
-// In a production service the carrier would have already created the visualization
+// In a production service the carrier would have already created the Visualisation
 // file and documentJSON, issueTo JSON and would need to:
 // 1. create the issuance manifest and sign it
 // 2. create the eblVisualisationByCarrier struct with the base64 encoded content
@@ -35,8 +35,8 @@ type IssuanceRequestInput struct {
 	// IssueTo is the party receiving the eBL as JSON bytes
 	IssueTo json.RawMessage
 
-	// EBLVisualizationFilePath is the optional path to the eBL visualization file (e.g., PDF).
-	EBLVisualizationFilePath string
+	// EBLVisualisationFilePath is the optional path to the eBL Visualisation file (e.g., PDF).
+	EBLVisualisationFilePath string
 }
 
 // IssuanceRequest is the complete DCSA API request structure for PUT /v3/ebl-issuance-requests.
@@ -50,7 +50,7 @@ type IssuanceRequest struct {
 	// IssueTo is the party receiving the eBL
 	IssueTo json.RawMessage `json:"issueTo"`
 
-	// EBLVisualisationByCarrier is the optional visualization (e.g., PDF)
+	// EBLVisualisationByCarrier is the optional Visualisation (e.g., PDF)
 	EBLVisualisationByCarrier *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier,omitempty"`
 
 	// IssuanceManifestSignedContent is the JWS signature proving integrity
@@ -68,7 +68,7 @@ const (
 // CreateIssuanceRequest creates a complete DCSA IssuanceRequest ready to send to the API (PUT /v3/ebl-issuance-requests)
 //
 // Parameters
-//   - input: The data for the issuance request (document, issueTo, [optional] path to visualization)
+//   - input: The data for the issuance request (document, issueTo, [optional] path to Visualisation)
 //   - signingAlgorithm: The signing algorithm to use (EdDSA or RS256)
 //   - privateKeyJWKPath: Path to the carriers' private key JWK file (must match the signing algorithm)
 //   - certChainFilePath: Optional path to the carrier's X.509 certificate chain file (PEM format). Pass empty string if not needed.
@@ -104,14 +104,14 @@ func CreateIssuanceRequest(
 		return nil, fmt.Errorf("unsupported signing algorithm: %s (expected %s or %s)", signingAlgorithm, AlgorithmEd25519, AlgorithmRSA)
 	}
 
-	// Step 2: create metadata for the eBL visualization file if provided
-	var eBLVisualizationByCarrier *EBLVisualisationByCarrier
-	if issuanceRequestInput.EBLVisualizationFilePath != "" {
-		v, err := loadEblVisualizationFile(issuanceRequestInput.EBLVisualizationFilePath)
+	// Step 2: create metadata for the eBL Visualisation file if provided
+	var eBLVisualisationByCarrier *EBLVisualisationByCarrier
+	if issuanceRequestInput.EBLVisualisationFilePath != "" {
+		v, err := loadEblVisualisationFile(issuanceRequestInput.EBLVisualisationFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load visualization file: %w", err)
+			return nil, fmt.Errorf("failed to load Visualisation file: %w", err)
 		}
-		eBLVisualizationByCarrier = v
+		eBLVisualisationByCarrier = v
 	}
 
 	// Step 3: Load the certificate chain if provided
@@ -129,8 +129,8 @@ func CreateIssuanceRequest(
 		WithDocument(issuanceRequestInput.Document).
 		WithIssueTo(issuanceRequestInput.IssueTo)
 
-	if eBLVisualizationByCarrier != nil {
-		builder.WithEBLVisualisation(eBLVisualizationByCarrier)
+	if eBLVisualisationByCarrier != nil {
+		builder.WithEBLVisualisation(eBLVisualisationByCarrier)
 	}
 
 	issuanceManifest, err := builder.Build()
@@ -179,14 +179,14 @@ func CreateIssuanceRequest(
 	return &IssuanceRequest{
 		Document:                      issuanceRequestInput.Document,
 		IssueTo:                       issuanceRequestInput.IssueTo,
-		EBLVisualisationByCarrier:     eBLVisualizationByCarrier,
+		EBLVisualisationByCarrier:     eBLVisualisationByCarrier,
 		IssuanceManifestSignedContent: issuanceManifestSignedContent,
 	}, nil
 }
 
-// loadEblVisualizationFile reads a file and creates an EBLVisualisationByCarrier.
+// loadEblVisualisationFile reads a file and creates an EBLVisualisationByCarrier.
 // TODO - move to a separate document.go file?
-func loadEblVisualizationFile(filePath string) (*EBLVisualisationByCarrier, error) {
+func loadEblVisualisationFile(filePath string) (*EBLVisualisationByCarrier, error) {
 	dir := filepath.Dir(filePath)
 	filename := filepath.Base(filePath)
 

@@ -4,7 +4,7 @@
 //
 // DCSA requires SHA-256 hashes (called "checksums" in the spec) for:
 //   1. Canonical JSON documents (transport docs, issueTo, etc.)
-//   2. Binary content decoded from base64 (eBL visualizations/associated documents)
+//   2. Binary content decoded from base64 (eBL Visualisations/associated documents)
 //   3. JWS strings (transfer chain entries)
 
 package crypto
@@ -44,7 +44,7 @@ func Hash(data []byte) (string, error) {
 
 // HashFromBase64 decodes base64-encoded content and returns a DCSA-compliant checksum
 //
-// use this function when you have base64-encoded binary content (e.g. PDF visualizations)
+// use this function when you have base64-encoded binary content (e.g. PDF Visualisations)
 //
 // Per DCSA spec: The checksum is calculated over the decoded binary content, not the base64 string.
 //

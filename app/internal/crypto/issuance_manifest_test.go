@@ -22,13 +22,13 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 		wantErr                   bool
 	}{
 		{
-			name:     "valid - no visualization",
+			name:     "valid - no Visualisation",
 			document: validDocument,
 			issueTo:  validIssueTo,
 			wantErr:  false,
 		},
 		{
-			name:     "valid - including visualization",
+			name:     "valid - including Visualisation",
 			document: validDocument,
 			issueTo:  validIssueTo,
 			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
@@ -83,7 +83,7 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:     "valid base64 encoded visualization",
+			name:     "valid base64 encoded Visualisation",
 			document: validDocument,
 			issueTo:  validIssueTo,
 			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
@@ -94,7 +94,7 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:     "invalid - raw binary visualization (not base64)",
+			name:     "invalid - raw binary Visualisation (not base64)",
 			document: validDocument,
 			issueTo:  validIssueTo,
 			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
