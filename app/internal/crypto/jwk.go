@@ -7,6 +7,7 @@
 // ... and by keygen CLI to generate JWKs for distribution via /.well-known/jwks.json
 // keygen also uses the PEM functions below to create a PEM file that can be used to create a CA CSR (certificate signing request)).
 //
+// these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
 
 package crypto
 

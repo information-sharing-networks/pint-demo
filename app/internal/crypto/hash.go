@@ -1,5 +1,7 @@
 // this file provides SHA-256 hashing functions compliant with DCSA specifications.
 //
+// these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
+//
 // DCSA requires SHA-256 hashes (called "checksums" in the spec) for:
 //   1. Canonical JSON documents (transport docs, issueTo, etc.)
 //   2. Binary content decoded from base64 (eBL visualizations/associated documents)

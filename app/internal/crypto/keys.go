@@ -8,6 +8,8 @@
 // keys are saved in JWK format
 //
 // PEM files are in PKCS#8 format (https://datatracker.ietf.org/doc/html/rfc5208)
+//
+// these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
 
 package crypto
 
@@ -20,6 +22,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
@@ -38,9 +41,11 @@ func GenerateEd25519KeyPair() (ed25519.PrivateKey, error) {
 // note the key is not encrypted
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.jwk")
-func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/private.jwk")
+func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
 	jwkKey, err := Ed25519PrivateKeyToJWK(privateKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -56,9 +61,9 @@ func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, baseDi
 		return fmt.Errorf("failed to marshal JWK set: %w", err)
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -72,9 +77,11 @@ func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, baseDi
 // SaveEd25519PublicKeyToJWKFile saves an ED25519 public key to a JWK file
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.jwk")
-func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/public.jwk")
+func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
 	jwkKey, err := Ed25519PublicKeyToJWK(publicKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -90,9 +97,9 @@ func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, baseDir, 
 		return fmt.Errorf("failed to marshal JWK set: %w", err)
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -107,9 +114,10 @@ func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, baseDir, 
 // the app uses JWK for key exchange - this function is primarily for generating a PEM file for creating a CSR
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.pem")
-func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/private.pem")
+func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
 	// Marshal to PKCS#8 format
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
@@ -121,9 +129,9 @@ func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, baseDir, file
 		Bytes: privBytes,
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -143,9 +151,10 @@ func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, baseDir, file
 // SaveEd25519PublicKeyToPEMFile saves an Ed25519 public key to a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.pem")
-func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/public.pem")
+func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
 	// Marshal to SubjectPublicKeyInfo format
 	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
@@ -157,9 +166,9 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, baseDir, filenam
 		Bytes: pubBytes,
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -180,12 +189,14 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, baseDir, filenam
 // ReadEd25519PrivateKeyFromJWKFile loads an ED25519 private key from a JWK file
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.jwk")
-func ReadEd25519PrivateKeyFromJWKFile(baseDir, filename string) (ed25519.PrivateKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/private.jwk")
+func ReadEd25519PrivateKeyFromJWKFile(path string) (ed25519.PrivateKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -223,12 +234,14 @@ func ReadEd25519PrivateKeyFromJWKFile(baseDir, filename string) (ed25519.Private
 
 // ReadEd25519PublicKeyFromJWKFile loads an ed25519 public key from a JWK file
 //
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.jwk")
-func ReadEd25519PublicKeyFromJWKFile(baseDir, filename string) (ed25519.PublicKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/public.jwk")
+func ReadEd25519PublicKeyFromJWKFile(path string) (ed25519.PublicKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -267,12 +280,14 @@ func ReadEd25519PublicKeyFromJWKFile(baseDir, filename string) (ed25519.PublicKe
 // ReadEd25519PrivateKeyFromPEMFile loads an Ed25519 private key from a PEM file in PKCS#8 format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.pem")
-func ReadEd25519PrivateKeyFromPEMFile(baseDir, filename string) (ed25519.PrivateKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/private.pem")
+func ReadEd25519PrivateKeyFromPEMFile(path string) (ed25519.PrivateKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -306,12 +321,14 @@ func ReadEd25519PrivateKeyFromPEMFile(baseDir, filename string) (ed25519.Private
 // ReadEd25519PublicKeyFromPEMFile loads an Ed25519 public key from a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.pem")
-func ReadEd25519PublicKeyFromPEMFile(baseDir, filename string) (ed25519.PublicKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/public.pem")
+func ReadEd25519PublicKeyFromPEMFile(path string) (ed25519.PublicKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -364,9 +381,11 @@ func GenerateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
 // SaveRSAPrivateKeyToJWKFile saves an RSA private key to a JWK file
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.jwk")
-func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/private.jwk")
+func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
 	jwkKey, err := RSAPrivateKeyToJWK(privateKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -382,9 +401,9 @@ func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, baseDir, file
 		return fmt.Errorf("failed to marshal JWK set: %w", err)
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -398,9 +417,11 @@ func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, baseDir, file
 // SaveRSAPublicKeyToJWKFile saves an RSA public key to a JWK file
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.jwk")
-func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/public.jwk")
+func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
 	jwkKey, err := RSAPublicKeyToJWK(publicKey, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to create JWK: %w", err)
@@ -416,9 +437,9 @@ func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, baseDir, filenam
 		return fmt.Errorf("failed to marshal JWK set: %w", err)
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -432,9 +453,10 @@ func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, baseDir, filenam
 // SaveRSAPrivateKeyToPEMFile saves an RSA private key to a PEM file in PKCS#8 format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.pem")
-func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/private.pem")
+func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
 	// Marshal to PKCS#8 format (more modern than PKCS#1)
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
@@ -446,9 +468,9 @@ func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, baseDir, filename st
 		Bytes: privBytes,
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -468,9 +490,10 @@ func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, baseDir, filename st
 // SaveRSAPublicKeyToPEMFile saves an RSA public key to a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.pem")
-func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, baseDir, filename string) error {
+//   - path: The file path (e.g., "./keys/public.pem")
+func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, path string) error {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
 	// Marshal to SubjectPublicKeyInfo format
 	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
@@ -482,9 +505,9 @@ func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, baseDir, filename strin
 		Bytes: pubBytes,
 	}
 
-	root, err := os.OpenRoot(baseDir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -505,12 +528,14 @@ func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, baseDir, filename strin
 // ReadRSAPrivateKeyFromJWKFile loads an RSA private key from a JWK file
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.jwk")
-func ReadRSAPrivateKeyFromJWKFile(baseDir, filename string) (*rsa.PrivateKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/private.jwk")
+func ReadRSAPrivateKeyFromJWKFile(path string) (*rsa.PrivateKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -549,12 +574,14 @@ func ReadRSAPrivateKeyFromJWKFile(baseDir, filename string) (*rsa.PrivateKey, er
 // ReadRSAPublicKeyFromJWKFile loads an RSA public key from a JWK file
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.jwk")
-func ReadRSAPublicKeyFromJWKFile(baseDir, filename string) (*rsa.PublicKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/public.jwk")
+func ReadRSAPublicKeyFromJWKFile(path string) (*rsa.PublicKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -593,12 +620,14 @@ func ReadRSAPublicKeyFromJWKFile(baseDir, filename string) (*rsa.PublicKey, erro
 // ReadRSAPrivateKeyFromPEMFile loads an RSA private key from a PEM file in PKCS#8 format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "private.pem")
-func ReadRSAPrivateKeyFromPEMFile(baseDir, filename string) (*rsa.PrivateKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/private.pem")
+func ReadRSAPrivateKeyFromPEMFile(path string) (*rsa.PrivateKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
@@ -632,12 +661,14 @@ func ReadRSAPrivateKeyFromPEMFile(baseDir, filename string) (*rsa.PrivateKey, er
 // ReadRSAPublicKeyFromPEMFile loads an RSA public key from a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./keys")
-//   - filename: The filename within the base directory (e.g., "public.pem")
-func ReadRSAPublicKeyFromPEMFile(baseDir, filename string) (*rsa.PublicKey, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./keys/public.pem")
+func ReadRSAPublicKeyFromPEMFile(path string) (*rsa.PublicKey, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 

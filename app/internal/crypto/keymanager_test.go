@@ -144,12 +144,14 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	keyID := "test_kid"
 
 	// Save public key file
-	if err := SaveEd25519PublicKeyToJWKFile(publicKey, keyID, tempDir, hostname+".public.jwk"); err != nil {
+	publicKeyPath := filepath.Join(tempDir, hostname+".public.jwk")
+	if err := SaveEd25519PublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
 	// Save private key file (should not be loaded)
-	if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, tempDir, hostname+".private.jwk"); err != nil {
+	privateKeyPath := filepath.Join(tempDir, hostname+".private.jwk")
+	if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
 
@@ -212,8 +214,6 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	// verify private key can't accidentally be loaded in a file named *.public.jwk
 
 	// mv *.private.jwk *.public.jwk
-	privateKeyPath := filepath.Join(tempDir, hostname+".private.jwk")
-	publicKeyPath := filepath.Join(tempDir, hostname+".public.jwk")
 	if err := os.Rename(privateKeyPath, publicKeyPath); err != nil {
 		t.Fatalf("failed to rename private key file: %v", err)
 	}

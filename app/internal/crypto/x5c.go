@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -208,18 +209,20 @@ func ParseCertificateChain(pemData []byte) ([]*x509.Certificate, error) {
 // The certificates are returned in the order they appear in the PEM file.
 //
 // Parameters:
-//   - baseDir: The base directory to scope file access (e.g., "./certs" or "testdata/certs")
-//   - filename: The filename within the base directory (e.g., "cert.pem")
-func ReadCertChainFromPEMFile(baseDir, filename string) ([]*x509.Certificate, error) {
-	root, err := os.OpenRoot(baseDir)
+//   - path: The file path (e.g., "./certs/cert.pem" or "testdata/certs/fullchain.crt")
+func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", filename, err)
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
 	}
 
 	return ParseCertificateChain(pemData)

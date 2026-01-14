@@ -34,12 +34,12 @@ func createTestEntry() *EnvelopeTransferChainEntry {
 // TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C tests the core signing functionality
 // This is the MAIN test - it verifies that transfer chain entries can be signed and verified
 func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys", "ed25519-carrier.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "ed25519-carrier.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithEd25519 tests signing without x5c
 func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys", "ed25519-carrier.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -140,12 +140,12 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithRSAAndX5C tests signing with RSA and x5c
 func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys", "rsa-carrier.example.com.private.jwk")
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs", "rsa-carrier.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithRSA tests signing without x5c
 func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys", "rsa-carrier.example.com.private.jwk")
+	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}

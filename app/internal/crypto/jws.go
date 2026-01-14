@@ -2,6 +2,8 @@
 // Note the DCSA standard requires that JWS compact serialization is used for signing and verifying transport documents
 // ... and that the signing process must be performed using a library (this implementation uses github.com/lestrrat-go/jwx/v3)
 // the DCSA spec does not say which signing algorithm should be used (this implementation can use either RS256 or EdDSA)
+//
+// these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
 package crypto
 
 import (
