@@ -7,8 +7,18 @@ The file is based on the DCSA registry file found at https://github.com/dcsaorg/
 
 
 ## Transport Documents
-manually created test data for transport documents (ebls) - these documents are signed by the keys included in the `transport-documents/keys/` directory.
-c.f `transport-documents/README.md`
+the `transport-documents` directory contains sample JSON that would be used in an issuance request.  The JSON is based on the DCSA openapi v3.0.2 sample data, but with manually computed fields for testing.  The manually computed fields are:
+
+- `eBLVisualisationByCarrier` - an optional field in the DCSA Issuance Request that allows the carrier to provide a human-readable visualization of the eBl.  The `content` field is base64 encoded string of the binary content of the associated visualisation file `HHL71800000.pdf`.    
+- `issuanceManifestSignedContent` - this field is used by receiving parties to verify the 3 parts of the transport docuement (document details, issueTo, and eBLVisualisationByCarrier) have not been tampered with since issuance.  This field is created in two steps - firstly create the intermediary `IssuanceManifest.json` file, and then sign that file with the private key of the carrier (`ed25519-carrier.example.com.private.jwk` or `rsa-carrier.example.com.private.jwk` in this case)  
+
+
+## PINT Transfers
+the `pint-transfers` directory contains json that would be used in a PINT transfer.  The json is based on the DCSA openapi v3.0.0 PINT sample data, but with manually computed fields for testing.  The manually computed fields are:
+
+- `envelopeManifestSignedContent` - this field is used by receiving parties to verify the 3 parts of the transport docuement (document details, issueTo, and eBLVisualisationByCarrier) have not been tampered with since issuance.  This field is created by creating the intermediary `EnvelopeManifest.json` file, and then signing that file with the private key of the sending platform (`ed25519-eblplatform.example.com.private.jwk` or `rsa-eblplatform.example.com.private.jwt` in this case)
+
+see below for details of the keys used in signing the sample data content
 
 ## Test Certificates and Keys
 
@@ -22,15 +32,22 @@ To regenerate all test keys and certificates:
 
 ```bash
 cd /path/to/pint-demo
-./app/internal/crypto/testdata/scripts/generate-test-keys-and-certs.sh -d .
+./app/internal/crypto/testdata/scripts/generate-test-keys-and-certs.sh -d project_root_dir
 ```
 
 This script:
 1. Generates key pairs using `keygen` (outputs JWK and PEM formats)
-2. Creates certificate chains using the generated keys
-3. Outputs test certificates for various scenarios
+2. Outputs test certificates for testing
 
-**Note:** The "expired" certificate will be generated to expire in 1 day, so you will need to wait for a day before using it in tests.
+to regenerate the signatures in the sample data, use the `recompute-signatures.sh` script:
+
+```bash
+cd /path/to/pint-demo
+./app/internal/crypto/testdata/scripts/recompute-signatures.sh -d project_root_dir
+```
+... you will need to manually add the signatures to the sample data.
+
+if you alter any of the json content in the sample data, you will need to regenerate the signatures and checksums.
 
 ### Generated Files
 
@@ -62,6 +79,9 @@ all certs and keys are ed2519 unless otherwise noted
   - `keys/eblplatform-expired.example.com.private.jwk`
   - `keys/eblplatform-expired.example.com.public.jwk`
   - `keys/eblplatform-expired.example.com.private.pem`
+
+
+**Note:** The "expired" certificate will be generated to expire in 1 day, so you will need to wait for a day before using it in tests.
 
 #### 3. Invalid Certificate Chain
 - **Purpose:** Test certificate chain validation failure (leaf signed by untrusted CA)

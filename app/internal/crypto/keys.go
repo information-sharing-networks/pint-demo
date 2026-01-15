@@ -186,6 +186,61 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, path string) err
 	return nil
 }
 
+// ReadPrivateKeyFromJWKFile loads a private key from a JWK file.
+// It auto-detects the key type (Ed25519 or RSA) and returns the appropriate type.
+//
+// Returns:
+//   - ed25519.PrivateKey for Ed25519 keys
+//   - *rsa.PrivateKey for RSA keys
+//   - error if the key type is unsupported or file cannot be read
+//
+// Parameters:
+//   - path: The file path (e.g., "./keys/private.jwk")
+func ReadPrivateKeyFromJWKFile(path string) (any, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+	}
+	defer root.Close()
+
+	jsonBytes, err := root.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	jwkSet, err := jwk.Parse(jsonBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+	}
+
+	if jwkSet.Len() == 0 {
+		return nil, fmt.Errorf("JWK set is empty")
+	}
+
+	jwkKey, ok := jwkSet.Key(0)
+	if !ok {
+		return nil, fmt.Errorf("failed to get key from JWK set")
+	}
+
+	var raw any
+	if err := jwk.Export(jwkKey, &raw); err != nil {
+		return nil, fmt.Errorf("failed to export key: %w", err)
+	}
+
+	// Validate it's a supported private key type
+	switch key := raw.(type) {
+	case ed25519.PrivateKey:
+		return key, nil
+	case *rsa.PrivateKey:
+		return key, nil
+	default:
+		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", raw)
+	}
+}
+
 // ReadEd25519PrivateKeyFromJWKFile loads an ED25519 private key from a JWK file
 //
 // Parameters:

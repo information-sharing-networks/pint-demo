@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # makes the certs needed to test pint-demo
+
+# WARNING: if you regenerate the certs and keys, you will need to regenerate the signatures in the sample data else the CI tests will fail (c.f recompute-signatures.sh)
+#
+# this script included for reference - the keys have 10 year expiry, so hopefully you will not need to regenerate the test data anytime soon.
+#
 #
 # the script uses the keygen.go CLI to generate the key pairs in JWK files and PEM files
 # the PEMs are used by openssl to create CSRs which are then signed by the test CAs to create the certificates used in testing
@@ -12,13 +17,26 @@
 # 3. ecdsa signed cert (rsa-carrier.example.com)
 #
 # the invalid/expired certs are created by reusing the keys from the valid ed25519-eblplatform.example.com cert
-
 # 
 # NOTE Mac users - this script requires openssl 3.6+ for cert generation
 # as of Jan 2026 openssl on Mac does not support ed25519 - install the latest version with; brew install openssl
 #
 
+
 set -e
+
+# extfile configurations (these are used to identify the certs as code signing certs, and to mark cas as able to sign other certs)
+
+CA_ext="basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign"
+
+intermediate_ext="basicConstraints = critical,CA:TRUE,pathlen:0
+keyUsage = critical,keyCertSign,cRLSign"
+
+leaf_ext="basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature"
+
+# functions 
 
 function usage() {
   echo "Usage: $0 -d <project_root_dir>"
@@ -36,7 +54,8 @@ function create_root_CA_cert() {
         -keyout "$CERTS_DIR/${filename}.pem" \
         -out "$CERTS_DIR/${filename}.crt" \
         -days $EXPIRY_DAYS \
-        -subj "/C=GB/ST=England/L=London/O=${O}/CN=${CN}"
+        -subj "/C=GB/ST=England/L=London/O=${O}/CN=${CN}" \
+        -addext "$CA_ext"
     if [ $? -ne 0 ]; then
         echo "Error: openssl req failed" >&2
         return 1
@@ -52,7 +71,7 @@ function create_intermediate_CA_signing_request() {
     openssl req -newkey ed25519 -nodes \
         -keyout "$CERTS_DIR/${filename}.pem" \
         -out "$CERTS_DIR/${filename}.csr" \
-        -subj "/C=GB/ST=England/L=London/O=${O}/CN=${CN}"
+        -subj "/C=GB/ST=England/L=London/O=${O}/CN=${CN}" 
     if [ $? -ne 0 ]; then
         echo "Error: openssl req failed" >&2
         return 1
@@ -69,7 +88,7 @@ function sign_intermediate_CA_certificate() {
         -CAcreateserial \
         -out "$CERTS_DIR/${cert}.crt" \
         -days $EXPIRY_DAYS \
-        -extfile <(echo "basicConstraints=CA:TRUE")  # mark as CA so it can sign other certs
+        -extfile <(echo "$intermediate_ext")
     if [ $? -ne 0 ]; then
         echo "Error: openssl x509 failed" >&2
         return 1
@@ -126,7 +145,8 @@ function sign_platform_certificate() {
         -CAkey "$CERTS_DIR/${ca}.pem" \
         -CAcreateserial \
         -out "$CERTS_DIR/${cert}.crt" \
-        -days $EXPIRY_DAYS
+        -days $EXPIRY_DAYS \
+        -extfile <(echo "$leaf_ext")
     if [ $? -ne 0 ]; then
         echo "Error: openssl x509 failed" >&2
         exit 1
@@ -142,7 +162,8 @@ function sign_expired_eblplatform_certificate() {
         -CAkey "$CERTS_DIR/${ca}.pem" \
         -CAcreateserial \
         -out "$CERTS_DIR/${hostname}.crt" \
-        -days 1
+        -days 1 \
+        -extfile <(echo "$leaf_ext")
     if [ $? -ne 0 ]; then
         echo "Error: openssl x509 failed" >&2
         exit 1
@@ -164,6 +185,11 @@ done
 #
 # set up env
 #
+
+if [ -z "$PROJECT_ROOT_DIR" ]; then
+    echo "test data dir not specified" >&2
+    usage
+fi
 
 PATH="/opt/homebrew/opt/openssl@3/bin:$PATH" # v3.6 needed for ed25519 support
 EXPIRY_DAYS=3650

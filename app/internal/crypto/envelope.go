@@ -41,7 +41,7 @@ type EnvelopeManifest struct {
 	SupportingDocuments []DocumentMetadata `json:"supportingDocuments,omitempty"`
 }
 
-// EnvelopeManifestSignedContent represents a JWS compact serialization of an EnvelopeManifest.
+// EnvelopeManifestSignedContent: a JWS compact serialization of an EnvelopeManifest payload
 type EnvelopeManifestSignedContent string
 
 // EnvelopeTransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
@@ -296,7 +296,7 @@ func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string)
 type EblEnvelope struct {
 
 	// TransportDocument: The transport document (Bill of Lading) as a JSON object.
-	TransportDocument []byte `json:"transportDocument"`
+	TransportDocument json.RawMessage `json:"transportDocument"`
 
 	// EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest.
 	// This is signed by the sending platform and contains checksums to verify integrity.

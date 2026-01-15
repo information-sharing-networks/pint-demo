@@ -1,27 +1,28 @@
 {
-  "eblPlatform": "EBL2",
+  "eblPlatform": "EBL1",
   "transportDocumentChecksum": "bba562710b3f15a6ae91b9d834f08c32f32f964776807d0b116a846bbf3c4238",
-  "previousEnvelopeTransferChainEntrySignedContentChecksum": "6453b8b3c2e80e2ac30aa6a8ab4fb0ef125cd0519877aa037bd85adcddb63b92",
+  "previousEnvelopeTransferChainEntrySignedContentChecksum": "3bf432a81bdd71569acf71ebc976042e86d357722a7e1add644714525196fb7b",
+  
   "transactions": [
     {
       "actionCode": "TRNS",
       "actor": {
         "partyName": "First Recipient",
-        "eblPlatform": "EBL2",
+        "eblPlatform": "EBL1",
         "identifyingCodes": [
           {
-            "codeListProvider": "EBL2",
-            "partyCode": "first-recipient@rsa-eblplatform.example.com"
+            "codeListProvider": "EBL1",
+            "partyCode": "first-recipient@ed25519-eblplatform.example.com"
           }
         ]
       },
       "recipient": {
         "partyName": "Next Recipient",
-        "eblPlatform": "EBL1",
+        "eblPlatform": "EBL2",
         "identifyingCodes": [
           {
-            "codeListProvider": "GLEIF",
-            "partyCode": "next-recipient@ed25519-eblplatform.example.com"
+            "codeListProvider": "EBL2",
+            "partyCode": "next-recipient@rsa-eblplatform2.example.com"
           }
         ]
       },

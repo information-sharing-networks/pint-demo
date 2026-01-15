@@ -1,8 +1,10 @@
-// transfer_chain.go implements the DCSA EBL_PINT specification for creating and signing transfer chain entries.
+// transfer_chain.go provides the low level function used to create and sign transfer chain entries.
 //
 // The transfer chain represents the complete history of an eBL document, including issuance,
 // transfers, endorsements, and surrenders across different eBL platforms.
-
+// each entry in the transfer chain represents a batch of transactions that happened on a single platform.
+//
+// TODO improve validation using DCSA reference data to confirm valid ebl platforms, action codes etc.
 package crypto
 
 import (
@@ -31,6 +33,7 @@ type EnvelopeTransferChainEntry struct {
 	PreviousEnvelopeTransferChainEntrySignedContentChecksum *string `json:"previousEnvelopeTransferChainEntrySignedContentChecksum,omitempty"`
 
 	// IssuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)
+	// The issuance manifest is created by the carrier when the eBL is issued and proves the integrity of the transport document and the issueTo party data.
 	IssuanceManifestSignedContent *IssuanceManifestSignedContent `json:"issuanceManifestSignedContent,omitempty"`
 
 	// ControlTrackingRegistry: URI of CTR (optional, only in first entry). Example: https://ctr.dcsa.org/v1
@@ -400,8 +403,9 @@ type EnvelopeTransferChainEntryBuilder struct {
 	// all subsequent entries must include a previous entry checksum
 	isFirstEntry bool
 
-	// transportDocumentJSON: original transport document supplied by the carrier
-	transportDocumentJSON []byte
+	// transportDocumentChecksum: SHA-256 checksum of the canonical transport document
+	// This should be the validated checksum from the carrier's IssuanceManifest
+	transportDocumentChecksum string
 
 	// eblPlatform: ebl platform code responsible for this entry
 	eblPlatform string
@@ -419,8 +423,10 @@ type EnvelopeTransferChainEntryBuilder struct {
 	transactions []Transaction
 }
 
-// NewFirstEnvelopeTransferChainEntryBuilder creates a builder for the first entry in the transfer chain.
-// The first entry must include an issuance manifest.
+// NewFirstEnvelopeTransferChainEntryBuilder creates a builder for the the first entry in the transfer chain.
+//
+// The first entry requires the issuanceManifestSignedContent field to be set.
+// (previousEnvelopeTransferChainEntrySignedContent is required only for subsequent entries)
 func NewFirstEnvelopeTransferChainEntryBuilder(issuanceManifestSignedContent IssuanceManifestSignedContent) *EnvelopeTransferChainEntryBuilder {
 	return &EnvelopeTransferChainEntryBuilder{
 		isFirstEntry:                  true,
@@ -429,7 +435,10 @@ func NewFirstEnvelopeTransferChainEntryBuilder(issuanceManifestSignedContent Iss
 }
 
 // NewSubsequentEnvelopeTransferChainEntryBuilder creates a builder for a subsequent entry in the transfer chain.
-// The previous entry checksum will be calculated automatically in Build().
+// Use this builder for all entries apart from the first entry in the transfer chain (see NewFirstEnvelopeTransferChainEntryBuilder)
+//
+// The previous entry checksum (previousEnvelopeTransferChainEntrySignedContentChecksum)
+// will be calculated automatically in based on the previousJWS provided to this function during Build().
 func NewSubsequentEnvelopeTransferChainEntryBuilder(previousJWS EnvelopeTransferChainEntrySignedContent) *EnvelopeTransferChainEntryBuilder {
 	return &EnvelopeTransferChainEntryBuilder{
 		isFirstEntry: false,
@@ -437,10 +446,12 @@ func NewSubsequentEnvelopeTransferChainEntryBuilder(previousJWS EnvelopeTransfer
 	}
 }
 
-// WithTransportDocument sets the transport document JSON
-// The document will be canonicalized and checksummed automatically during Build()
-func (b *EnvelopeTransferChainEntryBuilder) WithTransportDocument(documentJSON []byte) *EnvelopeTransferChainEntryBuilder {
-	b.transportDocumentJSON = documentJSON
+// WithTransportDocumentChecksum sets the pre-computed transport document checksum.
+//
+// Use the validated checksum from the carrier's IssuanceManifest.
+// The checksum should have been validated when the eBL platform first received the issuance request.
+func (b *EnvelopeTransferChainEntryBuilder) WithTransportDocumentChecksum(checksum string) *EnvelopeTransferChainEntryBuilder {
+	b.transportDocumentChecksum = checksum
 	return b
 }
 
@@ -470,15 +481,23 @@ func (b *EnvelopeTransferChainEntryBuilder) WithControlTrackingRegistry(uri stri
 	return b
 }
 
-// Build creates the EnvelopeTransferChainEntry with all checksums calculated
-// returns *EnvelopeTransferChainEntry: Ready to sign
+// Build creates the EnvelopeTransferChainEntry with the required checksums calculated.
 //
-//   - error: If validation fails or checksum calculation fails
+// the build process is as follows:
+//   - If this is a subsequent entry, calculate the checksum of the previous entry JWS
+//   - Assemble the EnvelopeTransferChainEntry struct
+//   - Validate the entry
+//
+// Note it is necessary to include the transport document checksum in every entry in the transfer chain
+// to prevent replay attacks (where an attacker replaces the last entry in the chain with a previous entry from a different chain).
+// The transport document checksum is validated when the eBL platform first receives the issuance request and is unchanged for the lifetime of the eBL.
+//
+// returns *EnvelopeTransferChainEntry: Ready to sign
 func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry, error) {
 
 	// check required builder fields
-	if len(b.transportDocumentJSON) == 0 {
-		return nil, fmt.Errorf("transport document is required - use WithTransportDocument()")
+	if b.transportDocumentChecksum == "" {
+		return nil, fmt.Errorf("transport document checksum is required - use WithTransportDocumentChecksum() or WithTransportDocument()")
 	}
 
 	if b.eblPlatform == "" {
@@ -489,21 +508,10 @@ func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry
 		return nil, fmt.Errorf("at least one transaction is required - use WithTransaction()")
 	}
 
-	// Calculate transport document checksum
-	canonical, err := CanonicalizeJSON(b.transportDocumentJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize transport document: %w", err)
-	}
-
-	transportDocChecksum, err := Hash(canonical)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash transport document: %w", err)
-	}
-
-	// Build the entry
+	// Build the entry using the pre-computed checksum
 	entry := &EnvelopeTransferChainEntry{
 		EblPlatform:               b.eblPlatform,
-		TransportDocumentChecksum: transportDocChecksum,
+		TransportDocumentChecksum: b.transportDocumentChecksum,
 		Transactions:              b.transactions,
 	}
 
@@ -513,6 +521,7 @@ func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry
 
 	// Calculate and add previous entry checksum if provided
 	if b.previousEnvelopeTransferChainEntrySignedContent != "" {
+		// this is a checksum of the JWS string of the previous entry in the transfer chain.
 		prevChecksum, err := Hash([]byte(b.previousEnvelopeTransferChainEntrySignedContent))
 		if err != nil {
 			return nil, fmt.Errorf("failed to hash previous entry: %w", err)

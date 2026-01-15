@@ -9,7 +9,7 @@
 // 3. construct the issuance request json combining the document JSON, issueTo JSON, eblVisualisationByCarrier and issuanceManifestSignedContent
 //
 // the CreateIssuanceRequest function shows how to use the low level functions to perform these steps.
-package crypto
+package ebl
 
 import (
 	"crypto/ed25519"
@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // IssuanceRequestInput contains the business data needed to create a DCSA IssuanceRequest.
@@ -51,61 +53,36 @@ type IssuanceRequest struct {
 	IssueTo json.RawMessage `json:"issueTo"`
 
 	// EBLVisualisationByCarrier is the optional Visualisation (e.g., PDF)
-	EBLVisualisationByCarrier *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier,omitempty"`
+	EBLVisualisationByCarrier *crypto.EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier,omitempty"`
 
 	// IssuanceManifestSignedContent is the JWS signature proving integrity
-	IssuanceManifestSignedContent IssuanceManifestSignedContent `json:"issuanceManifestSignedContent"`
+	IssuanceManifestSignedContent crypto.IssuanceManifestSignedContent `json:"issuanceManifestSignedContent"`
 }
-
-// Algorithm specifies which signing algorithm to use
-type Algorithm string
-
-const (
-	AlgorithmEd25519 Algorithm = "EdDSA"
-	AlgorithmRSA     Algorithm = "RS256"
-)
 
 // CreateIssuanceRequest creates a complete DCSA IssuanceRequest ready to send to the API (PUT /v3/ebl-issuance-requests)
 //
+// The signing algorithm is automatically detected from the private key type in the JWK file.
+//
 // Parameters
 //   - input: The data for the issuance request (document, issueTo, [optional] path to Visualisation)
-//   - signingAlgorithm: The signing algorithm to use (EdDSA or RS256)
-//   - privateKeyJWKPath: Path to the carriers' private key JWK file (must match the signing algorithm)
+//   - privateKeyJWKPath: Path to the carrier's private key JWK file (Ed25519 or RSA)
 //   - certChainFilePath: Optional path to the carrier's X.509 certificate chain file (PEM format). Pass empty string if not needed.
 //
 // using a cert chain file that contains an EV or OV certificate is recommended for production (used for non-repudiation)
 func CreateIssuanceRequest(
 	issuanceRequestInput IssuanceRequestInput,
-	signingAlgorithm Algorithm,
 	privateKeyJWKPath string,
 	certChainFilePath string,
 ) (*IssuanceRequest, error) {
 
-	// Step 1: Load the private key from JWK file
-	var privateKey any
-	var err error
-
-	switch signingAlgorithm {
-	case AlgorithmEd25519:
-		ed25519Key, err := ReadEd25519PrivateKeyFromJWKFile(privateKeyJWKPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load Ed25519 private key from %s: %w", privateKeyJWKPath, err)
-		}
-		privateKey = ed25519Key
-
-	case AlgorithmRSA:
-		rsaKey, err := ReadRSAPrivateKeyFromJWKFile(privateKeyJWKPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load RSA private key from %s: %w", privateKeyJWKPath, err)
-		}
-		privateKey = rsaKey
-
-	default:
-		return nil, fmt.Errorf("unsupported signing algorithm: %s (expected %s or %s)", signingAlgorithm, AlgorithmEd25519, AlgorithmRSA)
+	// Step 1: Load the private key from JWK file (auto-detects Ed25519 or RSA)
+	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load private key from %s: %w", privateKeyJWKPath, err)
 	}
 
 	// Step 2: create metadata for the eBL Visualisation file if provided
-	var eBLVisualisationByCarrier *EBLVisualisationByCarrier
+	var eBLVisualisationByCarrier *crypto.EBLVisualisationByCarrier
 	if issuanceRequestInput.EBLVisualisationFilePath != "" {
 		v, err := loadEblVisualisationFile(issuanceRequestInput.EBLVisualisationFilePath)
 		if err != nil {
@@ -117,7 +94,7 @@ func CreateIssuanceRequest(
 	// Step 3: Load the certificate chain if provided
 	var certChain []*x509.Certificate
 	if certChainFilePath != "" {
-		chain, err := ReadCertChainFromPEMFile(certChainFilePath)
+		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load certificate chain: %w", err)
 		}
@@ -125,7 +102,7 @@ func CreateIssuanceRequest(
 	}
 
 	// Step 4: Build the issuanceManifest using the builder
-	builder := NewIssuanceManifestBuilder().
+	builder := crypto.NewIssuanceManifestBuilder().
 		WithDocument(issuanceRequestInput.Document).
 		WithIssueTo(issuanceRequestInput.IssueTo)
 
@@ -139,14 +116,14 @@ func CreateIssuanceRequest(
 	}
 
 	// Step 5: Generate key ID (thumbprint of public key) and sign the issuance manifest
-	var issuanceManifestSignedContent IssuanceManifestSignedContent
+	var issuanceManifestSignedContent crypto.IssuanceManifestSignedContent
 	var keyID string
 
 	switch key := privateKey.(type) {
 	case ed25519.PrivateKey:
 
 		publicKey := key.Public().(ed25519.PublicKey)
-		keyID, err = GenerateKeyIDFromEd25519Key(publicKey)
+		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate key ID: %w", err)
 		}
@@ -158,7 +135,7 @@ func CreateIssuanceRequest(
 		}
 	case *rsa.PrivateKey:
 
-		keyID, err = GenerateKeyIDFromRSAKey(&key.PublicKey)
+		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate key ID: %w", err)
 		}
@@ -186,7 +163,7 @@ func CreateIssuanceRequest(
 
 // loadEblVisualisationFile reads a file and creates an EBLVisualisationByCarrier.
 // TODO - move to a separate document.go file?
-func loadEblVisualisationFile(filePath string) (*EBLVisualisationByCarrier, error) {
+func loadEblVisualisationFile(filePath string) (*crypto.EBLVisualisationByCarrier, error) {
 	dir := filepath.Dir(filePath)
 	filename := filepath.Base(filePath)
 
@@ -208,7 +185,7 @@ func loadEblVisualisationFile(filePath string) (*EBLVisualisationByCarrier, erro
 	// Base64 encode the content
 	encodedContent := base64.StdEncoding.EncodeToString(content)
 
-	return &EBLVisualisationByCarrier{
+	return &crypto.EBLVisualisationByCarrier{
 		Name:        filename,
 		ContentType: contentType,
 		Content:     encodedContent,

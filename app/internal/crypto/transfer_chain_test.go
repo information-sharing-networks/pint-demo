@@ -701,8 +701,9 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 }
 
 var (
-	testTransportDoc = []byte(`{"transportDocumentReference":"TEST123456"}`)
-	testActor        = ActorParty{
+	testTransportDoc         = []byte(`{"transportDocumentReference":"TEST123456"}`)
+	testTransportDocChecksum = computeTestChecksum(testTransportDoc) // SHA-256 of canonical JSON
+	testActor                = ActorParty{
 		PartyName:   "Test Carrier",
 		EblPlatform: "WAVE",
 		IdentifyingCodes: []IdentifyingCode{
@@ -726,9 +727,22 @@ var (
 	testPreviousEntryJWS    = EnvelopeTransferChainEntrySignedContent("eyJhbGci...MOCK_PREVIOUS_ENTRY")
 )
 
+// computeTestChecksum computes the SHA-256 checksum of canonical JSON for testing
+func computeTestChecksum(jsonData []byte) string {
+	canonical, err := CanonicalizeJSON(jsonData)
+	if err != nil {
+		panic("failed to canonicalize test data: " + err.Error())
+	}
+	checksum, err := Hash(canonical)
+	if err != nil {
+		panic("failed to hash test data: " + err.Error())
+	}
+	return checksum
+}
+
 func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
 	entry, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
-		WithTransportDocument(testTransportDoc).
+		WithTransportDocumentChecksum(testTransportDocChecksum).
 		WithTransaction(testTransaction).
 		WithEBLPlatform("WAVE").
 		Build()
@@ -745,15 +759,15 @@ func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
 		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum should be nil for first entry")
 	}
 
-	// Verify checksums are calculated (SHA-256 = 64 hex chars)
-	if len(entry.TransportDocumentChecksum) != 64 {
-		t.Errorf("TransportDocumentChecksum length = %d, want 64", len(entry.TransportDocumentChecksum))
+	// Verify transport document checksum was set
+	if entry.TransportDocumentChecksum != testTransportDocChecksum {
+		t.Errorf("TransportDocumentChecksum = %s, want %s", entry.TransportDocumentChecksum, testTransportDocChecksum)
 	}
 }
 
 func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
 	entry, err := NewSubsequentEnvelopeTransferChainEntryBuilder(testPreviousEntryJWS).
-		WithTransportDocument(testTransportDoc).
+		WithTransportDocumentChecksum(testTransportDocChecksum).
 		WithTransaction(testTransaction).
 		WithEBLPlatform("WAVE").
 		Build()
@@ -770,6 +784,11 @@ func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
 		t.Error("IssuanceManifestSignedContent should be nil for subsequent entry")
 	}
 
+	// Verify transport document checksum was set
+	if entry.TransportDocumentChecksum != testTransportDocChecksum {
+		t.Errorf("TransportDocumentChecksum = %s, want %s", entry.TransportDocumentChecksum, testTransportDocChecksum)
+	}
+
 	// Verify previous entry checksum is correct
 	expectedChecksum, _ := Hash([]byte(testPreviousEntryJWS))
 	if *entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != expectedChecksum {
@@ -784,19 +803,19 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name: "missing transport document",
+			name: "missing transport document checksum",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
 				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
 					WithEBLPlatform("WAVE").
 					WithTransaction(testTransaction)
 			},
-			errMsg: "transport document is required",
+			errMsg: "transport document checksum is required",
 		},
 		{
 			name: "missing eBL platform",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
 				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
-					WithTransportDocument(testTransportDoc).
+					WithTransportDocumentChecksum(testTransportDocChecksum).
 					WithTransaction(testTransaction)
 			},
 			errMsg: "eBL platform is required",
@@ -805,7 +824,7 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 			name: "missing transaction",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
 				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
-					WithTransportDocument(testTransportDoc).
+					WithTransportDocumentChecksum(testTransportDocChecksum).
 					WithEBLPlatform("WAVE")
 			},
 			errMsg: "at least one transaction is required",
@@ -814,7 +833,7 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 			name: "empty previous entry JWS",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
 				return NewSubsequentEnvelopeTransferChainEntryBuilder("").
-					WithTransportDocument(testTransportDoc).
+					WithTransportDocumentChecksum(testTransportDocChecksum).
 					WithEBLPlatform("WAVE").
 					WithTransaction(testTransaction)
 			},
@@ -839,7 +858,7 @@ func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T)
 
 	t.Run("valid CTR on first entry", func(t *testing.T) {
 		entry, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
-			WithTransportDocument(testTransportDoc).
+			WithTransportDocumentChecksum(testTransportDocChecksum).
 			WithTransaction(testTransaction).
 			WithEBLPlatform("WAVE").
 			WithControlTrackingRegistry(ctrURI).
@@ -855,7 +874,7 @@ func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T)
 
 	t.Run("CTR on subsequent entry should fail", func(t *testing.T) {
 		_, err := NewSubsequentEnvelopeTransferChainEntryBuilder(testPreviousEntryJWS).
-			WithTransportDocument(testTransportDoc).
+			WithTransportDocumentChecksum(testTransportDocChecksum).
 			WithTransaction(testTransaction).
 			WithEBLPlatform("WAVE").
 			WithControlTrackingRegistry(ctrURI).
@@ -868,7 +887,7 @@ func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T)
 
 	t.Run("invalid CTR URL should fail", func(t *testing.T) {
 		_, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
-			WithTransportDocument(testTransportDoc).
+			WithTransportDocumentChecksum(testTransportDocChecksum).
 			WithTransaction(testTransaction).
 			WithEBLPlatform("WAVE").
 			WithControlTrackingRegistry("://invalid").

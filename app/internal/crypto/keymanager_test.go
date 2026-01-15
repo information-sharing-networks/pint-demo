@@ -31,7 +31,7 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 	}
 
 	// Verify that providers were loaded
-	if len(km.eblSolutionProviders) != 4 {
+	if len(km.eblSolutionProviders) != 7 {
 		t.Fatalf("expected 4 eBL solution providers, got %d", len(km.eblSolutionProviders))
 	}
 
@@ -132,7 +132,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Generate keys
-	hostname := "eblplatform.example.com"
+	hostname := "ed25519-eblplatform.example.com"
 
 	privateKey, err := GenerateEd25519KeyPair()
 	if err != nil {

@@ -1,30 +1,34 @@
-package crypto
+package ebl
 
 import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-// sanity check to confirm we can correctly recreate the manually computed signatures in
-// HHL71800000-ed25519.json and HHL71800000-rsa.json
+// sanity check to confirm we can correctly recreate the manually computed signatures and
+// checksums in HHL71800000-ed25519.json and HHL71800000-rsa.json
 func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
-	sampleRecordPath := "testdata/transport-documents/HHL71800000-ed25519.json"
-	privateKeyPath := "testdata/keys/ed25519-carrier.example.com.private.jwk"
-	certPath := "testdata/certs/ed25519-carrier.example.com-fullchain.crt"
-	eBLVisualisationPath := "testdata/transport-documents/HHL71800000.pdf"
+	sampleRecordPath := "../crypto/testdata/transport-documents/HHL71800000-ed25519.json"
+	privateKeyPath := "../crypto/testdata/keys/ed25519-carrier.example.com.private.jwk"
+	certPath := "../crypto/testdata/certs/ed25519-carrier.example.com-fullchain.crt"
+	eBLVisualisationPath := "../crypto/testdata/transport-documents/HHL71800000.pdf"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
 		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
 	}
 
+	// unmarshal the sample issuance request - we will use the document and issueTo JSON as the basis for our new record
+	// the other fields are recreated and compared to ensure we got the same result.
 	var sampleIssuanceRequest struct {
-		Document                      json.RawMessage            `json:"document"`
-		IssueTo                       json.RawMessage            `json:"issueTo"`
-		EBLVisualisationByCarrier     *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
-		IssuanceManifestSignedContent string                     `json:"issuanceManifestSignedContent"`
+		Document                      json.RawMessage                   `json:"document"`
+		IssueTo                       json.RawMessage                   `json:"issueTo"`
+		EBLVisualisationByCarrier     *crypto.EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string                            `json:"issuanceManifestSignedContent"`
 	}
 
 	err = json.Unmarshal(data, &sampleIssuanceRequest)
@@ -32,7 +36,7 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 		t.Fatalf("could not marshal bl json: %v", err)
 	}
 
-	// use the sample business data and precreated pdf as input to create a new issuance request
+	// use the JSON data from the sample and the precreated pdf as input to create a new issuance request
 	newIssuanceRequestInput := IssuanceRequestInput{
 		Document:                 sampleIssuanceRequest.Document,
 		IssueTo:                  sampleIssuanceRequest.IssueTo,
@@ -41,7 +45,6 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
 	newIssuanceRequest, err := CreateIssuanceRequest(
 		newIssuanceRequestInput,
-		AlgorithmEd25519,
 		privateKeyPath,
 		certPath,
 	)
@@ -80,10 +83,10 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 }
 func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 
-	sampleRecordPath := "testdata/transport-documents/HHL71800000-rsa.json"
-	privateKeyPath := "testdata/keys/rsa-carrier.example.com.private.jwk"
-	certPath := "testdata/certs/rsa-carrier.example.com-fullchain.crt"
-	VisualisationPath := "testdata/transport-documents/HHL71800000.pdf"
+	sampleRecordPath := "../crypto/testdata/transport-documents/HHL71800000-rsa.json"
+	privateKeyPath := "../crypto/testdata/keys/rsa-carrier.example.com.private.jwk"
+	certPath := "../crypto/testdata/certs/rsa-carrier.example.com-fullchain.crt"
+	VisualisationPath := "../crypto/testdata/transport-documents/HHL71800000.pdf"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
@@ -91,10 +94,10 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	}
 
 	var sampleIssuanceRequest struct {
-		Document                      json.RawMessage            `json:"document"`
-		IssueTo                       json.RawMessage            `json:"issueTo"`
-		EBLVisualisationByCarrier     *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
-		IssuanceManifestSignedContent string                     `json:"issuanceManifestSignedContent"`
+		Document                      json.RawMessage                   `json:"document"`
+		IssueTo                       json.RawMessage                   `json:"issueTo"`
+		EBLVisualisationByCarrier     *crypto.EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string                            `json:"issuanceManifestSignedContent"`
 	}
 
 	err = json.Unmarshal(data, &sampleIssuanceRequest)
@@ -102,16 +105,15 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 		t.Fatalf("could not marshal bl json: %v", err)
 	}
 
-	// use the sample business data and precreated pdf as input to create a new issuance request
+	// use the JSON data from the sample and the precreated pdf as input to create a new issuance request
 	newIssuanceRequestInput := IssuanceRequestInput{
 		Document:                 sampleIssuanceRequest.Document,
 		IssueTo:                  sampleIssuanceRequest.IssueTo,
-		EBLVisualisationFilePath: VisualisationPath, //TODO z to s to confirm with uk eng used in spec
+		EBLVisualisationFilePath: VisualisationPath,
 	}
 
 	newIssuanceRequest, err := CreateIssuanceRequest(
 		newIssuanceRequestInput,
-		AlgorithmRSA,
 		privateKeyPath,
 		certPath,
 	)
