@@ -50,7 +50,6 @@ const (
 	TrustLevelDV TrustLevel = 2
 
 	// TrustLevelNoX5C represents keys without any certificate chain
-	//
 	// The signature has no identity proof (recommended for testing only)
 	TrustLevelNoX5C TrustLevel = 3
 )
