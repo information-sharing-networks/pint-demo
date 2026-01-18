@@ -4,7 +4,7 @@ go 1.25.4
 
 require (
 	github.com/Netflix/go-env v0.1.2
-	github.com/go-chi/chi/v5 v5.2.3
+	github.com/go-chi/chi/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/gowebpki/jcs v1.0.1
 	github.com/jackc/pgx/v5 v5.8.0
