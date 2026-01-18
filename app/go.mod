@@ -9,7 +9,7 @@ require (
 	github.com/gowebpki/jcs v1.0.1
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/lestrrat-go/httprc/v3 v3.0.3
-	github.com/lestrrat-go/jwx/v3 v3.0.12
+	github.com/lestrrat-go/jwx/v3 v3.0.13
 	github.com/lmittmann/tint v1.1.2
 	github.com/spf13/cobra v1.10.2
 )
@@ -28,9 +28,8 @@ require (
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	github.com/valyala/fastjson v1.6.4 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	github.com/valyala/fastjson v1.6.7 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 )
