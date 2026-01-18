@@ -3,7 +3,8 @@
 // ... and that the signing process must be performed using a library (this implementation uses github.com/lestrrat-go/jwx/v3)
 // the DCSA spec does not say which signing algorithm should be used (this implementation can use either RS256 or EdDSA)
 //
-// these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
+// these are low level functions - for standard usage (issuance requests, transfer requests etc)
+// you will not need to call these functions directly. See the ebl package for high level functions.
 package crypto
 
 import (
@@ -18,10 +19,15 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
-// JWSHeader represents the header of a JWS token
+// JWSHeader represents the header of a JWS token as used in the PINT API
 type JWSHeader struct {
-	Algorithm string `json:"alg"` // "RS256/EdDSA"
-	KeyID     string `json:"kid"` // Key ID
+
+	// Algorithm "RS256/EdDSA"
+	Algorithm string `json:"alg"`
+
+	// KeyID - this is used to look up the public key in the receiver's key manager
+	// per DCSA recommendation this implementation uses the JWK thumbprint of the public key as the key ID
+	KeyID string `json:"kid"`
 }
 
 // VerifyEd25519 verifies a Ed25519 JWS compact serialization signature and returns the payload
@@ -41,6 +47,37 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.RS256(), publicKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify JWS: %w", err)
+	}
+
+	return payload, nil
+}
+
+// VerifyJWS verifies a JWS signature and returns the payload.
+//
+// This function verifies the JWS signature using the provided public key.
+// It does not validate x5c headers - this should be done by the caller.
+//
+// Parameters:
+//   - jwsString: JWS compact serialization (header.payload.signature)
+//   - publicKey: Public key to verify signature (ed25519.PublicKey or *rsa.PublicKey)
+//
+// Returns the verified payload bytes.
+func VerifyJWS(jwsString string, publicKey any) ([]byte, error) {
+
+	// Verify signature using publicKey (proves signer owns corresponding private key)
+	var payload []byte
+	var err error
+	switch key := publicKey.(type) {
+	case ed25519.PublicKey:
+		payload, err = VerifyEd25519(jwsString, key)
+	case *rsa.PublicKey:
+		payload, err = VerifyRSA(jwsString, key)
+	default:
+		return nil, fmt.Errorf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("signature verification failed: %w", err)
 	}
 
 	return payload, nil
@@ -247,4 +284,54 @@ func SignJSONWithRSA(payload []byte, privateKey *rsa.PrivateKey, keyID string) (
 	}
 
 	return string(signed), nil
+}
+
+// DetemineTrustLevel is used to assess the trust level of JWS fields recieved in PINT messages.
+//
+// The sending platform can optionally include a certificate chain in the JWS header.
+// The leaf certificate in the chain must be signed by an approved CA in order
+// to prove the identity of the org running the platform. The certificate type
+// is used to determine the trust level:
+//
+// TrustLevelEVOV: Certificates containing a Subject.Organization field are considered to be either
+// Organization Validation (OV) or Extended Validation (EV) certificates.
+// This means they were issued to a specific organization that was
+// verified by a Certificate Authority.
+// In this case the highest trust level (TrustLevelEVOV) is returned.
+// This level is recommended for production use.
+//
+// TrustLevelDV: Certificates without an Organization field are considered
+// Domain Validation (DV) certificates - this  and may be allowed in production,
+// depending on policy.
+//
+// TrustLEvelNoX5C: If no x5c is present then the lowest trust level is returned.
+// This means the signature has no identity proof - recommended for testing only.
+//
+// Parameters: jwsString: JWS compact serialization (header.payload.signature)
+func DetermineTrustLevel(jwsString string) (TrustLevel, error) {
+	// Extract x5c from JWS (optional)
+	certChain, err := ParseX5CFromJWS(jwsString)
+	if err != nil {
+		return TrustLevelNoX5C, fmt.Errorf("failed to parse x5c: %w", err)
+	}
+
+	// nil certChain means no x5c header was present
+	if certChain == nil {
+		return TrustLevelNoX5C, nil
+	}
+
+	// get the leaf certificate (platform certificate)
+	cert := certChain[0]
+	if cert == nil {
+		return TrustLevelNoX5C, fmt.Errorf("leaf certificate is nil")
+	}
+
+	// TODO - do we need more robust EV/OV detection?
+	// Check if the certificate has an Organization field in the Subject
+	// OV and EV certificates require this field; DV certificates typically don't have it
+	if len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] != "" {
+		return TrustLevelEVOV, nil
+	}
+
+	return TrustLevelDV, nil
 }

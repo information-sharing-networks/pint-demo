@@ -1,7 +1,10 @@
 // x5c.go - Functions for parsing and validating X.509 certificate chains from JWS headers
+// this implementation of PINT uses x5c certificates for non-repudiation.
 package crypto
 
 import (
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -20,20 +23,11 @@ import (
 // PKIX certificates [RFC5280]. The certificate chain is represented as a JSON array of
 // certificate value strings. Each string in the array is a base64-encoded DER PKIX certificate value.
 //
-// Per RFC 7515 Section 4.1.6:
-// - The first certificate MUST contain the public key corresponding to the key used to sign the JWS
-// - Each subsequent certificate MUST directly certify the one preceding it
-// - The certificate containing the public key MAY be followed by additional certificates
-//
 // This function extracts the raw certificates without validating the JWS signature or the
 // certificate chain. Use ValidateCertificateChain() to validate the chain after extraction.
 //
-// Parameters:
-// - jwsString: The JWS token in compact serialization format (header.payload.signature)
-//
-// Returns:
-// - []*x509.Certificate: The parsed certificate chain (leaf first, root last), or nil if x5c is not present
-// returns nil if x5c is not present in the JWS header
+// Returns the parsed certificate chain, or nil if x5c is not present.
+// Error is returned for any parsing errors.
 func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 	// JWS format: header.payload.signature
 	parts := strings.Split(jwsString, ".")
@@ -83,31 +77,22 @@ func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 
 // ValidateCertificateChain validates an X.509 certificate chain and verifies domain binding.
 //
-// 1. Validates the certificate chain (expiry, trust chain, signatures)
-// 2. Verifies that the certificate's domain matches the expected domain
-//
-// The DCSA spec requires: "Check that the digital certificate is from the correct party
-// (API authentication matches with identity in the certificate)"
-//
-// This prevents attacks where a valid signed eBL is served from an attacker's domain.
+// This can be used to validate the content of the x5c header in a JWS received in a PINT message.
+// The certificate chain is validated against the expected domain and the trusted root CAs.
 //
 // Parameters:
-// - certChain: Certificate chain (leaf first, root last) - must be correctly ordered
-// - roots: Root CA pool (nil = use system roots for production, custom pool for testing or if a private CA is used)
-// - expectedDomain: The domain that must match the certificate (from TLS connection or DCSA registry)
-//
-// Returns:
-// - error: If validation fails or domain doesn't match
+//   - certChain: Certificate chain (leaf first, root last)
+//   - roots: Root CA pool (nil = system roots, custom pool = testing/private CA)
+//   - expectedDomain: Domain from DCSA registry or envelope (e.g., "wavebl.com")
 func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPool, expectedDomain string) error {
 	if len(certChain) == 0 {
 		return fmt.Errorf("empty certificate chain")
 	}
-
 	if expectedDomain == "" {
 		return fmt.Errorf("empty expected domain")
 	}
 
-	// Build intermediate pool from the chain (excluding leaf)
+	// Build intermediate pool from chain (excluding leaf)
 	intermediates := x509.NewCertPool()
 	if len(certChain) > 1 {
 		for _, cert := range certChain[1:] {
@@ -115,41 +100,30 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 		}
 	}
 
-	// Build verify options
+	// Validate cert chain against SSL CAs (proves CA-backed identity)
 	verifyOpts := x509.VerifyOptions{
-		Roots:         roots, // nil = use system roots (production), custom pool = testing
+		Roots:         roots, // nil = system roots
 		Intermediates: intermediates,
 		CurrentTime:   time.Now(),
 	}
 
-	// Per RFC 7515 Section 4.1.6: "The certificate containing the public key
-	// corresponding to the key used to digitally sign the JWS MUST be the first certificate."
-	// If the chain is incorrectly ordered, leaf.Verify() will fail during chain validation.
 	leaf := certChain[0]
 	chains, err := leaf.Verify(verifyOpts)
 	if err != nil {
 		return fmt.Errorf("certificate chain validation failed: %w", err)
 	}
-
-	// TODO: Certificate revocation status (OCSP/CRL)
-
-	// Verify succeeded - log the validated chain(s)
 	if len(chains) == 0 {
 		return fmt.Errorf("no valid certificate chains found")
 	}
 
-	// Verify domain matches (DCSA requirement)
-	// Check all SANs (Subject Alternative Names) first (per RFC 6125)
-	// TODO - wildcard support?
+	// Verify domain matches (prevents attacker using substituting their own certificate for the one from the x5c header)
 	domainMatches := slices.Contains(leaf.DNSNames, expectedDomain)
-
-	// Fallback to CN (Common Name) if no SANs present
 	if !domainMatches && len(leaf.DNSNames) == 0 {
 		domainMatches = leaf.Subject.CommonName == expectedDomain
 	}
 
+	// construct error message
 	if !domainMatches {
-		// Build error message with cert's primary domain
 		certDomain := "(no domain found)"
 		if len(leaf.DNSNames) > 0 {
 			certDomain = leaf.DNSNames[0]
@@ -158,6 +132,8 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 		}
 		return fmt.Errorf("certificate domain mismatch: cert contains %q, expected %q", certDomain, expectedDomain)
 	}
+
+	// TODO: Certificate revocation status (OCSP/CRL)
 
 	return nil
 }
@@ -226,4 +202,56 @@ func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 	}
 
 	return ParseCertificateChain(pemData)
+}
+
+// ValidateX5CMatchesKey validates that the x5c certificate chain's public
+// key matches the signing key received from the sending platform's JWKS
+// endpoint or stored certificate.
+//
+// If the siging key and the public key in the x5c certificate do not match,
+// an error has occured on the sending platform and the message containing
+// the JWS should be rejected.
+//
+// Parameters:
+//   - certChain: Certificate chain from x5c header (leaf cert first)
+//   - publicKey: Sending platform's public key (ed25519.PublicKey or *rsa.PublicKey)
+//
+// Returns error if:
+//   - certChain is empty
+//   - publicKey type is unsupported
+//   - Public keys don't match
+func ValidateX5CMatchesKey(certChain []*x509.Certificate, publicKey any) error {
+	if len(certChain) == 0 {
+		return fmt.Errorf("empty certificate chain")
+	}
+
+	// Extract public key from leaf certificate
+	certPublicKey := certChain[0].PublicKey
+
+	// Compare public keys based on type
+	switch key := publicKey.(type) {
+	case ed25519.PublicKey:
+		certKey, ok := certPublicKey.(ed25519.PublicKey)
+		if !ok {
+			return fmt.Errorf("x5c certificate contains %T key, but expected ed25519.PublicKey", certPublicKey)
+		}
+		if !key.Equal(certKey) {
+			return fmt.Errorf("x5c certificate public key does not match provided Ed25519 key")
+		}
+
+	case *rsa.PublicKey:
+		certKey, ok := certPublicKey.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("x5c certificate contains %T key, but expected *rsa.PublicKey", certPublicKey)
+		}
+		// Compare RSA keys by checking N and E
+		if certKey.N.Cmp(key.N) != 0 || certKey.E != key.E {
+			return fmt.Errorf("x5c certificate public key does not match provided RSA key")
+		}
+
+	default:
+		return fmt.Errorf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey)
+	}
+
+	return nil
 }

@@ -1,68 +1,12 @@
-// these functions handle discovering, caching, and validating public keys
+// keymanager.go handles discovering, caching, and validating public keys
 // from eBL solution providers for JWS signature verification.
 //
 // eBL signatures may be stored externally from this app in order to track transfers, provide an externally verifiable audit trail and so on.
-// this app assumes that all production eBL signatures will include x5c in the JWS header (signatures with raw public keys and no x5c are supported but not recommended)
-// This ensures signatures remain verifiable without access to the original platforms.
+// x5c headers in JWS are OPTIONAL but recommended for non-repudiation (enables offline verification and legal disputes).
+// For real-time verification, keys are fetched from JWK endpoints or stored certificates using the kid header.
 //
-// # DCSA Signature Verification Process
-//
-// The KeyManager implements DCSA's recommended signature verification process.
-//
-// 1: Decode the JWS
-//
-//	Parse JWS and extract kid from header
-//
-// 2: Match the key id to an existing digital certificate
-//
-//	a) Extract kid from JWS header
-//	b) Fetch the JWKS from JWK endpoint (or local store if manually stored)
-//	c) Filter JWKS by kid to find the specific public key
-//	d) Extract x5c certificate chain from JWS header
-//	e) Extract public key from x5c certificate
-//	f) Verify public key from JWK matches public key from x5c
-//
-// 3: Check that the digital certificate is from the correct platform
-//
-//	a) Validate certificate chain to trusted CA
-//	b) Check certificate expiry and revocation status (OCSP/CRL)
-//	c) Extract domain from certificate (CN or SAN)
-//	d) Verify certificate domain matches expected platform domain
-//	e) Verify domain is in DCSA registry
-//	f) Determine trust level (EV/OV/DV) - EV/OV recommended for production
-//
-// 4: Check that the signature matches with the public key
-//
-//	Verify JWS signature cryptographically
-//
-// 5: Validate checksums in the JWS payload
-//
-//	Verify payload integrity (handled by caller)
-//
-// # Platform Identification
-//
-// Platform identification is achieved through JWS signature verification combined with DCSA's approved
-// list of domains. This registry is used below as the authorization allowlist and the app will check the domain
-// extracted from the x5c certificate against the DCSA registry.
-//
-// # Trust Hierarchy
-//
-// This app implements a trust hierarchy based on certificate validation level (levels 1-3 - see below comments)
-//
-// # Key Distribution
-//
-// Key are distributed two ways:
-// 1. Manually (shared out of band)
-// 2. Dynamically discovered keys (via JWK endpoint)
-//
-// # Key ID (kid) Usage
-// This app uses the JWK thumbprint as the key ID.
-//
-// DCSA Digital Signatures guide states:
-// "When the certificates are exchanged, the parties must agree on how to identify the key pair in
-// question. This is the key id (kid) used in the digital signature. A common approach (e.g. in
-// OpenID Connect) is to generate a JWK thumbprint of the public key. Therefore, this is a
-// recommended default."
+// # for details on the trust model and the signature verification process see envelope_verification.go where the process is implemented.
+// The KeyManager implements functions to support DCSA's recommended signature verification process.
 package crypto
 
 import (
@@ -88,29 +32,26 @@ import (
 )
 
 // TrustLevel represents the trust level of a signature and is determined by the x5c (X.509 certificate chain) in the JWS header.
-// Trust level can be calculated independently of how the key was obtained (manual or JWK endpoint).
-// Production eBL signatures should include x5c (certificate chain) embedded in the JWS header
-// If x5c is present in both JWS and JWK, they should be identical
+//
+// It is recommended that production eBL signatures include an x5c (certificate chain) embedded in the JWS header
+// to support non-repudiation requirements.
 type TrustLevel int
 
 const (
 	// TrustLevelEVOV represents signatures with x5c certs that use Extended Validation (EV) or Organization Validation (OV) certificates.
-	// - Highest trust level
-	// - Provides non-repudiation through organizational identity validation
-	// - Certificate Authority has verified the organization's legal identity
-	// - recommended for production digital signatures
+	//	- Organisation identity verified by CA (provides non-repudiation)
+	//	- Recommended for production digital signatures
 	TrustLevelEVOV TrustLevel = 1
 
 	// TrustLevelDV - certs with Domain Validation (DV) certificates.
-	// - this trust level may be acceptable for production depending on policy
-	// - Validates domain ownership but not organizational identity
-	// - Certificate Authority has verified control of the domain only
-	// - Fallback when we can't determine if cert is EV/OV (CA doesn't publish validation level)
+	//	- This trust level may be acceptable for production depending on policy
+	//	- Certificate Authority has verified control of the domain only
+	//	- Fallback when we can't determine if cert is EV/OV (CA doesn't publish validation level)
 	TrustLevelDV TrustLevel = 2
 
-	// TrustLevelNoX5C represents keys without any certificate chain (raw public keys).
-	// - Lowest trust level - development/testing ONLY
-	// - The signature itself has no identity proof
+	// TrustLevelNoX5C represents keys without any certificate chain
+	//
+	// The signature has no identity proof (recommended for testing only)
 	TrustLevelNoX5C TrustLevel = 3
 )
 

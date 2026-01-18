@@ -41,10 +41,16 @@ type EnvelopeManifest struct {
 	SupportingDocuments []DocumentMetadata `json:"supportingDocuments,omitempty"`
 }
 
-// EnvelopeManifestSignedContent: a JWS compact serialization of an EnvelopeManifest payload
+// EnvelopeManifestSignedContent: a JWS compact serialization of an EnvelopeManifest payload.
+//
+// This is created by the sending platform and included in eblEnvelope.envelopeManifestSignedContent.
+// The receiving platform uses this to verify the manifest has not been tampered with.
 type EnvelopeManifestSignedContent string
 
 // EnvelopeTransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
+//
+// An array of all the signed transfer chain entries is included in eblEnvelope.envelopeTransferChain and
+// represents the activity that has happened to the eBL prior to this transfer.
 type EnvelopeTransferChainEntrySignedContent string
 
 // Validate checks that all required fields are present per DCSA EBL_PINT specification

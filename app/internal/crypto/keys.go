@@ -1,16 +1,17 @@
-// this file contains functions to generate and manage public/private key pairs
+// keys.go contains functions to generate and manage public/private key pairs used in the PINT API
 //
 // Because participating parties in PINT exchanges may have different policies on acceptable key types,
 // DSCA do not specify which algorithm should be used to generate public/private keys
 //
-// This implementation supports both ED25519 and RSA key types.
-// ED25519 is the recommended key type since it is more secure and efficient than RSA.
-// keys are saved in JWK format
+// This implementation supports both ED25519 and RSA key types
+// (ED25519 is recommended for new implementations)
+//
+// keys are saved in JWK format and as PEM files (for testing and creating Certificate Signing Requests)
 //
 // PEM files are in PKCS#8 format (https://datatracker.ietf.org/doc/html/rfc5208)
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
-
+// See the ebl package for high level functions
 package crypto
 
 import (
@@ -238,6 +239,58 @@ func ReadPrivateKeyFromJWKFile(path string) (any, error) {
 		return key, nil
 	default:
 		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", raw)
+	}
+}
+
+// ReadPublicKeyFromJWKFile loads a public key from a JWK file.
+// It auto-detects the key type (Ed25519 or RSA) and returns the appropriate type.
+//
+// Returns:
+//   - ed25519.PublicKey for Ed25519 keys
+//   - *rsa.PublicKey for RSA keys
+//   - error if the key type is unsupported or file cannot be read
+func ReadPublicKeyFromJWKFile(path string) (any, error) {
+	dir := filepath.Dir(path)
+	filename := filepath.Base(path)
+
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+	}
+	defer root.Close()
+
+	jsonBytes, err := root.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	jwkSet, err := jwk.Parse(jsonBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+	}
+
+	if jwkSet.Len() == 0 {
+		return nil, fmt.Errorf("JWK set is empty")
+	}
+
+	jwkKey, ok := jwkSet.Key(0)
+	if !ok {
+		return nil, fmt.Errorf("failed to get key from JWK set")
+	}
+
+	var raw any
+	if err := jwk.Export(jwkKey, &raw); err != nil {
+		return nil, fmt.Errorf("failed to export key: %w", err)
+	}
+
+	// Validate it's a supported public key type
+	switch key := raw.(type) {
+	case ed25519.PublicKey:
+		return key, nil
+	case *rsa.PublicKey:
+		return key, nil
+	default:
+		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", raw)
 	}
 }
 

@@ -294,9 +294,9 @@ type TransferChainEntryInput struct {
 // Parameters:
 //   - input: The data for the transfer chain entry (transport document checksum, platform, transactions, etc.)
 //   - privateKeyJWKPath: Path to the platform's private key JWK file (Ed25519 or RSA)
-//   - certChainFilePath: Optional path to the platform's X.509 certificate chain file (PEM format). Pass empty string if not needed.
+//   - certChainFilePath: Optional path to the platform's X.509 certificate chain file (PEM format). Pass empty string to omit x5c header.
 //
-// Using a cert chain file that contains an EV or OV certificate is recommended for production (used for non-repudiation)
+// Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification)
 //
 // Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain
 func CreateTransferChainEntry(

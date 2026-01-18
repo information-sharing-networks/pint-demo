@@ -113,12 +113,10 @@ the output files are:
 
 ## Using the included packages to create DSCA API messages
 
-you can use the pint-demo packages to create DCSA *eBL Issuance Requests*  (EBL_ISS_v3.0.2) and *PINT Transfers* (EBL_PINT_v3.0.0) 
-
-The `ebl` package provides high-level functions to create PINT and Issuance Request messages. The `ebl` package uses the `crypto` package to calculate the necessary JWS signatures and checksums.
+you can use the pint-demo packages to create DCSA *eBL Issuance Requests*  (EBL_ISS_v3.0.2) and *PINT Transfers* (EBL_PINT_v3.0.0).  These are for demonstration purposes and show how to use the crypto package to create valid PINT and issuance requests.
 
 ### Creating an Issuance Request 
-To create the initial issuance request that is sent from the carrier to the ebl platform (`PUT /v3/ebl-issuance-requests`), use the high-level `CreateIssuanceRequest` function.
+To create an initial issuance request that is sent from the carrier to the ebl platform (`PUT /v3/ebl-issuance-requests`), use the high-level `CreateIssuanceRequest` function.
 
 See `app/internal/ebl/issuance_request_test.go` for example usage.
 
@@ -127,6 +125,12 @@ To create a PINT transfer envelope that is sent from one ebl platform to another
 
 See `app/internal/ebl/envelope_transfer_test.go` for example usage. 
 
-## TODO - demo PINT service and clients
+## TODO 
+**support for remaining PINT API endpoints**
+- /v3/receiver-validation 
+- /v3/envelopes/{id}/finish-transfer 
+
+**demo PINT service and clients**
+
 the demo service and clients are not yet fully implemented, but will simulate a simple PINT API workflow:
 carrier > platform 1 > platform 2 > carrier
