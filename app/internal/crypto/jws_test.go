@@ -3,8 +3,10 @@ package crypto
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"os"
 	"strings"
 	"testing"
 )
@@ -437,5 +439,161 @@ func TestGenerateKeyIDFromRSAKey(t *testing.T) {
 	// Verify key ID is 16 characters
 	if len(keyID) != 16 {
 		t.Errorf("key ID length = %d, want 16", len(keyID))
+	}
+}
+
+// test the wrapper function that handles all the JWS checks
+func TestVerifyJWS(t *testing.T) {
+	// Use testdata certificates and keys
+	validPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	if err != nil {
+		t.Fatalf("failed to load test private key: %v", err)
+	}
+
+	validPublicKey := validPrivateKey.Public().(ed25519.PublicKey)
+
+	validDomain := "ed25519-eblplatform.example.com"
+
+	validKeyID, err := GenerateKeyIDFromEd25519Key(validPublicKey)
+	if err != nil {
+		t.Fatalf("failed to generate key ID: %v", err)
+	}
+
+	validCertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load test certificates: %v", err)
+	}
+
+	// Load root CA for validation
+	rootCAs := x509.NewCertPool()
+	rootCABytes, err := os.ReadFile("testdata/certs/root-ca.crt")
+	if err != nil {
+		t.Fatalf("failed to load root CA: %v", err)
+	}
+	if !rootCAs.AppendCertsFromPEM(rootCABytes) {
+		t.Fatalf("failed to parse root CA")
+	}
+
+	tests := []struct {
+		name           string
+		setupJWS       func() string
+		publicKey      any
+		expectedDomain string
+		rootCAs        *x509.CertPool
+		expectCertX5C  bool // true if we expect x5c cert chain to be returned
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name: "Valid JWS with x5c",
+			setupJWS: func() string {
+				payload := []byte(`{"test":"data"}`)
+				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
+				return jws
+			},
+			publicKey:      validPublicKey,
+			expectedDomain: validDomain,
+			rootCAs:        rootCAs,
+			expectCertX5C:  true,
+			expectError:    false,
+		},
+		{
+			name: "Valid JWS without x5c",
+			setupJWS: func() string {
+				payload := []byte(`{"test":"data"}`)
+				jws, _ := SignJSONWithEd25519(payload, validPrivateKey, validKeyID)
+				return jws
+			},
+			publicKey:      validPublicKey,
+			expectedDomain: validDomain,
+			rootCAs:        nil,
+			expectCertX5C:  false,
+			expectError:    false,
+		},
+		{
+			name: "Invalid signature",
+			setupJWS: func() string {
+				payload := []byte(`{"test":"data"}`)
+				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
+				// Tamper with the signature
+				parts := strings.Split(jws, ".")
+				parts[2] = "invalid-signature"
+				return strings.Join(parts, ".")
+			},
+			publicKey:      validPublicKey,
+			expectedDomain: validDomain,
+			rootCAs:        rootCAs,
+			expectError:    true,
+			errorContains:  "signature verification failed",
+		},
+		{
+			name: "Wrong domain in certificate",
+			setupJWS: func() string {
+				payload := []byte(`{"test":"data"}`)
+				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
+				return jws
+			},
+			publicKey:      validPublicKey,
+			expectedDomain: "wrong-domain.com",
+			rootCAs:        rootCAs,
+			expectError:    true,
+			errorContains:  "certificate domain mismatch",
+		},
+		{
+			name: "Wrong public key - x5c mismatch",
+			setupJWS: func() string {
+				payload := []byte(`{"test":"data"}`)
+				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
+				return jws
+			},
+			publicKey: func() ed25519.PublicKey {
+				_, wrongKey, _ := ed25519.GenerateKey(rand.Reader)
+				return wrongKey.Public().(ed25519.PublicKey)
+			}(),
+			expectedDomain: "ed25519-eblplatform.example.com",
+			rootCAs:        rootCAs,
+			expectError:    true,
+			errorContains:  "signature verification failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jws := tt.setupJWS()
+
+			payload, certChain, err := VerifyJWS(
+				jws,
+				tt.publicKey,
+				tt.expectedDomain,
+				tt.rootCAs,
+			)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error containing %q, got %q", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if payload == nil {
+				t.Errorf("expected payload but got nil")
+			}
+
+			// Check cert chain presence matches expectation
+			if tt.expectCertX5C && certChain == nil {
+				t.Errorf("expected cert chain but got nil")
+			}
+
+			if !tt.expectCertX5C && certChain != nil {
+				t.Errorf("expected nil cert chain, got %d certs", len(certChain))
+			}
+		})
 	}
 }

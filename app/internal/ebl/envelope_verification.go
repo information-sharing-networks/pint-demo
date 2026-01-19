@@ -2,12 +2,15 @@
 //
 // the verification process is as follows:
 // 1. Check envelope structure for required fields
-// 2. Verify x5c certificate chain if present (optional but recommended for non-repudiation)
-// 3. Determine trust level (based on the type of certificate presented)
-// 4. Verify envelope manifest JWS signature and extract the manifest
-// 5. Verify the transport document JSON checksum matches the manifest
+// 2. Verify JWS signature and validate x5c certificate chain (if present)
+// 3. Determine trust level based on certificate type
+// 4. Parse and validate manifest payload
+// 5. Verify transport document JSON checksum matches the manifest
 // 6. Verify transfer chain integrity
 // 7. Verify transport document checksums match between manifest and last entry (anti-replay protection)
+//
+// Note: Trust level policy enforcement (minimum acceptable trust level) should be done by the caller
+// (typically the HTTP handler)
 //
 // # Signature Verification Process
 //
@@ -15,22 +18,14 @@
 // it should be fetched from the sender's JWKS endpoint (looked up by kid from JWS header)
 // or - if keys were exchanged out of band - obtained from the services' trust store.
 //
-// 1: Decode the JWS and verify signature
+// All signatures in the envelope (manifest + all transfer chain entries) must be
+// signed by the sending platform.
+
 //
-//	Parse JWS, extract kid from header, and verify signature using provided public key
-//
-// 2: If x5c is present in the JWS header, validate the certificate chain
-//
-//	(see crypto.validateX5C for details on the validation process)
-//
-// 3: Determine trust level  (see crypto.DetermineTrustLevel)
-//
-// 4: Validate checksums and payload integrity
-//
-//	a) Verify transport document checksum matches manifest
-//	b) Verify last transfer chain entry checksum matches manifest
-//	c) Verify anti-replay protection (checksums match between manifest and last entry)
-//	d) Verify full transfer chain integrity (all entries validated)
+// The only exception is the issuanceManifestSignedContent (inside the first transfer chain entry), which is signed
+// by the carrier and is not re-signed.
+
+// see JwsVerify for details on the signature verification process
 //
 // # Platform Identification
 //
@@ -75,11 +70,6 @@ type EnvelopeVerificationInput struct {
 	// in production this will be fetched from the public JWK set of the sender
 	// (looked up based on the key ID in the JWS header).
 	PublicKey any
-
-	// MinTrustLevel is the minimum acceptable trust level for this verification.
-	// Signatures with a trust level below this threshold will be rejected.
-	// This is a service-level security policy decision.
-	MinTrustLevel crypto.TrustLevel
 }
 
 // EnvelopeVerificationResult contains the results of envelope verification.
@@ -104,9 +94,11 @@ type EnvelopeVerificationResult struct {
 	CertificateOrganization string
 }
 
-// VerifyEnvelopeTransfer verifies of an incoming envelope transfer request.
+// VerifyEnvelopeTransfer verifies an incoming envelope transfer request.
 //
-// Returns the EnvelopeVerificationResult with extracted data or an error if verification fails
+// This function performs technical verification only (signatures, certificates, checksums, chain integrity).
+//
+// Returns the EnvelopeVerificationResult with extracted data (including trust level) or an error if verification fails.
 func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
 
@@ -115,32 +107,29 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		return nil, fmt.Errorf("envelope validation failed: %w", err)
 	}
 
-	// Step 2: Validate x5c (if present)
-	certChain, err := validateX5C(
+	// Step 2: Verify JWS signature and validate x5c certificate chain (if present)
+	// This performs comprehensive verification:
+	// - Cryptographic signature verification
+	// - x5c certificate chain validation (expiry, trust, domain) if x5c present
+	// - x5c public key consistency check
+	manifestPayload, certChain, err := crypto.VerifyJWS(
 		string(input.Envelope.EnvelopeManifestSignedContent),
 		input.PublicKey,
 		input.ExpectedSenderDomain,
 		input.RootCAs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("BSIG: x5c validation failed: %w", err)
+		return nil, fmt.Errorf("BSIG: JWS verification failed: %w", err)
 	}
 
-	// Step 3: Determine trust level for this signature
+	// Step 3: Determine trust level (classification - separate from verification)
 	trustLevel, err := crypto.DetermineTrustLevel(string(input.Envelope.EnvelopeManifestSignedContent))
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine trust level: %w", err)
+		return nil, fmt.Errorf("BSIG: failed to determine trust level: %w", err)
 	}
 	result.TrustLevel = trustLevel
 
-	// Step 4: Enforce minimum trust level policy
-	// Note: Higher trust level numbers = lower trust (1=EV/OV, 2=DV, 3=NoX5C)
-	if trustLevel > input.MinTrustLevel {
-		return nil, fmt.Errorf("signature trust level %s does not meet minimum required %s (signature has trust level %d, minimum required is %d)",
-			trustLevel.String(), input.MinTrustLevel.String(), trustLevel, input.MinTrustLevel)
-	}
-
-	// Extract certificate information if x5c was present and valid
+	// Step 4: Extract certificate information if x5c was present and valid
 	if len(certChain) > 0 {
 		result.CertificateSubject = certChain[0].Subject.CommonName
 		if len(certChain[0].Subject.Organization) > 0 {
@@ -148,17 +137,17 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		}
 	}
 
-	// Step 5: Verify envelopeManifestSignedContent and extract manifest
-	manifest, err := verifyAndExtractManifest(
-		input.Envelope.EnvelopeManifestSignedContent,
-		input.PublicKey,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("BSIG: envelope manifest signature verification failed: %w", err)
+	// Step 4: Parse and validate the manifest payload
+	manifest := &crypto.EnvelopeManifest{}
+	if err := json.Unmarshal(manifestPayload, manifest); err != nil {
+		return nil, fmt.Errorf("BSIG: failed to parse manifest payload: %w", err)
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, fmt.Errorf("BSIG: manifest validation failed: %w", err)
 	}
 	result.Manifest = manifest
 
-	// Step 6: Verify transport document JSON checksum
+	// Step 5: Verify transport document JSON checksum
 	transportDocChecksum, err := verifyTransportDocumentChecksum(
 		input.Envelope.TransportDocument,
 		manifest.TransportDocumentChecksum,
@@ -168,18 +157,20 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 	result.TransportDocumentChecksum = transportDocChecksum
 
-	// Step 7: Verify transfer chain and get last entry
+	// Step 6: Verify transfer chain and get last entry
 	lastEntry, err := verifyEnvelopeTransferChain(
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
 		input.PublicKey,
+		input.ExpectedSenderDomain,
+		input.RootCAs,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("BENV: transfer chain verification failed: %w", err)
 	}
 	result.LastTransferChainEntry = lastEntry
 
-	// Step 8: Verify transport document checksums match between manifest and last entry (anti-replay protection)
+	// Step 7: Verify transport document checksums match between manifest and last entry (anti-replay protection)
 	if manifest.TransportDocumentChecksum != lastEntry.TransportDocumentChecksum {
 		return result, fmt.Errorf("BENV: anti-replay check failed: transport document checksums don't match (manifest: %s, last entry: %s)",
 			manifest.TransportDocumentChecksum, lastEntry.TransportDocumentChecksum)
@@ -187,82 +178,6 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 
 	// All checks passed
 	return result, nil
-}
-
-// validateX5C validates the x5c certificate chain (if present) in the JWS headers.
-//
-// This performs consistency checks between x5c, JWKS public key, and expected domain.
-//
-// Parameters:
-//   - jwsString: The JWS string
-//   - publicKeyFromJWKS: The public key fetched from JWKS endpoint (looked up by JWS kid header)
-//   - expectedDomain: The expected sender domain from DCSA registry
-//   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
-//
-// Returns:
-//   - certChain: The validated certificate chain (nil if x5c not present)
-//   - error: Any validation errors
-func validateX5C(
-	jwsString string,
-	publicKeyFromJWKS any,
-	expectedDomain string,
-	rootCAs *x509.CertPool,
-) ([]*x509.Certificate, error) {
-
-	// Step 1: Extract x5c from JWS (if present)
-	certChain, err := crypto.ParseX5CFromJWS(jwsString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse x5c: %w", err)
-	}
-
-	// cert chain is optional in JWS so return early if not present
-	if certChain == nil {
-		return nil, nil
-	}
-
-	// Step 2: Validate x5c public key matches JWKS public key
-	// prevents inclusion of a legitimate cert but signed wih different key
-	if err := crypto.ValidateX5CMatchesKey(certChain, publicKeyFromJWKS); err != nil {
-		return nil, fmt.Errorf("x5c public key does not match JWKS public key: %w", err)
-	}
-
-	// Step 3: Validate certificate chain (CA trust, expiry, domain)
-	// prevents inclusion of an invalid cert chain
-	if err := crypto.ValidateCertificateChain(certChain, rootCAs, expectedDomain); err != nil {
-		return nil, fmt.Errorf("certificate chain validation failed: %w", err)
-	}
-
-	return certChain, nil
-}
-
-// verifyAndExtractManifest verifies the envelopeManifestSignedContent JWS and extracts the EnvelopeManifest payload.
-//
-// the manifest contains the checksums used to verify the integrity of the transport document and the last transfer chain entry.
-//
-// The publicKey should come from a JWK endpoint or stored certificate (looked up by kid).
-func verifyAndExtractManifest(
-	manifestSignedContent crypto.EnvelopeManifestSignedContent,
-	publicKey any,
-) (*crypto.EnvelopeManifest, error) {
-
-	// Verify JWS signature using public key from JWKS/stored cert
-	payloadBytes, err := crypto.VerifyJWS(string(manifestSignedContent), publicKey)
-	if err != nil {
-		return nil, fmt.Errorf("JWS signature verification failed: %w", err)
-	}
-
-	// Parse the manifest payload
-	var manifest crypto.EnvelopeManifest
-	if err := json.Unmarshal(payloadBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("failed to parse manifest payload: %w", err)
-	}
-
-	// Validate manifest structure
-	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("manifest validation failed: %w", err)
-	}
-
-	return &manifest, nil
 }
 
 // verifyTransportDocumentChecksum verifies the transport document (eBL) JSON has not been tampered with.
@@ -297,13 +212,23 @@ func verifyTransportDocumentChecksum(
 // This function:
 //   - Verifies the last entry checksum matches the manifest
 //   - Walks backwards through the entire chain verifying all cryptographic links
-//   - Verifies all entry signatures
-//   - Checks that the first entry has a valid issuanceManifestSignedContent
+//   - Verifies all entry signatures (including x5c validation if present)
+//   - Validates all entry payloads have required fields
 //   - Returns the verified last entry
+//
+// Note: All transfer chain entries are signed by the sending platform (publicKey).
+//
+// Note: The issuanceManifestSignedContent (inside the first entry) is signed by the carrier.
+// In a multi-hop scenario, only the FIRST receiving platform needs to verify the carrier's signature.
+// Subsequent platforms rely on transitive trust - by verifying the sender's signature, they trust
+// that the sender has already verified the carrier's signature. This function does NOT verify the
+// carrier's signature, which is correct for platforms receiving multi-hop transfers.
 func verifyEnvelopeTransferChain(
 	envelopeTransferChain []crypto.EnvelopeTransferChainEntrySignedContent,
 	manifest *crypto.EnvelopeManifest,
 	publicKey any,
+	expectedDomain string,
+	rootCAs *x509.CertPool,
 ) (*crypto.EnvelopeTransferChainEntry, error) {
 
 	if len(envelopeTransferChain) == 0 {
@@ -331,10 +256,17 @@ func verifyEnvelopeTransferChain(
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
 		currentEntryJWS := envelopeTransferChain[i]
 
-		// Verify current entry signature and extract payload
-		currentPayloadBytes, err := crypto.VerifyJWS(string(currentEntryJWS), publicKey)
+		// Verify current entry signature and validate x5c (if present)
+		// Note: All entries must be signed by the sending platform (business rule).
+		// The sender re-signs the entire envelope, so all signatures use the sender's key.
+		currentPayloadBytes, _, err := crypto.VerifyJWS(
+			string(currentEntryJWS),
+			publicKey,
+			expectedDomain,
+			rootCAs,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("entry %d JWS signature verification failed: %w", i, err)
+			return nil, fmt.Errorf("entry %d JWS verification failed: %w", i, err)
 		}
 
 		var currentEntry crypto.EnvelopeTransferChainEntry

@@ -1,16 +1,17 @@
 // issuance.go implements DCSA EBL_ISS specification for issuance manifests.
+
+// these functions are included to allow the pint-demo app to do a full end to end flow of the DCSA APIs from issuance to surrender
 //
 // If you're creating an IssuanceRequest for the DCSA API, you probably want
-// the warapper functions in issuance_request.go, but if you need fine grained control, you can use the functions in this file.
+// the wrapper functions in issuance_request.go, but if you need fine grained control, you can use the functions in this file.
 //
 // This file contains:
 //  - IssuanceManifest type and methods
 //  - IssuanceManifestBuilder for custom workflows
 //  - calls out to Low-level signing methods
 //
-// # DCSA Issuance Flow (for reference)
+// # DCSA Issuance Flow (performed by the carrier)
 //
-// The complete flow (handled automatically by SignIssuanceManifestWith* functions):
 //  i)   Generate canonical JSON for document and issueTo
 //  ii)  Calculate SHA-256 checksums (document + issueTo)
 //  iii) Decode eBL visualisation (if provided) from Base64 to binary and calculate checksum

@@ -25,6 +25,7 @@ type EnvelopeTransferChainEntry struct {
 	EblPlatform string `json:"eblPlatform"`
 
 	// TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON
+	// this should not change for the lifetime of the eBL.
 	TransportDocumentChecksum string `json:"transportDocumentChecksum"`
 
 	// PreviousEnvelopeTransferChainEntrySignedContentChecksum: SHA-256 of previous entry JWS (omitted for first entry)
@@ -33,7 +34,8 @@ type EnvelopeTransferChainEntry struct {
 	PreviousEnvelopeTransferChainEntrySignedContentChecksum *string `json:"previousEnvelopeTransferChainEntrySignedContentChecksum,omitempty"`
 
 	// IssuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)
-	// The issuance manifest is created by the carrier when the eBL is issued and proves the integrity of the transport document and the issueTo party data.
+	// The issuance manifest is created and signed the carrier when the eBL is issued and proves the integrity of the transport document and the issueTo party data.
+	// It should not change for the lifetime of the eBL.
 	IssuanceManifestSignedContent *IssuanceManifestSignedContent `json:"issuanceManifestSignedContent,omitempty"`
 
 	// ControlTrackingRegistry: URI of CTR (optional, only in first entry). Example: https://ctr.dcsa.org/v1

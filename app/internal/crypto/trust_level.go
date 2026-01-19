@@ -53,9 +53,12 @@ func (t TrustLevel) String() string {
 
 // DetermineTrustLevel analyzes a JWS signature to determine its trust level based on the x5c certificate chain.
 //
-// The sending platform can optionally include a certificate chain in the JWS header.
+// Background: The sending platform can optionally include a certificate chain in the JWS header.
 // The leaf certificate in the chain must be signed by an approved CA in order
 // to prove the identity of the org running the platform.
+//
+// Note: you should call VerifyJWS() first to verify the signature and certificate chain
+// before using this function.
 //
 // The certificate type is used to determine the trust level as follows:
 //
@@ -71,11 +74,14 @@ func (t TrustLevel) String() string {
 // ... are considered to be Domain Validation (DV) certificates
 // this trust level may be allowed in production, depending on policy.
 //
-//	TrustLevelNoX5C: no x5c is present
+//	TrustLevelNoX5C: no x5c header present in the JWS
 //
 // This means the signature has no identity proof - recommended for testing only.
 //
-// Parameters: jwsString: JWS compact serialization (header.payload.signature)
+// Parameters:
+//   - jwsString: JWS compact serialization (header.payload.signature)
+//
+// Returns the trust level based on the certificate type in the x5c header.
 func DetermineTrustLevel(jwsString string) (TrustLevel, error) {
 	// Extract x5c from JWS (optional)
 	certChain, err := ParseX5CFromJWS(jwsString)

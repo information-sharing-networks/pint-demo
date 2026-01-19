@@ -52,35 +52,89 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 	return payload, nil
 }
 
-// VerifyJWS verifies a JWS signature and returns the payload.
+// VerifyJWS performs verification for JWS signatures received over PINT
 //
-// This function verifies the JWS signature using the provided public key.
-// It does not validate x5c headers - this should be done by the caller.
+// the function verifies the JWS signature
+
+// and (if the JWS contains an x5c header):
+// 1. Validates x5c certificate chain (if present) against root CAs
+// 2. Validates x5c public key matches the signing key (prevents decorative certificate attacks)
+// 3. Validates certificate domain matches expected domain
+// 4. Checks certificate expiry and chain of trust
+//
+// To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
+// separately after verification.
 //
 // Parameters:
 //   - jwsString: JWS compact serialization (header.payload.signature)
-//   - publicKey: Public key to verify signature (ed25519.PublicKey or *rsa.PublicKey)
+//   - publicKey: Public key for signature verification (ed25519.PublicKey or *rsa.PublicKey)
+//   - expectedDomain: Expected sender domain (e.g., "wavebl.com"). Required if x5c is present.
+//   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
 //
-// Returns the verified payload bytes.
-func VerifyJWS(jwsString string, publicKey any) ([]byte, error) {
+// Returns:
+//   - payload: Verified payload bytes
+//   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
+//   - error: Any validation errors
+func VerifyJWS(
+	jwsString string,
+	publicKey any,
+	expectedDomain string,
+	rootCAs *x509.CertPool,
+) (payload []byte, certChain []*x509.Certificate, err error) {
 
-	// Verify signature using publicKey (proves signer owns corresponding private key)
-	var payload []byte
-	var err error
+	if publicKey == nil {
+		return nil, nil, fmt.Errorf("public key is required")
+	}
+
+	if expectedDomain == "" {
+		return nil, nil, fmt.Errorf("expected domain is required")
+	}
+
+	if jwsString == "" {
+		return nil, nil, fmt.Errorf("jwsString is required")
+	}
+
+	// Step 1: Verify the JWS signature
+	// This proves the signer owns the private key corresponding to publicKey
 	switch key := publicKey.(type) {
 	case ed25519.PublicKey:
 		payload, err = VerifyEd25519(jwsString, key)
 	case *rsa.PublicKey:
 		payload, err = VerifyRSA(jwsString, key)
 	default:
-		return nil, fmt.Errorf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey)
+		return nil, nil, fmt.Errorf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("signature verification failed: %w", err)
+		return nil, nil, fmt.Errorf("signature verification failed: %w", err)
 	}
 
-	return payload, nil
+	// Step 2: Extract x5c certificate chain (if present)
+	certChain, err = ParseX5CFromJWS(jwsString)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse x5c: %w", err)
+	}
+
+	// no x5c present (x5c is optional, so this is not an error)
+	if certChain == nil {
+		return payload, nil, nil
+	}
+
+	// Step 3: Validate x5c public key matches the signing key
+	if err = ValidateX5CMatchesKey(certChain, publicKey); err != nil {
+		return nil, nil, fmt.Errorf("x5c public key does not match signing key: %w", err)
+	}
+
+	// Step 4: Validate certificate chain (CA trust, expiry, domain)
+	// This checks:
+	// - Certificate chain is valid and trusted by root CAs
+	// - Certificates are not expired
+	// - Domain in certificate matches expected domain
+	if err = ValidateCertificateChain(certChain, rootCAs, expectedDomain); err != nil {
+		return nil, nil, fmt.Errorf("certificate chain validation failed: %w", err)
+	}
+
+	return payload, certChain, nil
 }
 
 // ParseHeader extracts the header from a JWS without verifying

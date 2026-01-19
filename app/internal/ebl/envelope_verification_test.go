@@ -73,7 +73,6 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 				ExpectedSenderDomain: test.expectedSenderDomain,
 				RootCAs:              rootCAs,
 				PublicKey:            publicKey,
-				MinTrustLevel:        crypto.TrustLevelDV, // Accept DV or better for tests
 			}
 
 			// Verify the envelope
@@ -138,7 +137,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BSIG",
-			wantErrContains: "x5c public key does not match",
+			wantErrContains: "signature verification failed", // Signature fails before x5c check
 		},
 		{
 			name: "tampered envelope manifest - signature invalid",
@@ -267,7 +266,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				ExpectedSenderDomain: tt.domain,
 				RootCAs:              rootCAs,
 				PublicKey:            publicKey,
-				MinTrustLevel:        crypto.TrustLevelDV, // Accept DV or better for tests
 			}
 
 			// Verify the envelope - should fail
@@ -381,7 +379,6 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		ExpectedSenderDomain: validDomain,
 		RootCAs:              rootCAs,
 		PublicKey:            privateKey.Public(),
-		MinTrustLevel:        crypto.TrustLevelDV, // Accept DV or better for tests
 	}
 
 	_, err = VerifyEnvelopeTransfer(input)
@@ -460,7 +457,6 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		ExpectedSenderDomain: validDomain,
 		RootCAs:              rootCAs,
 		PublicKey:            privateKey.Public(),
-		MinTrustLevel:        crypto.TrustLevelDV, // Accept DV or better for tests
 	}
 
 	_, err = VerifyEnvelopeTransfer(input)
