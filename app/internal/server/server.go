@@ -59,7 +59,6 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 	keyManagerConfig := crypto.NewConfig(
 		registryURL,
 		"", // TODO: manual keys directory
-		crypto.TrustLevel(s.config.MinTrustLevel),
 		config.JWKCacheHTTPTimeout,
 		s.config.SkipJWKCache,
 	)

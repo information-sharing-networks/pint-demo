@@ -136,10 +136,6 @@ type Config struct {
 	// Files should be JWK and named: {hostname}.jwk
 	ManualKeysDir string
 
-	// MinTrustLevel is the minimum acceptable trust level.
-	// Keys below this level will be rejected.
-	MinTrustLevel TrustLevel
-
 	// HTTPTimeout is the timeout for HTTP requests to fetch JWK sets.
 	HTTPTimeout time.Duration
 
@@ -154,12 +150,11 @@ const (
 	publicJWKFileNameSuffix = ".public.jwk"
 )
 
-// NewConfig creates a new Config with the specified parameters.
-func NewConfig(registryURL *url.URL, manualKeysDir string, minTrustLevel TrustLevel, httpTimeout time.Duration, skipJWKCache bool) *Config {
+// NewConfig creates a new keymanager Config with the specified parameters.
+func NewConfig(registryURL *url.URL, manualKeysDir string, httpTimeout time.Duration, skipJWKCache bool) *Config {
 	return &Config{
 		eblSolutionProvidersRegistryURL: registryURL,
 		ManualKeysDir:                   manualKeysDir,
-		MinTrustLevel:                   minTrustLevel,
 		HTTPTimeout:                     httpTimeout,
 		SkipJWKCache:                    skipJWKCache,
 	}
@@ -179,9 +174,6 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 		return nil, fmt.Errorf("eblSolutionProvidersRegistryURL is required")
 	}
 
-	if config.MinTrustLevel == 0 {
-		return nil, fmt.Errorf("MinTrustLevel is required")
-	}
 	if config.HTTPTimeout == 0 {
 		return nil, fmt.Errorf("HTTPTimeout is required")
 	}
@@ -201,7 +193,6 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 
 	logger.Info("initializing KeyManager",
 		slog.String("REGISTRY_URL", config.eblSolutionProvidersRegistryURL.String()),
-		slog.Int("MIN_TRUST_LEVEL", int(config.MinTrustLevel)),
 		slog.Bool("SKIP_JWK_CACHE", config.SkipJWKCache))
 
 	// Load DCSA registry of approved eBL solution providers

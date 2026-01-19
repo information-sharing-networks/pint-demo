@@ -18,7 +18,7 @@ import (
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
 	url, _ := url.Parse("testdata/platform-registry/eblsolutionproviders.csv")
-	config := NewConfig(url, "", TrustLevelDV, 30*time.Second, true)
+	config := NewConfig(url, "", 30*time.Second, true)
 
 	// Create a test logger that discards output
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -95,7 +95,6 @@ func TestKeyManager_FetchRegistryData(t *testing.T) {
 			config := NewConfig(
 				url,
 				"nodir",
-				TrustLevelDV,
 				10*time.Second,
 				true,
 			)
@@ -156,10 +155,10 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	}
 
 	// Create a KeyManager with that will load the public key we just saved
-	// Use TrustLevelNoX5C as testing keys without certificates
+	// Testing keys without certificates
 	ctx := context.Background()
 	registryURL, _ := url.Parse("testdata/platform-registry/eblsolutionproviders.csv")
-	config := NewConfig(registryURL, tempDir, TrustLevelNoX5C, 30*time.Second, true)
+	config := NewConfig(registryURL, tempDir, 30*time.Second, true)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,

@@ -75,6 +75,11 @@ type EnvelopeVerificationInput struct {
 	// in production this will be fetched from the public JWK set of the sender
 	// (looked up based on the key ID in the JWS header).
 	PublicKey any
+
+	// MinTrustLevel is the minimum acceptable trust level for this verification.
+	// Signatures with a trust level below this threshold will be rejected.
+	// This is a service-level security policy decision.
+	MinTrustLevel crypto.TrustLevel
 }
 
 // EnvelopeVerificationResult contains the results of envelope verification.
@@ -128,6 +133,13 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 	result.TrustLevel = trustLevel
 
+	// Step 4: Enforce minimum trust level policy
+	// Note: Higher trust level numbers = lower trust (1=EV/OV, 2=DV, 3=NoX5C)
+	if trustLevel > input.MinTrustLevel {
+		return nil, fmt.Errorf("signature trust level %s does not meet minimum required %s (signature has trust level %d, minimum required is %d)",
+			trustLevel.String(), input.MinTrustLevel.String(), trustLevel, input.MinTrustLevel)
+	}
+
 	// Extract certificate information if x5c was present and valid
 	if len(certChain) > 0 {
 		result.CertificateSubject = certChain[0].Subject.CommonName
@@ -136,7 +148,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		}
 	}
 
-	// Step 4: Verify envelopeManifestSignedContent and extract manifest
+	// Step 5: Verify envelopeManifestSignedContent and extract manifest
 	manifest, err := verifyAndExtractManifest(
 		input.Envelope.EnvelopeManifestSignedContent,
 		input.PublicKey,
@@ -146,7 +158,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 	result.Manifest = manifest
 
-	// Step 5: Verify transport document JSON checksum
+	// Step 6: Verify transport document JSON checksum
 	transportDocChecksum, err := verifyTransportDocumentChecksum(
 		input.Envelope.TransportDocument,
 		manifest.TransportDocumentChecksum,
@@ -156,7 +168,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 	result.TransportDocumentChecksum = transportDocChecksum
 
-	// Step 6: Verify transfer chain and get last entry
+	// Step 7: Verify transfer chain and get last entry
 	lastEntry, err := verifyEnvelopeTransferChain(
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
@@ -167,7 +179,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 	result.LastTransferChainEntry = lastEntry
 
-	// Step 7: Verify transport document checksums match between manifest and last entry (anti-replay protection)
+	// Step 8: Verify transport document checksums match between manifest and last entry (anti-replay protection)
 	if manifest.TransportDocumentChecksum != lastEntry.TransportDocumentChecksum {
 		return result, fmt.Errorf("BENV: anti-replay check failed: transport document checksums don't match (manifest: %s, last entry: %s)",
 			manifest.TransportDocumentChecksum, lastEntry.TransportDocumentChecksum)
