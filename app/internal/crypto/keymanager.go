@@ -31,29 +31,6 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-// TrustLevel represents the trust level of a signature and is determined by the x5c (X.509 certificate chain) in the JWS header.
-//
-// It is recommended that production eBL signatures include an x5c (certificate chain) embedded in the JWS header
-// to support non-repudiation requirements.
-type TrustLevel int
-
-const (
-	// TrustLevelEVOV represents signatures with x5c certs that use Extended Validation (EV) or Organization Validation (OV) certificates.
-	//	- Organisation identity verified by CA (provides non-repudiation)
-	//	- Recommended for production digital signatures
-	TrustLevelEVOV TrustLevel = 1
-
-	// TrustLevelDV - certs with Domain Validation (DV) certificates.
-	//	- This trust level may be acceptable for production depending on policy
-	//	- Certificate Authority has verified control of the domain only
-	//	- Fallback when we can't determine if cert is EV/OV (CA doesn't publish validation level)
-	TrustLevelDV TrustLevel = 2
-
-	// TrustLevelNoX5C represents keys without any certificate chain
-	// The signature has no identity proof (recommended for testing only)
-	TrustLevelNoX5C TrustLevel = 3
-)
-
 // KeySource represents how a key was obtained (manual vs JWK endpoint).
 type KeySource int
 
