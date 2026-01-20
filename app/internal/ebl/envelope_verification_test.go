@@ -20,25 +20,31 @@ import (
 func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 
 	testData := []struct {
-		name                 string
-		eblEnvelopePath      string
-		publicKeyJWKPath     string
-		rootCACertPath       string
-		expectedSenderDomain string
+		name                  string
+		eblEnvelopePath       string
+		publicKeyJWKPath      string
+		carrierPublicKeyPath  string
+		rootCACertPath        string
+		expectedSenderDomain  string
+		expectedCarrierDomain string
 	}{
 		{
-			name:                 "valid_Ed25519",
-			eblEnvelopePath:      "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
-			publicKeyJWKPath:     "../crypto/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
-			rootCACertPath:       "../crypto/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
-			expectedSenderDomain: "ed25519-eblplatform.example.com",
+			name:                  "valid_Ed25519",
+			eblEnvelopePath:       "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
+			publicKeyJWKPath:      "../crypto/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
+			carrierPublicKeyPath:  "../crypto/testdata/keys/ed25519-carrier.example.com.public.jwk",
+			rootCACertPath:        "../crypto/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
+			expectedSenderDomain:  "ed25519-eblplatform.example.com",
+			expectedCarrierDomain: "ed25519-carrier.example.com",
 		},
 		{
-			name:                 "valid_RSA",
-			eblEnvelopePath:      "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
-			publicKeyJWKPath:     "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk",
-			rootCACertPath:       "../crypto/testdata/certs/root-ca.crt",
-			expectedSenderDomain: "rsa-eblplatform.example.com",
+			name:                  "valid_RSA",
+			eblEnvelopePath:       "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
+			publicKeyJWKPath:      "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk",
+			carrierPublicKeyPath:  "../crypto/testdata/keys/rsa-carrier.example.com.public.jwk",
+			rootCACertPath:        "../crypto/testdata/certs/root-ca.crt",
+			expectedSenderDomain:  "rsa-eblplatform.example.com",
+			expectedCarrierDomain: "rsa-carrier.example.com",
 		},
 	}
 	for _, test := range testData {
@@ -61,6 +67,12 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 				t.Fatalf("Failed to read public key from JWK file: %v", err)
 			}
 
+			// get the carrier public key from the JWK
+			carrierPublicKey, err := crypto.ReadPublicKeyFromJWKFile(test.carrierPublicKeyPath)
+			if err != nil {
+				t.Fatalf("Failed to read carrier public key from JWK file: %v", err)
+			}
+
 			// get public key from root CA cert
 			rootCAs, err := LoadTestRootCA(test.rootCACertPath)
 			if err != nil {
@@ -69,10 +81,12 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 
 			// Create verification input
 			input := EnvelopeVerificationInput{
-				Envelope:             &envelope,
-				ExpectedSenderDomain: test.expectedSenderDomain,
-				RootCAs:              rootCAs,
-				PublicKey:            publicKey,
+				Envelope:              &envelope,
+				ExpectedSenderDomain:  test.expectedSenderDomain,
+				RootCAs:               rootCAs,
+				PublicKey:             publicKey,
+				CarrierPublicKey:      carrierPublicKey,
+				ExpectedCarrierDomain: test.expectedCarrierDomain,
 			}
 
 			// Verify the envelope
@@ -85,8 +99,25 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 				t.Errorf("Expected manifest to be extracted, but got nil")
 			}
 
+			if len(result.TransferChain) == 0 {
+				t.Errorf("Expected transfer chain to be extracted, but got empty")
+			}
+
+			if result.FirstTransferChainEntry == nil {
+				t.Errorf("Expected first transfer chain entry to be extracted, but got nil")
+			}
+
 			if result.LastTransferChainEntry == nil {
 				t.Errorf("Expected last transfer chain entry to be extracted, but got nil")
+			}
+
+			// Verify convenience pointers match the slice
+			if result.FirstTransferChainEntry != result.TransferChain[0] {
+				t.Errorf("FirstTransferChainEntry should point to first element of TransferChain")
+			}
+
+			if result.LastTransferChainEntry != result.TransferChain[len(result.TransferChain)-1] {
+				t.Errorf("LastTransferChainEntry should point to last element of TransferChain")
 			}
 
 			// Validate trust level
@@ -94,29 +125,42 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 				t.Errorf("Expected x5c certificate chain, but got TrustLevelNoX5C")
 			}
 
-			// Validate certificate information
-			if result.CertificateSubject == "" {
-				t.Errorf("Expected certificate subject to be populated")
+			// Validate verified domain
+			if result.VerifiedDomain == "" {
+				t.Errorf("Expected verified domain to be populated")
+			}
+			if result.VerifiedDomain != input.ExpectedSenderDomain {
+				t.Errorf("Expected verified domain to match input domain: got %q, want %q",
+					result.VerifiedDomain, input.ExpectedSenderDomain)
+			}
+
+			// Validate organisation name is populated for x5c certificates
+			// (Our test certs have Organization field, so this should be populated)
+			if result.VerifiedOrganisation == "" {
+				t.Errorf("Expected certificate organisation to be populated for x5c certificate")
 			}
 
 			if result.TransportDocumentChecksum == "" {
 				t.Errorf("Expected transport document checksum to be computed, but got empty string")
 			}
 
-			t.Logf("Envelope verification successful for %s", filepath.Base(test.eblEnvelopePath))
+			t.Logf("Envelope verification successful for %s (with carrier signature verification, %d transfer chain entries)",
+				filepath.Base(test.eblEnvelopePath), len(result.TransferChain))
 		})
 	}
 }
 
 var (
-	validEnvelopePath   = "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-	validPublicKeyPath  = "../crypto/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
-	validPrivateKeyPath = "../crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-	validFullChainPath  = "../crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
-	validRootCAPath     = "../crypto/testdata/certs/root-ca.crt"
-	validDomain         = "ed25519-eblplatform.example.com"
-	wrongPublicKeyPath  = "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk"
-	wrongDomain         = "wrong-domain.example.com"
+	validEnvelopePath         = "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	validPublicKeyPath        = "../crypto/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
+	validCarrierPublicKeyPath = "../crypto/testdata/keys/ed25519-carrier.example.com.public.jwk"
+	validPrivateKeyPath       = "../crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	validFullChainPath        = "../crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+	validRootCAPath           = "../crypto/testdata/certs/root-ca.crt"
+	validDomain               = "ed25519-eblplatform.example.com"
+	validCarrierDomain        = "ed25519-carrier.example.com"
+	wrongPublicKeyPath        = "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk"
+	wrongDomain               = "wrong-domain.example.com"
 )
 
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
@@ -252,6 +296,12 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				t.Fatalf("Failed to read public key: %v", err)
 			}
 
+			// Get carrier public key
+			carrierPublicKey, err := crypto.ReadPublicKeyFromJWKFile(validCarrierPublicKeyPath)
+			if err != nil {
+				t.Fatalf("Failed to read carrier public key: %v", err)
+			}
+
 			rootCAs, err := LoadTestRootCA(validRootCAPath)
 			if err != nil {
 				t.Fatalf("Failed to load root CA: %v", err)
@@ -262,10 +312,12 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
 			// Create verification input
 			input := EnvelopeVerificationInput{
-				Envelope:             &envelope,
-				ExpectedSenderDomain: tt.domain,
-				RootCAs:              rootCAs,
-				PublicKey:            publicKey,
+				Envelope:              &envelope,
+				ExpectedSenderDomain:  tt.domain,
+				RootCAs:               rootCAs,
+				PublicKey:             publicKey,
+				CarrierPublicKey:      carrierPublicKey,
+				ExpectedCarrierDomain: validCarrierDomain,
 			}
 
 			// Verify the envelope - should fail
@@ -373,12 +425,20 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		t.Fatalf("Failed to load root CA: %v", err)
 	}
 
+	// Get carrier public key
+	carrierPublicKey, err := crypto.ReadPublicKeyFromJWKFile(validCarrierPublicKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read carrier public key: %v", err)
+	}
+
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
-		Envelope:             envelope,
-		ExpectedSenderDomain: validDomain,
-		RootCAs:              rootCAs,
-		PublicKey:            privateKey.Public(),
+		Envelope:              envelope,
+		ExpectedSenderDomain:  validDomain,
+		RootCAs:               rootCAs,
+		PublicKey:             privateKey.Public(),
+		CarrierPublicKey:      carrierPublicKey,
+		ExpectedCarrierDomain: validCarrierDomain,
 	}
 
 	_, err = VerifyEnvelopeTransfer(input)
@@ -451,12 +511,20 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("Failed to load root CA: %v", err)
 	}
 
+	// Get carrier public key
+	carrierPublicKey, err := crypto.ReadPublicKeyFromJWKFile(validCarrierPublicKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read carrier public key: %v", err)
+	}
+
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
-		Envelope:             envelope,
-		ExpectedSenderDomain: validDomain,
-		RootCAs:              rootCAs,
-		PublicKey:            privateKey.Public(),
+		Envelope:              envelope,
+		ExpectedSenderDomain:  validDomain,
+		RootCAs:               rootCAs,
+		PublicKey:             privateKey.Public(),
+		CarrierPublicKey:      carrierPublicKey,
+		ExpectedCarrierDomain: validCarrierDomain,
 	}
 
 	_, err = VerifyEnvelopeTransfer(input)

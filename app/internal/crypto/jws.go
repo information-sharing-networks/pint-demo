@@ -52,15 +52,10 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 	return payload, nil
 }
 
-// VerifyJWS performs verification for JWS signatures received over PINT
+// VerifyJWS performs verification for JWS signatures received over PINT.
 //
-// the function verifies the JWS signature
-
-// and (if the JWS contains an x5c header):
-// 1. Validates x5c certificate chain (if present) against root CAs
-// 2. Validates x5c public key matches the signing key (prevents decorative certificate attacks)
-// 3. Validates certificate domain matches expected domain
-// 4. Checks certificate expiry and chain of trust
+// The function verifies the JWS signature and, if the JWS contains an x5c
+// header, it also verifies the x5c certificate chain.
 //
 // To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
 // separately after verification.
