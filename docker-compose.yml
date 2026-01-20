@@ -35,14 +35,16 @@ services:
         # Install Go tools
         RUN go install github.com/pressly/goose/v3/cmd/goose@latest && \
             go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest && \
+            go install github.com/swaggo/swag/cmd/swag@latest && \
             go install honnef.co/go/tools/cmd/staticcheck@latest && \
-            go install github.com/securego/gosec/v2/cmd/gosec@latest
+            go install github.com/securego/gosec/v2/cmd/gosec@latest && \
+            go install github.com/air-verse/air@latest
         # Pre-download common Go modules for faster startup
         WORKDIR /tmp/app
         COPY app/go.mod app/go.sum* ./
         RUN go mod download
         WORKDIR /pint-demo
-    container_name: pint-demo-app
+    container_name: pint-receiver
     volumes:
       - ./:/pint-demo # project dir
       - go-modules:/go/pkg/mod # persist downloaded modules
@@ -84,7 +86,7 @@ services:
         echo 'Running database migrations...' &&
         goose -dir sql/schema postgres $$DATABASE_URL -env=none up &&
         echo 'Starting pint-receiver service...' &&
-        go run -mod=readonly cmd/pint-receiver/main.go
+        air
       "
     networks:
       - app-network

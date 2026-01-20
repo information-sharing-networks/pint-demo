@@ -18,6 +18,8 @@ help: ## Show this help message
 	@echo "  make logs            - Follow docker logs"
 	@echo "  make psql            - Run psql against the dev database"
 	@echo "  make sqlc            - Generate sqlc code"
+	@echo "  make docs            - Generate swagger documentation"
+	@echo "  make swag-fmt        - format swag comments"
 	@echo "  make migrate         - Run database migrations (up)"
 	@echo "  make run-receiver    - Run receiver locally (expects docker db to be running)"
 	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
@@ -86,6 +88,17 @@ lint:
 	@echo "🔄 Running staticcheck..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && staticcheck ./..."
 
+# Format swag comments
+swag-fmt:
+	@echo "🔄 Formatting swag comments..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag fmt"
+
+
+# Generate swagger documentation
+docs:
+	@echo "🔄 Generating swagger documentation..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag init -g ./cmd/pint-receiver/main.go"
+
 # Run security analysis
 security:
 	@echo "🔄 Running security analysis..."
@@ -96,10 +109,14 @@ test:
 	@echo "🧪 Running tests..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go test -v ./..."
 
+
 # Run all checks
-check: fmt vet test lint security
+check: generate fmt vet test lint security
 	@echo ""
 	@echo "✅ All checks passed! Ready to commit."
+
+# Generate all code and documentation
+generate: docs sqlc swag-fmt 
 
 # Clean build artifacts
 clean:
