@@ -1,3 +1,6 @@
+
+![ci](https://github.com/information-sharing-networks/pint-demo/actions/workflows/ci.yml/badge.svg)
+
 # PINT Demo
 
 A demonstration implementation of the DCSA PINT (Platform Interoperability) API v3.0.0 for electronic Bill of Lading (eBL) envelope transfers.
