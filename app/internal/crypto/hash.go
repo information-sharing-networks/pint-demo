@@ -14,7 +14,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"strings"
 )
@@ -31,12 +30,12 @@ import (
 // For base64-encoded binary content, use HashFromBase64 instead.
 func Hash(data []byte) (string, error) {
 	if len(data) == 0 {
-		return "", fmt.Errorf("data is empty")
+		return "", NewValidationError("data is empty")
 	}
 	hasher := sha256.New()
 
 	if _, err := io.Copy(hasher, bytes.NewReader(data)); err != nil {
-		return "", fmt.Errorf("failed to hash data: %w", err)
+		return "", WrapInternalError(err, "failed to hash data")
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
@@ -55,12 +54,11 @@ func Hash(data []byte) (string, error) {
 func HashFromBase64(encoded string, maxSize int64) (string, error) {
 
 	if len(encoded) == 0 {
-		return "", fmt.Errorf("data is empty")
+		return "", NewValidationError("data is empty")
 	}
 	// Check base64 input size
 	if int64(len(encoded)) > maxSize {
-		return "", fmt.Errorf("base64 content size (%d bytes) exceeds maximum (%d bytes)",
-			len(encoded), maxSize)
+		return "", NewValidationError("base64 content exceeds maximum size")
 	}
 
 	// decode before hashing - stream decode to reduce memory overhead
@@ -68,7 +66,7 @@ func HashFromBase64(encoded string, maxSize int64) (string, error) {
 	hasher := sha256.New()
 
 	if _, err := io.Copy(hasher, decoder); err != nil {
-		return "", fmt.Errorf("invalid base64 content: %w", err)
+		return "", WrapValidationError(err, "invalid base64 content")
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil

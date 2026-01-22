@@ -12,7 +12,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 
 	"github.com/lestrrat-go/jwx/v3/cert"
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -35,7 +34,7 @@ func VerifyEd25519(jwsString string, publicKey ed25519.PublicKey) ([]byte, error
 	// Verify the JWS using EdDSA algorithm
 	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.EdDSA(), publicKey))
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify JWS: %w", err)
+		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}
 
 	return payload, nil
@@ -46,7 +45,7 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 	// Verify the JWS using RS256 algorithm
 	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.RS256(), publicKey))
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify JWS: %w", err)
+		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}
 
 	return payload, nil
@@ -78,15 +77,15 @@ func VerifyJWS(
 ) (payload []byte, certChain []*x509.Certificate, err error) {
 
 	if publicKey == nil {
-		return nil, nil, fmt.Errorf("public key is required")
+		return nil, nil, NewValidationError("public key is required")
 	}
 
 	if expectedDomain == "" {
-		return nil, nil, fmt.Errorf("expected domain is required")
+		return nil, nil, NewValidationError("expected domain is required")
 	}
 
 	if jwsString == "" {
-		return nil, nil, fmt.Errorf("jwsString is required")
+		return nil, nil, NewValidationError("jwsString is required")
 	}
 
 	// Step 1: Verify the JWS signature
@@ -97,17 +96,17 @@ func VerifyJWS(
 	case *rsa.PublicKey:
 		payload, err = VerifyRSA(jwsString, key)
 	default:
-		return nil, nil, fmt.Errorf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey)
+		return nil, nil, NewValidationError("unsupported public key type")
 	}
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("signature verification failed: %w", err)
+		return nil, nil, err
 	}
 
 	// Step 2: Extract x5c certificate chain (if present)
 	certChain, err = ParseX5CFromJWS(jwsString)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse x5c: %w", err)
+		return nil, nil, err
 	}
 
 	// no x5c present (x5c is optional, so this is not an error)
@@ -117,7 +116,7 @@ func VerifyJWS(
 
 	// Step 3: Validate x5c public key matches the signing key
 	if err = ValidateX5CMatchesKey(certChain, publicKey); err != nil {
-		return nil, nil, fmt.Errorf("x5c public key does not match signing key: %w", err)
+		return nil, nil, err
 	}
 
 	// Step 4: Validate certificate chain (CA trust, expiry, domain)
@@ -126,7 +125,7 @@ func VerifyJWS(
 	// - Certificates are not expired
 	// - Domain in certificate matches expected domain
 	if err = ValidateCertificateChain(certChain, rootCAs, expectedDomain); err != nil {
-		return nil, nil, fmt.Errorf("certificate chain validation failed: %w", err)
+		return nil, nil, err
 	}
 
 	return payload, certChain, nil
@@ -138,13 +137,13 @@ func ParseHeader(jwsString string) (JWSHeader, error) {
 	// Parse the JWS message
 	msg, err := jws.Parse([]byte(jwsString))
 	if err != nil {
-		return JWSHeader{}, fmt.Errorf("failed to parse JWS: %w", err)
+		return JWSHeader{}, WrapValidationError(err, "failed to parse JWS")
 	}
 
 	// Get the first signature's protected headers
 	signatures := msg.Signatures()
 	if len(signatures) == 0 {
-		return JWSHeader{}, fmt.Errorf("no signatures found in JWS")
+		return JWSHeader{}, NewValidationError("no signatures found in JWS")
 	}
 
 	headers := signatures[0].ProtectedHeaders()
@@ -152,13 +151,13 @@ func ParseHeader(jwsString string) (JWSHeader, error) {
 	// Extract algorithm
 	alg, ok := headers.Algorithm()
 	if !ok {
-		return JWSHeader{}, fmt.Errorf("missing required field: alg")
+		return JWSHeader{}, NewValidationError("missing required field: alg")
 	}
 
 	// Extract key ID
 	kid, ok := headers.KeyID()
 	if !ok || kid == "" {
-		return JWSHeader{}, fmt.Errorf("missing required field: kid")
+		return JWSHeader{}, NewValidationError("missing required field: kid")
 	}
 
 	return JWSHeader{
@@ -191,16 +190,16 @@ func CertChainToX5C(certChain []*x509.Certificate) []string {
 // - certChain: X.509 certificate chain (first cert must match the private key)
 func SignJSONWithEd25519AndX5C(payload []byte, privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 	if keyID == "" {
-		return "", fmt.Errorf("keyID is required")
+		return "", NewValidationError("keyID is required")
 	}
 	if len(certChain) == 0 {
-		return "", fmt.Errorf("certificate chain is required")
+		return "", NewValidationError("certificate chain is required")
 	}
 
 	// Create protected headers with kid and x5c
 	headers := jws.NewHeaders()
 	if err := headers.Set(jws.KeyIDKey, keyID); err != nil {
-		return "", fmt.Errorf("failed to set kid header: %w", err)
+		return "", WrapInternalError(err, "failed to set kid header")
 	}
 
 	// Convert certificate chain to cert.Chain format
@@ -209,24 +208,24 @@ func SignJSONWithEd25519AndX5C(payload []byte, privateKey ed25519.PrivateKey, ke
 		// cert.Raw contains the DER-encoded certificate, encode it to base64
 		encoded := base64.StdEncoding.EncodeToString(c.Raw)
 		if err := x5c.AddString(encoded); err != nil {
-			return "", fmt.Errorf("failed to add certificate to chain: %w", err)
+			return "", WrapInternalError(err, "failed to add certificate to chain")
 		}
 	}
 	if err := headers.Set(jws.X509CertChainKey, x5c); err != nil {
-		return "", fmt.Errorf("failed to set x5c header: %w", err)
+		return "", WrapInternalError(err, "failed to set x5c header")
 	}
 
 	// Canonicalize the payload
 	canonical, err := CanonicalizeJSON(payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize payload: %w", err)
+		return "", WrapInternalError(err, "failed to canonicalize payload")
 	}
 
 	// Sign the payload using EdDSA algorithm
 	// Note: Per RFC 7515, the signature covers both the protected header and payload.
 	signed, err := jws.Sign(canonical, jws.WithKey(jwa.EdDSA(), privateKey, jws.WithProtectedHeaders(headers)))
 	if err != nil {
-		return "", fmt.Errorf("failed to sign payload: %w", err)
+		return "", WrapInternalError(err, "failed to sign payload")
 	}
 
 	return string(signed), nil
@@ -235,25 +234,25 @@ func SignJSONWithEd25519AndX5C(payload []byte, privateKey ed25519.PrivateKey, ke
 // SignJSONWithEd25519 signs payload using Ed25519 algorithm (no x5c header)
 func SignJSONWithEd25519(payload []byte, privateKey ed25519.PrivateKey, keyID string) (string, error) {
 	if keyID == "" {
-		return "", fmt.Errorf("keyID is required")
+		return "", NewValidationError("keyID is required")
 	}
 
 	// Create protected headers with kid
 	headers := jws.NewHeaders()
 	if err := headers.Set(jws.KeyIDKey, keyID); err != nil {
-		return "", fmt.Errorf("failed to set kid header: %w", err)
+		return "", WrapInternalError(err, "failed to set kid header")
 	}
 
 	// Canonicalize the payload
 	canonical, err := CanonicalizeJSON(payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize payload: %w", err)
+		return "", WrapInternalError(err, "failed to canonicalize payload")
 	}
 
 	// Sign the payload using EdDSA algorithm
 	signed, err := jws.Sign(canonical, jws.WithKey(jwa.EdDSA(), privateKey, jws.WithProtectedHeaders(headers)))
 	if err != nil {
-		return "", fmt.Errorf("failed to sign payload: %w", err)
+		return "", WrapInternalError(err, "failed to sign payload")
 	}
 
 	return string(signed), nil
@@ -269,16 +268,16 @@ func SignJSONWithEd25519(payload []byte, privateKey ed25519.PrivateKey, keyID st
 // - certChain: X.509 certificate chain
 func SignJSONWithRSAAndX5C(payload []byte, privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 	if keyID == "" {
-		return "", fmt.Errorf("keyID is required")
+		return "", NewValidationError("keyID is required")
 	}
 	if len(certChain) == 0 {
-		return "", fmt.Errorf("certificate chain is required")
+		return "", NewValidationError("certificate chain is required")
 	}
 
 	// Create protected headers with kid and x5c
 	headers := jws.NewHeaders()
 	if err := headers.Set(jws.KeyIDKey, keyID); err != nil {
-		return "", fmt.Errorf("failed to set kid header: %w", err)
+		return "", WrapInternalError(err, "failed to set kid header")
 	}
 
 	// Convert certificate chain to cert.Chain format
@@ -287,22 +286,22 @@ func SignJSONWithRSAAndX5C(payload []byte, privateKey *rsa.PrivateKey, keyID str
 		// cert.Raw contains the DER-encoded certificate, encode it to base64
 		encoded := base64.StdEncoding.EncodeToString(c.Raw)
 		if err := x5c.AddString(encoded); err != nil {
-			return "", fmt.Errorf("failed to add certificate to chain: %w", err)
+			return "", WrapInternalError(err, "failed to add certificate to chain")
 		}
 	}
 	if err := headers.Set(jws.X509CertChainKey, x5c); err != nil {
-		return "", fmt.Errorf("failed to set x5c header: %w", err)
+		return "", WrapInternalError(err, "failed to set x5c header")
 	}
 	canonical, err := CanonicalizeJSON(payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize payload: %w", err)
+		return "", WrapInternalError(err, "failed to canonicalize payload")
 	}
 
 	// Sign the payload using RS256 algorithm
 	// The x5c forms part of the JWS protected header and is therefore covered by the signature.
 	signed, err := jws.Sign(canonical, jws.WithKey(jwa.RS256(), privateKey, jws.WithProtectedHeaders(headers)))
 	if err != nil {
-		return "", fmt.Errorf("failed to sign payload: %w", err)
+		return "", WrapInternalError(err, "failed to sign payload")
 	}
 
 	return string(signed), nil
@@ -311,25 +310,25 @@ func SignJSONWithRSAAndX5C(payload []byte, privateKey *rsa.PrivateKey, keyID str
 // SignJSONWithRSA signs payload using RSA algorithm (no x5c header)
 func SignJSONWithRSA(payload []byte, privateKey *rsa.PrivateKey, keyID string) (string, error) {
 	if keyID == "" {
-		return "", fmt.Errorf("keyID is required")
+		return "", NewValidationError("keyID is required")
 	}
 
 	// Create protected headers with kid
 	headers := jws.NewHeaders()
 	if err := headers.Set(jws.KeyIDKey, keyID); err != nil {
-		return "", fmt.Errorf("failed to set kid header: %w", err)
+		return "", WrapInternalError(err, "failed to set kid header")
 	}
 
 	// Canonicalize the payload
 	canonical, err := CanonicalizeJSON(payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize payload: %w", err)
+		return "", WrapInternalError(err, "failed to canonicalize payload")
 	}
 
 	// Sign the payload using RS256 algorithm
 	signed, err := jws.Sign(canonical, jws.WithKey(jwa.RS256(), privateKey, jws.WithProtectedHeaders(headers)))
 	if err != nil {
-		return "", fmt.Errorf("failed to sign payload: %w", err)
+		return "", WrapInternalError(err, "failed to sign payload")
 	}
 
 	return string(signed), nil

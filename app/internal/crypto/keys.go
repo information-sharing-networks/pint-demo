@@ -32,7 +32,7 @@ import (
 func GenerateEd25519KeyPair() (ed25519.PrivateKey, error) {
 	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate key pair: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to generate key pair")
 	}
 
 	return privateKey, nil
@@ -49,27 +49,27 @@ func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, path s
 
 	jwkKey, err := Ed25519PrivateKeyToJWK(privateKey, keyID)
 	if err != nil {
-		return fmt.Errorf("failed to create JWK: %w", err)
+		return WrapKeyManagementError(err, "failed to create JWK")
 	}
 
 	jwkSet := jwk.NewSet()
 	if err := jwkSet.AddKey(jwkKey); err != nil {
-		return fmt.Errorf("failed to add key to JWK set: %w", err)
+		return WrapKeyManagementError(err, "failed to add key to JWK set")
 	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal JWK set: %w", err)
+		return WrapInternalError(err, "failed to marshal JWK set")
 	}
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	if err := root.WriteFile(filename, jsonBytes, 0600); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+		return WrapKeyManagementError(err, "failed to write file")
 	}
 
 	return nil
@@ -85,27 +85,27 @@ func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, path stri
 
 	jwkKey, err := Ed25519PublicKeyToJWK(publicKey, keyID)
 	if err != nil {
-		return fmt.Errorf("failed to create JWK: %w", err)
+		return WrapKeyManagementError(err, "failed to create JWK")
 	}
 
 	jwkSet := jwk.NewSet()
 	if err := jwkSet.AddKey(jwkKey); err != nil {
-		return fmt.Errorf("failed to add key to JWK set: %w", err)
+		return WrapKeyManagementError(err, "failed to add key to JWK set")
 	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal JWK set: %w", err)
+		return WrapInternalError(err, "failed to marshal JWK set")
 	}
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	if err := root.WriteFile(filename, jsonBytes, 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+		return WrapKeyManagementError(err, "failed to write file")
 	}
 
 	return nil
@@ -122,7 +122,7 @@ func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, path string) 
 	// Marshal to PKCS#8 format
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
-		return fmt.Errorf("failed to marshal private key: %w", err)
+		return WrapKeyManagementError(err, "failed to marshal private key")
 	}
 
 	pemBlock := &pem.Block{
@@ -132,18 +132,18 @@ func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, path string) 
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	file, err := root.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return WrapKeyManagementError(err, "failed to create file")
 	}
 	defer file.Close()
 
 	if err := pem.Encode(file, pemBlock); err != nil {
-		return fmt.Errorf("failed to encode PEM: %w", err)
+		return WrapKeyManagementError(err, "failed to encode PEM")
 	}
 
 	return nil
@@ -159,7 +159,7 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, path string) err
 	// Marshal to SubjectPublicKeyInfo format
 	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
-		return fmt.Errorf("failed to marshal public key: %w", err)
+		return WrapKeyManagementError(err, "failed to marshal public key")
 	}
 
 	pemBlock := &pem.Block{
@@ -169,19 +169,19 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, path string) err
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	// #nosec G302 -- Public key file, doesn't contain sensitive data
 	file, err := root.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return WrapKeyManagementError(err, "failed to create file")
 	}
 	defer file.Close()
 
 	if err := pem.Encode(file, pemBlock); err != nil {
-		return fmt.Errorf("failed to encode PEM: %w", err)
+		return WrapKeyManagementError(err, "failed to encode PEM")
 	}
 
 	return nil
@@ -203,32 +203,32 @@ func ReadPrivateKeyFromJWKFile(path string) (any, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	jsonBytes, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	jwkSet, err := jwk.Parse(jsonBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse JWK set")
 	}
 
 	if jwkSet.Len() == 0 {
-		return nil, fmt.Errorf("JWK set is empty")
+		return nil, NewKeyManagementError("JWK set is empty")
 	}
 
 	jwkKey, ok := jwkSet.Key(0)
 	if !ok {
-		return nil, fmt.Errorf("failed to get key from JWK set")
+		return nil, NewKeyManagementError("failed to get key from JWK set")
 	}
 
 	var raw any
 	if err := jwk.Export(jwkKey, &raw); err != nil {
-		return nil, fmt.Errorf("failed to export key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to export key")
 	}
 
 	// Validate it's a supported private key type
@@ -238,7 +238,7 @@ func ReadPrivateKeyFromJWKFile(path string) (any, error) {
 	case *rsa.PrivateKey:
 		return key, nil
 	default:
-		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", raw)
+		return nil, NewKeyManagementError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", raw))
 	}
 }
 
@@ -255,32 +255,32 @@ func ReadPublicKeyFromJWKFile(path string) (any, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	jsonBytes, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	jwkSet, err := jwk.Parse(jsonBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse JWK set")
 	}
 
 	if jwkSet.Len() == 0 {
-		return nil, fmt.Errorf("JWK set is empty")
+		return nil, NewKeyManagementError("JWK set is empty")
 	}
 
 	jwkKey, ok := jwkSet.Key(0)
 	if !ok {
-		return nil, fmt.Errorf("failed to get key from JWK set")
+		return nil, NewKeyManagementError("failed to get key from JWK set")
 	}
 
 	var raw any
 	if err := jwk.Export(jwkKey, &raw); err != nil {
-		return nil, fmt.Errorf("failed to export key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to export key")
 	}
 
 	// Validate it's a supported public key type
@@ -290,7 +290,7 @@ func ReadPublicKeyFromJWKFile(path string) (any, error) {
 	case *rsa.PublicKey:
 		return key, nil
 	default:
-		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", raw)
+		return nil, NewKeyManagementError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", raw))
 	}
 }
 
@@ -304,37 +304,37 @@ func ReadEd25519PrivateKeyFromJWKFile(path string) (ed25519.PrivateKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	jsonBytes, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	jwkSet, err := jwk.Parse(jsonBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse JWK set")
 	}
 
 	if jwkSet.Len() == 0 {
-		return nil, fmt.Errorf("JWK set is empty")
+		return nil, NewKeyManagementError("JWK set is empty")
 	}
 
 	jwkKey, ok := jwkSet.Key(0)
 	if !ok {
-		return nil, fmt.Errorf("failed to get key from JWK set")
+		return nil, NewKeyManagementError("failed to get key from JWK set")
 	}
 
 	var raw any
 	if err := jwk.Export(jwkKey, &raw); err != nil {
-		return nil, fmt.Errorf("failed to export key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to export key")
 	}
 
 	privateKey, ok := raw.(ed25519.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an Ed25519 private key")
+		return nil, NewKeyManagementError("key is not an Ed25519 private key")
 	}
 
 	return privateKey, nil
@@ -349,37 +349,37 @@ func ReadEd25519PublicKeyFromJWKFile(path string) (ed25519.PublicKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	jsonBytes, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	jwkSet, err := jwk.Parse(jsonBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse JWK set")
 	}
 
 	if jwkSet.Len() == 0 {
-		return nil, fmt.Errorf("JWK set is empty")
+		return nil, NewKeyManagementError("JWK set is empty")
 	}
 
 	jwkKey, ok := jwkSet.Key(0)
 	if !ok {
-		return nil, fmt.Errorf("failed to get key from JWK set")
+		return nil, NewKeyManagementError("failed to get key from JWK set")
 	}
 
 	var raw any
 	if err := jwk.Export(jwkKey, &raw); err != nil {
-		return nil, fmt.Errorf("failed to export key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to export key")
 	}
 
 	publicKey, ok := raw.(ed25519.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an Ed25519 public key")
+		return nil, NewKeyManagementError("key is not an Ed25519 public key")
 	}
 
 	return publicKey, nil
@@ -395,32 +395,32 @@ func ReadEd25519PrivateKeyFromPEMFile(path string) (ed25519.PrivateKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	block, _ := pem.Decode(pemData)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, NewKeyManagementError("failed to decode PEM block")
 	}
 
 	if block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("PEM block is not a private key (type: %s)", block.Type)
+		return nil, NewKeyManagementError(fmt.Sprintf("PEM block is not a private key (type: %s)", block.Type))
 	}
 
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse PKCS#8 private key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse PKCS#8 private key")
 	}
 
 	privateKey, ok := key.(ed25519.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an Ed25519 private key")
+		return nil, NewKeyManagementError("key is not an Ed25519 private key")
 	}
 
 	return privateKey, nil
@@ -436,32 +436,32 @@ func ReadEd25519PublicKeyFromPEMFile(path string) (ed25519.PublicKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	block, _ := pem.Decode(pemData)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, NewKeyManagementError("failed to decode PEM block")
 	}
 
 	if block.Type != "PUBLIC KEY" {
-		return nil, fmt.Errorf("PEM block is not a public key (type: %s)", block.Type)
+		return nil, NewKeyManagementError(fmt.Sprintf("PEM block is not a public key (type: %s)", block.Type))
 	}
 
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse public key")
 	}
 
 	publicKey, ok := pubKey.(ed25519.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an Ed25519 public key")
+		return nil, NewKeyManagementError("key is not an Ed25519 public key")
 	}
 
 	return publicKey, nil
@@ -471,16 +471,16 @@ func ReadEd25519PublicKeyFromPEMFile(path string) (ed25519.PublicKey, error) {
 // minimum key size is 2048 bits (4096 is recommended) - key size must be a multiple of 256
 func GenerateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
 	if bits < 2048 {
-		return nil, fmt.Errorf("key size must be at least 2048 bits")
+		return nil, NewValidationError("key size must be at least 2048 bits")
 	}
 
 	if bits%256 != 0 {
-		return nil, fmt.Errorf("key size should be a multiple of 256")
+		return nil, NewValidationError("key size should be a multiple of 256")
 	}
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate key pair: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to generate key pair")
 	}
 
 	return privateKey, nil
@@ -496,27 +496,27 @@ func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, path string) 
 
 	jwkKey, err := RSAPrivateKeyToJWK(privateKey, keyID)
 	if err != nil {
-		return fmt.Errorf("failed to create JWK: %w", err)
+		return WrapKeyManagementError(err, "failed to create JWK")
 	}
 
 	jwkSet := jwk.NewSet()
 	if err := jwkSet.AddKey(jwkKey); err != nil {
-		return fmt.Errorf("failed to add key to JWK set: %w", err)
+		return WrapKeyManagementError(err, "failed to add key to JWK set")
 	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal JWK set: %w", err)
+		return WrapInternalError(err, "failed to marshal JWK set")
 	}
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	if err := root.WriteFile(filename, jsonBytes, 0600); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+		return WrapKeyManagementError(err, "failed to write file")
 	}
 
 	return nil
@@ -532,27 +532,27 @@ func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, path string) err
 
 	jwkKey, err := RSAPublicKeyToJWK(publicKey, keyID)
 	if err != nil {
-		return fmt.Errorf("failed to create JWK: %w", err)
+		return WrapKeyManagementError(err, "failed to create JWK")
 	}
 
 	jwkSet := jwk.NewSet()
 	if err := jwkSet.AddKey(jwkKey); err != nil {
-		return fmt.Errorf("failed to add key to JWK set: %w", err)
+		return WrapKeyManagementError(err, "failed to add key to JWK set")
 	}
 
 	jsonBytes, err := json.MarshalIndent(jwkSet, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal JWK set: %w", err)
+		return WrapInternalError(err, "failed to marshal JWK set")
 	}
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	if err := root.WriteFile(filename, jsonBytes, 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+		return WrapKeyManagementError(err, "failed to write file")
 	}
 
 	return nil
@@ -568,7 +568,7 @@ func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, path string) error {
 	// Marshal to PKCS#8 format (more modern than PKCS#1)
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
-		return fmt.Errorf("failed to marshal private key: %w", err)
+		return WrapKeyManagementError(err, "failed to marshal private key")
 	}
 
 	pemBlock := &pem.Block{
@@ -578,18 +578,18 @@ func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, path string) error {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	file, err := root.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return WrapKeyManagementError(err, "failed to create file")
 	}
 	defer file.Close()
 
 	if err := pem.Encode(file, pemBlock); err != nil {
-		return fmt.Errorf("failed to encode PEM: %w", err)
+		return WrapKeyManagementError(err, "failed to encode PEM")
 	}
 
 	return nil
@@ -605,7 +605,7 @@ func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, path string) error {
 	// Marshal to SubjectPublicKeyInfo format
 	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
-		return fmt.Errorf("failed to marshal public key: %w", err)
+		return WrapKeyManagementError(err, "failed to marshal public key")
 	}
 
 	pemBlock := &pem.Block{
@@ -615,19 +615,19 @@ func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, path string) error {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	// #nosec G302 -- Public key file, doesn't contain sensitive data
 	file, err := root.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return WrapKeyManagementError(err, "failed to create file")
 	}
 	defer file.Close()
 
 	if err := pem.Encode(file, pemBlock); err != nil {
-		return fmt.Errorf("failed to encode PEM: %w", err)
+		return WrapKeyManagementError(err, "failed to encode PEM")
 	}
 
 	return nil
@@ -643,37 +643,37 @@ func ReadRSAPrivateKeyFromJWKFile(path string) (*rsa.PrivateKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	jsonBytes, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	jwkSet, err := jwk.Parse(jsonBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse JWK set")
 	}
 
 	if jwkSet.Len() == 0 {
-		return nil, fmt.Errorf("JWK set is empty")
+		return nil, NewKeyManagementError("JWK set is empty")
 	}
 
 	jwkKey, ok := jwkSet.Key(0)
 	if !ok {
-		return nil, fmt.Errorf("failed to get key from JWK set")
+		return nil, NewKeyManagementError("failed to get key from JWK set")
 	}
 
 	var raw any
 	if err := jwk.Export(jwkKey, &raw); err != nil {
-		return nil, fmt.Errorf("failed to export key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to export key")
 	}
 
 	privateKey, ok := raw.(*rsa.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an RSA private key")
+		return nil, NewKeyManagementError("key is not an RSA private key")
 	}
 
 	return privateKey, nil
@@ -689,37 +689,37 @@ func ReadRSAPublicKeyFromJWKFile(path string) (*rsa.PublicKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	jsonBytes, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	jwkSet, err := jwk.Parse(jsonBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWK set: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse JWK set")
 	}
 
 	if jwkSet.Len() == 0 {
-		return nil, fmt.Errorf("JWK set is empty")
+		return nil, NewKeyManagementError("JWK set is empty")
 	}
 
 	jwkKey, ok := jwkSet.Key(0)
 	if !ok {
-		return nil, fmt.Errorf("failed to get key from JWK set")
+		return nil, NewKeyManagementError("failed to get key from JWK set")
 	}
 
 	var raw any
 	if err := jwk.Export(jwkKey, &raw); err != nil {
-		return nil, fmt.Errorf("failed to export key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to export key")
 	}
 
 	publicKey, ok := raw.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an RSA public key")
+		return nil, NewKeyManagementError("key is not an RSA public key")
 	}
 
 	return publicKey, nil
@@ -735,32 +735,32 @@ func ReadRSAPrivateKeyFromPEMFile(path string) (*rsa.PrivateKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	block, _ := pem.Decode(pemData)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, NewKeyManagementError("failed to decode PEM block")
 	}
 
 	if block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("PEM block is not a private key (type: %s)", block.Type)
+		return nil, NewKeyManagementError(fmt.Sprintf("PEM block is not a private key (type: %s)", block.Type))
 	}
 
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse PKCS#8 private key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse PKCS#8 private key")
 	}
 
 	privateKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an RSA private key")
+		return nil, NewKeyManagementError("key is not an RSA private key")
 	}
 
 	return privateKey, nil
@@ -776,32 +776,32 @@ func ReadRSAPublicKeyFromPEMFile(path string) (*rsa.PublicKey, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapKeyManagementError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to read file")
 	}
 
 	block, _ := pem.Decode(pemData)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, NewKeyManagementError("failed to decode PEM block")
 	}
 
 	if block.Type != "PUBLIC KEY" {
-		return nil, fmt.Errorf("PEM block is not a public key (type: %s)", block.Type)
+		return nil, NewKeyManagementError(fmt.Sprintf("PEM block is not a public key (type: %s)", block.Type))
 	}
 
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to parse public key")
 	}
 
 	publicKey, ok := pubKey.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("key is not an RSA public key")
+		return nil, NewKeyManagementError("key is not an RSA public key")
 	}
 
 	return publicKey, nil
@@ -816,27 +816,27 @@ func ReadRSAPublicKeyFromPEMFile(path string) (*rsa.PublicKey, error) {
 func ReadCertificateFromPEMFile(baseDir, filename string) (*x509.Certificate, error) {
 	root, err := os.OpenRoot(baseDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory %s: %w", baseDir, err)
+		return nil, WrapCertificateError(err, fmt.Sprintf("failed to open root directory %s", baseDir))
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapCertificateError(err, "failed to read file")
 	}
 
 	block, _ := pem.Decode(pemData)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, NewCertificateError("failed to decode PEM block")
 	}
 
 	if block.Type != "CERTIFICATE" {
-		return nil, fmt.Errorf("PEM block is not a certificate (type: %s)", block.Type)
+		return nil, NewCertificateError(fmt.Sprintf("PEM block is not a certificate (type: %s)", block.Type))
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		return nil, WrapCertificateError(err, "failed to parse certificate")
 	}
 
 	return cert, nil

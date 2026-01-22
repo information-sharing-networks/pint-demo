@@ -26,7 +26,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 )
 
 // IssuanceManifest represents the DCSA IssuanceManifest structure
@@ -50,10 +49,10 @@ type IssuanceManifestSignedContent string
 // Validate checks that all required fields are present per DCSA EBL_ISS specification
 func (i *IssuanceManifest) Validate() error {
 	if i.DocumentChecksum == "" {
-		return fmt.Errorf("documentChecksum is required")
+		return NewValidationError("documentChecksum is required")
 	}
 	if i.IssueToChecksum == "" {
-		return fmt.Errorf("issueToChecksum is required")
+		return NewValidationError("issueToChecksum is required")
 	}
 	return nil
 }
@@ -88,13 +87,13 @@ type EBLVisualisationByCarrier struct {
 // Validate checks that all required fields are present per DCSA EBL_ISS specification
 func (e *EBLVisualisationByCarrier) Validate() error {
 	if e.Name == "" {
-		return fmt.Errorf("name is required")
+		return NewValidationError("name is required")
 	}
 	if e.Content == "" {
-		return fmt.Errorf("content is required")
+		return NewValidationError("content is required")
 	}
 	if e.ContentType == "" {
-		return fmt.Errorf("contentType is required")
+		return NewValidationError("contentType is required")
 	}
 	return nil
 }
@@ -138,31 +137,31 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 
 	// Validate required fields
 	if len(b.documentJSON) == 0 {
-		return nil, fmt.Errorf("document is required")
+		return nil, NewValidationError("document is required")
 	}
 	if len(b.issueToJSON) == 0 {
-		return nil, fmt.Errorf("issueTo is required")
+		return nil, NewValidationError("issueTo is required")
 	}
 
 	// Canonicalize JSON documents
 	canonicalDocument, err := CanonicalizeJSON(b.documentJSON)
 	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize document: %w", err)
+		return nil, WrapValidationError(err, "failed to canonicalize document")
 	}
 
 	canonicalIssueTo, err := CanonicalizeJSON(b.issueToJSON)
 	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize issueTo: %w", err)
+		return nil, WrapValidationError(err, "failed to canonicalize issueTo")
 	}
 
 	// Calculate SHA-256 checksums
 	documentChecksum, err := Hash(canonicalDocument)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash document: %w", err)
+		return nil, WrapInternalError(err, "failed to hash document")
 	}
 	issueToChecksum, err := Hash(canonicalIssueTo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash issueTo: %w", err)
+		return nil, WrapInternalError(err, "failed to hash issueTo")
 	}
 
 	// Create IssuanceManifest
@@ -174,7 +173,7 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 	// add eBL visualisation checksum
 	if b.eBLVisualisationByCarrier != nil {
 		if err := b.eBLVisualisationByCarrier.Validate(); err != nil {
-			return nil, fmt.Errorf("eBLVisualisationByCarrier: %w", err)
+			return nil, WrapValidationError(err, "eBLVisualisationByCarrier")
 		}
 
 		// TODO check mime type is consistent with binary content?
@@ -185,7 +184,7 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 			MaxDocumentSize,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to hash eBL visualisation: %w", err)
+			return nil, WrapValidationError(err, "failed to hash eBL visualisation")
 		}
 		issuanceManifest.EBLVisualisationByCarrierChecksum = &visualisationChecksum
 	}
@@ -201,13 +200,13 @@ func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, 
 	// serialize to JSON
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
+		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithEd25519AndX5C)
 	jws, err := SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return IssuanceManifestSignedContent(jws), nil
@@ -219,13 +218,13 @@ func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, 
 func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (IssuanceManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
+		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithEd25519)
 	jws, err := SignJSONWithEd25519(jsonBytes, privateKey, keyID)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return IssuanceManifestSignedContent(jws), nil
@@ -238,13 +237,13 @@ func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID s
 
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
+		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithRSAAndX5C)
 	jws, err := SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return IssuanceManifestSignedContent(jws), nil
@@ -256,13 +255,13 @@ func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID s
 func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (IssuanceManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize to JSON: %w", err)
+		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithRSA)
 	jws, err := SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return IssuanceManifestSignedContent(jws), nil

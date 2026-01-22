@@ -157,7 +157,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 
 	// Step 1: Validate envelope structure (required fields)
 	if err := input.Envelope.Validate(); err != nil {
-		return nil, fmt.Errorf("envelope validation failed: %w", err)
+		return nil, WrapEnvelopeError(err, "envelope validation failed")
 	}
 
 	// Step 2: Verify JWS signature and validate x5c certificate chain (if present)
@@ -168,7 +168,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		input.RootCAs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("BSIG: JWS verification failed: %w", err)
+		return nil, WrapSignatureError(err, "JWS verification failed")
 	}
 
 	// Step 3: store verifed organisation information
@@ -184,17 +184,17 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	// Step 4: Determine trust level
 	trustLevel, err := crypto.DetermineTrustLevel(string(input.Envelope.EnvelopeManifestSignedContent))
 	if err != nil {
-		return nil, fmt.Errorf("BSIG: failed to determine trust level: %w", err)
+		return nil, WrapSignatureError(err, "failed to determine trust level")
 	}
 	result.TrustLevel = trustLevel
 
 	// Step 5: Parse and validate the manifest payload
 	manifest := &crypto.EnvelopeManifest{}
 	if err := json.Unmarshal(manifestPayload, manifest); err != nil {
-		return nil, fmt.Errorf("BSIG: failed to parse manifest payload: %w", err)
+		return nil, WrapSignatureError(err, "failed to parse manifest payload")
 	}
 	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("BSIG: manifest validation failed: %w", err)
+		return nil, WrapSignatureError(err, "manifest validation failed")
 	}
 	result.Manifest = manifest
 
@@ -205,11 +205,12 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		manifest.TransportDocumentChecksum,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("BENV: transport document verification failed: %w", err)
+		return nil, WrapEnvelopeError(err, "transport document verification failed")
 	}
 	result.TransportDocumentChecksum = transportDocChecksum
 
 	// Step 7: Verify transfer chain integrity and store all entries
+	// this prevents replay attacks, where an attacker replaces the last entry with a valid one from a different transfer
 	transferChain, err := verifyEnvelopeTransferChain(
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
@@ -218,7 +219,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		input.RootCAs,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("BENV: transfer chain verification failed: %w", err)
+		return nil, WrapEnvelopeError(err, "transfer chain verification failed")
 	}
 	result.TransferChain = transferChain
 
@@ -233,14 +234,15 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		input.ExpectedCarrierDomain,
 		input.RootCAs,
 	); err != nil {
-		return nil, fmt.Errorf("BENV: issuance manifest verification failed: %w", err)
+		return nil, WrapEnvelopeError(err, "issuance manifest verification failed")
 	}
 
 	// Step 9: verify manifest checksum matches last transfer chain entry
-	// This prevents replay attacks where an attacker replaces the last entry with one from a different transfer
+	// This prevents a situation where the transfer contains a valid chain + valid manifest + valid transport document but the
+	// the components are from different transfers (i.e the manifest and last chain entry must agree on which transport document they are refering to)
 	if manifest.TransportDocumentChecksum != result.LastTransferChainEntry.TransportDocumentChecksum {
-		return result, fmt.Errorf("BENV: anti-replay check failed: transport document checksums don't match (manifest: %s, last entry: %s)",
-			manifest.TransportDocumentChecksum, result.LastTransferChainEntry.TransportDocumentChecksum)
+		return result, NewEnvelopeError(fmt.Sprintf("anti-replay check failed: transport document checksums don't match (manifest: %s, last entry: %s)",
+			manifest.TransportDocumentChecksum, result.LastTransferChainEntry.TransportDocumentChecksum))
 	}
 
 	// All checks passed
@@ -256,19 +258,19 @@ func verifyTransportDocumentChecksum(
 	// Canonicalize the transport document JSON
 	canonicalJSON, err := crypto.CanonicalizeJSON(transportDocument)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize transport document: %w", err)
+		return "", WrapEnvelopeError(err, "failed to canonicalize transport document")
 	}
 
 	// Compute SHA-256 checksum
 	actualChecksum, err := crypto.Hash(canonicalJSON)
 	if err != nil {
-		return "", fmt.Errorf("failed to compute transport document checksum: %w", err)
+		return "", WrapEnvelopeError(err, "failed to compute transport document checksum")
 	}
 
 	// Verify checksum matches
 	if actualChecksum != expectedChecksum {
-		return "", fmt.Errorf("transport document checksum mismatch: expected %s, got %s",
-			expectedChecksum, actualChecksum)
+		return "", NewEnvelopeError(fmt.Sprintf("transport document checksum mismatch: expected %s, got %s",
+			expectedChecksum, actualChecksum))
 	}
 
 	return actualChecksum, nil
@@ -277,8 +279,8 @@ func verifyTransportDocumentChecksum(
 // verifyIssuanceManifest verifies the carrier's signature on the issuance manifest and validates
 // the transport document checksum.
 //
-// - Carrier signature verification ensures the carrier is the one who issued the eBL (non-repudiation)
-// - Document checksum verification ensures the transport document hasn't been tampered with since issuance
+//   - Carrier signature verification ensures the carrier is the one who issued the eBL (non-repudiation)
+//   - Document checksum verification ensures the transport document hasn't been tampered with since issuance
 //
 // TODO: confirm this is correct:
 // The issueToChecksum is verified only at issuance time (EBL_ISS API) by the first eBL Solution Provider
@@ -287,7 +289,6 @@ func verifyTransportDocumentChecksum(
 //
 // The issueToChecksum is inlcuded in the issuance manifest as part of the carrier-signed audit trail.
 // Subsequent platforms can use the ISSUE transaction RecipientParty if they need to know the original issueTo.
-
 func verifyIssuanceManifest(
 	firstEntry *crypto.EnvelopeTransferChainEntry,
 	carrierPublicKey any,
@@ -296,11 +297,11 @@ func verifyIssuanceManifest(
 ) error {
 
 	if firstEntry == nil {
-		return fmt.Errorf("first entry is nil")
+		return NewEnvelopeError("first entry is nil")
 	}
 
 	if firstEntry.IssuanceManifestSignedContent == nil {
-		return fmt.Errorf("issuanceManifestSignedContent is missing from first transfer chain entry")
+		return NewEnvelopeError("issuanceManifestSignedContent is missing from first transfer chain entry")
 	}
 
 	// Step 1: Verify carrier's JWS signature on issuanceManifestSignedContent
@@ -312,25 +313,25 @@ func verifyIssuanceManifest(
 		rootCAs,
 	)
 	if err != nil {
-		return fmt.Errorf("carrier's JWS signature verification failed: %w", err)
+		return WrapSignatureError(err, "carrier's JWS signature verification failed")
 	}
 
 	// Step 2: Parse the IssuanceManifest payload
 	issuanceManifest := &crypto.IssuanceManifest{}
 	if err := json.Unmarshal(issuanceManifestPayload, issuanceManifest); err != nil {
-		return fmt.Errorf("failed to parse issuance manifest payload: %w", err)
+		return WrapEnvelopeError(err, "failed to parse issuance manifest payload")
 	}
 
 	// Step 3: Validate the IssuanceManifest has required fields
 	if err := issuanceManifest.Validate(); err != nil {
-		return fmt.Errorf("issuance manifest validation failed: %w", err)
+		return WrapEnvelopeError(err, "issuance manifest validation failed")
 	}
 
 	// Step 4: Compare IssuanceManifest.DocumentChecksum (carrier-signed)
 	// with FirstTransferChainEntry.TransportDocumentChecksum (first platform-signed)
 	// this proves the document has not been tampered with since the carrier issued it.
 	if issuanceManifest.DocumentChecksum != firstEntry.TransportDocumentChecksum {
-		return fmt.Errorf("carrier's document checksum doesn't match first transfer chain entry")
+		return NewEnvelopeError("carrier's document checksum doesn't match first transfer chain entry")
 	}
 	return nil
 }
@@ -354,19 +355,19 @@ func verifyEnvelopeTransferChain(
 ) ([]*crypto.EnvelopeTransferChainEntry, error) {
 
 	if len(envelopeTransferChain) == 0 {
-		return nil, fmt.Errorf("transfer chain is empty")
+		return nil, NewEnvelopeError("transfer chain is empty")
 	}
 
 	// Step 1: Verify last entry checksum matches the checksum in the manifest
 	lastEntryJWS := envelopeTransferChain[len(envelopeTransferChain)-1]
 	actualChecksum, err := crypto.Hash([]byte(lastEntryJWS))
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute last entry checksum: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to compute last entry checksum")
 	}
 
 	if actualChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
-		return nil, fmt.Errorf("last transfer chain entry checksum mismatch: expected %s, got %s",
-			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, actualChecksum)
+		return nil, NewEnvelopeError(fmt.Sprintf("last transfer chain entry checksum mismatch: expected %s, got %s",
+			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, actualChecksum))
 	}
 
 	// Step 2: verify the chain and collect all entries
@@ -385,18 +386,18 @@ func verifyEnvelopeTransferChain(
 			rootCAs,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("entry %d JWS verification failed: %w", i, err)
+			return nil, WrapSignatureError(err, fmt.Sprintf("entry %d JWS verification failed", i))
 		}
 
 		// Parse the entry payload
 		var currentEntry crypto.EnvelopeTransferChainEntry
 		if err := json.Unmarshal(currentPayloadBytes, &currentEntry); err != nil {
-			return nil, fmt.Errorf("failed to parse entry %d payload: %w", i, err)
+			return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to parse entry %d payload", i))
 		}
 
 		// Validate the entry has all the mandatory fields
 		if err := currentEntry.Validate(); err != nil {
-			return nil, fmt.Errorf("entry %d validation failed: %w", i, err)
+			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
 		// Store the entry in the result slice
@@ -409,18 +410,18 @@ func verifyEnvelopeTransferChain(
 			// Compute checksum of previous entry
 			previousChecksum, err := crypto.Hash([]byte(previousEntryJWS))
 			if err != nil {
-				return nil, fmt.Errorf("failed to compute checksum for entry %d: %w", i-1, err)
+				return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to compute checksum for entry %d", i-1))
 			}
 
 			// current entry should reference previous entry's checksum
 
 			if currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum == nil {
-				return nil, fmt.Errorf("entry %d is missing previousEnvelopeTransferChainEntrySignedContentChecksum", i)
+				return nil, NewEnvelopeError(fmt.Sprintf("entry %d is missing previousEnvelopeTransferChainEntrySignedContentChecksum", i))
 			}
 
 			if *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != previousChecksum {
-				return nil, fmt.Errorf("entry %d chain link broken: expected previous checksum %s, got %s",
-					i, previousChecksum, *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum)
+				return nil, NewEnvelopeError(fmt.Sprintf("entry %d chain link broken: expected previous checksum %s, got %s",
+					i, previousChecksum, *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum))
 			}
 		}
 	}
@@ -430,8 +431,8 @@ func verifyEnvelopeTransferChain(
 	firstChecksum := allEntries[0].TransportDocumentChecksum
 	for i := 1; i < len(allEntries); i++ {
 		if allEntries[i].TransportDocumentChecksum != firstChecksum {
-			return nil, fmt.Errorf("transport document checksum changed in entry %d: expected %s, got %s",
-				i, firstChecksum, allEntries[i].TransportDocumentChecksum)
+			return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum changed in entry %d: expected %s, got %s",
+				i, firstChecksum, allEntries[i].TransportDocumentChecksum))
 		}
 	}
 

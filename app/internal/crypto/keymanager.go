@@ -163,19 +163,19 @@ func NewConfig(registryURL *url.URL, manualKeysDir string, httpTimeout time.Dura
 // NewKeyManager creates a new KeyManager with the given configuration.
 func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*KeyManager, error) {
 	if config == nil {
-		return nil, fmt.Errorf("config is nil")
+		return nil, NewValidationError("config is nil")
 	}
 	if logger == nil {
-		return nil, fmt.Errorf("logger cannot be nil")
+		return nil, NewValidationError("logger cannot be nil")
 	}
 
 	// check for nil url
 	if config.eblSolutionProvidersRegistryURL == nil {
-		return nil, fmt.Errorf("eblSolutionProvidersRegistryURL is required")
+		return nil, NewValidationError("eblSolutionProvidersRegistryURL is required")
 	}
 
 	if config.HTTPTimeout == 0 {
-		return nil, fmt.Errorf("HTTPTimeout is required")
+		return nil, NewValidationError("HTTPTimeout is required")
 	}
 
 	// Initialize the key manager
@@ -197,7 +197,7 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 
 	// Load DCSA registry of approved eBL solution providers
 	if err := km.loadEbLSolutionProviders(ctx); err != nil {
-		return nil, fmt.Errorf("failed to load DCSA registry: %w", err)
+		return nil, WrapKeyManagementError(err, "failed to load DCSA registry")
 	}
 
 	km.logger.Info("DCSA registry loaded", slog.Int("providers", len(km.eblSolutionProviders)))
@@ -205,7 +205,7 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 	// Load manual keys (Trust Level 1)
 	if config.ManualKeysDir != "" {
 		if err := km.loadManualKeys(); err != nil {
-			return nil, fmt.Errorf("failed to load manual keys: %w", err)
+			return nil, WrapKeyManagementError(err, "failed to load manual keys")
 		}
 		km.logger.Info("manual keys loaded", slog.Int("keys", len(km.manualKeys)))
 	}
@@ -214,7 +214,7 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 	// TODO: async?
 	if !config.SkipJWKCache {
 		if err := km.initJWKCache(ctx); err != nil {
-			return nil, fmt.Errorf("failed to init JWK cache: %w", err)
+			return nil, WrapKeyManagementError(err, "failed to init JWK cache")
 		}
 
 		km.logger.Debug("JWK cache initialized")
@@ -247,7 +247,7 @@ func (km *KeyManager) loadEbLSolutionProviders(ctx context.Context) error {
 	reader := csv.NewReader(bytes.NewReader(data))
 	records, err := reader.ReadAll()
 	if err != nil {
-		return fmt.Errorf("failed to parse DCSA registry csv: %w", err)
+		return WrapValidationError(err, "failed to parse DCSA registry csv")
 	}
 
 	for _, record := range records {
@@ -256,27 +256,27 @@ func (km *KeyManager) loadEbLSolutionProviders(ctx context.Context) error {
 			continue
 		}
 		if len(record) != 4 {
-			return fmt.Errorf("invalid DCSA registry record: %v", record)
+			return NewValidationError(fmt.Sprintf("invalid DCSA registry record: %v", record))
 		}
 
 		eblSolutionProvider := &eblSolutionProvider{}
 
 		if record[0] == "" {
-			return fmt.Errorf("invalid DCSA registry record - name not set: %v", record)
+			return NewValidationError(fmt.Sprintf("invalid DCSA registry record - name not set: %v", record))
 		}
 		eblSolutionProvider.Name = record[0]
 
 		if record[1] == "" {
-			return fmt.Errorf("invalid DCSA registry record - code not set: %v", record)
+			return NewValidationError(fmt.Sprintf("invalid DCSA registry record - code not set: %v", record))
 		}
 		eblSolutionProvider.Code = record[1]
 
 		if record[2] == "" {
-			return fmt.Errorf("invalid DCSA registry record - url not set: %v", record)
+			return NewValidationError(fmt.Sprintf("invalid DCSA registry record - url not set: %v", record))
 		}
 		url, err := url.Parse(record[2])
 		if err != nil {
-			return fmt.Errorf("invalid DCSA registry record - invalid url: %v", record)
+			return NewValidationError(fmt.Sprintf("invalid DCSA registry record - invalid url: %v", record))
 		}
 		eblSolutionProvider.URL = url
 
@@ -296,16 +296,16 @@ func (km *KeyManager) fetchRegistryData(ctx context.Context) ([]byte, error) {
 	case "https", "http":
 		req, err := http.NewRequestWithContext(ctx, "GET", km.config.eblSolutionProvidersRegistryURL.String(), nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create DCSA registry request: %w", err)
+			return nil, WrapInternalError(err, "failed to create DCSA registry request")
 		}
 		res, err := km.httpClient.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch DCSA registry: %w", err)
+			return nil, WrapKeyManagementError(err, "failed to fetch DCSA registry")
 		}
 		defer res.Body.Close()
 
 		if res.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("failed to fetch DCSA registry: status %d", res.StatusCode)
+			return nil, NewKeyManagementError(fmt.Sprintf("failed to fetch DCSA registry: status %d", res.StatusCode))
 		}
 
 		return io.ReadAll(res.Body)
@@ -315,7 +315,7 @@ func (km *KeyManager) fetchRegistryData(ctx context.Context) ([]byte, error) {
 		return os.ReadFile(km.config.eblSolutionProvidersRegistryURL.String())
 
 	default:
-		return nil, fmt.Errorf("unsupported URL scheme: %s (expected https:// or a local directory path)", km.config.eblSolutionProvidersRegistryURL.Scheme)
+		return nil, NewValidationError(fmt.Sprintf("unsupported URL scheme: %s (expected https:// or a local directory path)", km.config.eblSolutionProvidersRegistryURL.Scheme))
 	}
 }
 
@@ -332,19 +332,19 @@ func (km *KeyManager) loadManualKeys() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			km.logger.Error("manual keys directory does not exist", slog.String("dir", km.config.ManualKeysDir))
-			return fmt.Errorf("specified manual keys directory (%v) does not exist", km.config.ManualKeysDir)
+			return NewValidationError(fmt.Sprintf("specified manual keys directory (%v) does not exist", km.config.ManualKeysDir))
 		}
-		return fmt.Errorf("failed to stat manual keys directory: %w", err)
+		return WrapKeyManagementError(err, "failed to stat manual keys directory")
 	}
 
 	if !info.IsDir() {
-		return fmt.Errorf("manual keys path is not a directory: %s", km.config.ManualKeysDir)
+		return NewValidationError(fmt.Sprintf("manual keys path is not a directory: %s", km.config.ManualKeysDir))
 	}
 
 	// Read all files in directory
 	entries, err := os.ReadDir(km.config.ManualKeysDir)
 	if err != nil {
-		return fmt.Errorf("failed to read manual keys directory: %w", err)
+		return WrapKeyManagementError(err, "failed to read manual keys directory")
 	}
 
 	km.mu.Lock()
@@ -509,7 +509,7 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 			return nil
 		}
 		// fatal error
-		return fmt.Errorf("failed to create JWK cache: %w", err)
+		return WrapKeyManagementError(err, "failed to create JWK cache")
 	}
 	km.jwkCache = cache
 

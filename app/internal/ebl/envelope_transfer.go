@@ -78,16 +78,16 @@ func CreateEnvelopeTransfer(
 
 	// Step 1: Validate input
 	if len(input.TransportDocument) == 0 {
-		return nil, fmt.Errorf("transport document is required")
+		return nil, NewEnvelopeError("transport document is required")
 	}
 	if len(input.EnvelopeTransferChain) == 0 {
-		return nil, fmt.Errorf("envelope transfer chain must contain at least one entry")
+		return nil, NewEnvelopeError("envelope transfer chain must contain at least one entry")
 	}
 
 	// Step 2: Load the private key from JWK file (auto-detects Ed25519 or RSA)
 	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load private key from %s: %w", privateKeyJWKPath, err)
+		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to load private key from %s", privateKeyJWKPath))
 	}
 
 	// Step 3: Load optional eBL visualization file and create metadata
@@ -95,7 +95,7 @@ func CreateEnvelopeTransfer(
 	if input.EBLVisualizationFilePath != "" {
 		metadata, err := loadDocumentMetadata(input.EBLVisualizationFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load eBL visualization file: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to load eBL visualization file")
 		}
 		eblVisualizationMetadata = metadata
 	}
@@ -107,7 +107,7 @@ func CreateEnvelopeTransfer(
 		for i, filePath := range input.SupportingDocumentFilePaths {
 			metadata, err := loadDocumentMetadata(filePath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load supporting document %d (%s): %w", i, filePath, err)
+				return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to load supporting document %d (%s)", i, filePath))
 			}
 			supportingDocumentsMetadata = append(supportingDocumentsMetadata, *metadata)
 		}
@@ -118,7 +118,7 @@ func CreateEnvelopeTransfer(
 	if certChainFilePath != "" {
 		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load certificate chain: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to load certificate chain")
 		}
 		certChain = chain
 	}
@@ -141,7 +141,7 @@ func CreateEnvelopeTransfer(
 
 	envelopeManifest, err := manifestBuilder.Build()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build envelope manifest: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to build envelope manifest")
 	}
 
 	// Step 8: Sign the envelope manifest with the platform's private key
@@ -153,7 +153,7 @@ func CreateEnvelopeTransfer(
 		publicKey := key.Public().(ed25519.PublicKey)
 		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate key ID: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
 		if len(certChain) > 0 {
@@ -165,7 +165,7 @@ func CreateEnvelopeTransfer(
 	case *rsa.PrivateKey:
 		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate key ID: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
 		if len(certChain) > 0 {
@@ -175,11 +175,11 @@ func CreateEnvelopeTransfer(
 		}
 
 	default:
-		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey)
+		return nil, NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign envelope manifest: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to sign envelope manifest")
 	}
 
 	// Step 9: Build the complete EblEnvelope using the builder
@@ -190,7 +190,7 @@ func CreateEnvelopeTransfer(
 		Build()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to build EblEnvelope: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to build EblEnvelope")
 	}
 
 	return envelope, nil
@@ -205,13 +205,13 @@ func loadDocumentMetadata(filePath string) (*crypto.DocumentMetadata, error) {
 	// Read the file
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	content, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to read file")
 	}
 
 	// Detect content type (defaults to application/octet-stream if no match)
@@ -220,7 +220,7 @@ func loadDocumentMetadata(filePath string) (*crypto.DocumentMetadata, error) {
 	// Calculate SHA-256 checksum of the binary content
 	checksum, err := crypto.Hash(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to calculate checksum: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to calculate checksum")
 	}
 
 	return &crypto.DocumentMetadata{
@@ -243,13 +243,13 @@ func GetDocumentContent(filePath string) (string, error) {
 	// Read the file
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return "", fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return "", WrapEnvelopeError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	content, err := root.ReadFile(filename)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
+		return "", WrapEnvelopeError(err, "failed to read file")
 	}
 
 	// Base64 encode the content
@@ -307,39 +307,39 @@ func CreateTransferChainEntry(
 
 	// Step 1: Validate input
 	if input.TransportDocumentChecksum == "" {
-		return "", fmt.Errorf("transport document checksum is required")
+		return "", NewEnvelopeError("transport document checksum is required")
 	}
 	if input.EBLPlatform == "" {
-		return "", fmt.Errorf("eBL platform is required")
+		return "", NewEnvelopeError("eBL platform is required")
 	}
 	if len(input.Transactions) == 0 {
-		return "", fmt.Errorf("at least one transaction is required")
+		return "", NewEnvelopeError("at least one transaction is required")
 	}
 
 	// check first vs subsequent entry requirements
 	if input.IsFirstEntry {
 		if input.IssuanceManifestSignedContent == nil {
-			return "", fmt.Errorf("issuance manifest is required for first entry")
+			return "", NewEnvelopeError("issuance manifest is required for first entry")
 		}
 		if input.PreviousEnvelopeTransferChainEntrySignedContent != "" {
-			return "", fmt.Errorf("previous entry JWS should not be provided for first entry")
+			return "", NewEnvelopeError("previous entry JWS should not be provided for first entry")
 		}
 	} else {
 		if input.PreviousEnvelopeTransferChainEntrySignedContent == "" {
-			return "", fmt.Errorf("previous entry JWS is required for subsequent entries")
+			return "", NewEnvelopeError("previous entry JWS is required for subsequent entries")
 		}
 		if input.IssuanceManifestSignedContent != nil {
-			return "", fmt.Errorf("issuance manifest should only be provided for first entry")
+			return "", NewEnvelopeError("issuance manifest should only be provided for first entry")
 		}
 		if input.ControlTrackingRegistry != nil {
-			return "", fmt.Errorf("control tracking registry should only be provided for first entry")
+			return "", NewEnvelopeError("control tracking registry should only be provided for first entry")
 		}
 	}
 
 	// Step 2: Load the private key from JWK file
 	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to load private key from %s: %w", privateKeyJWKPath, err)
+		return "", WrapEnvelopeError(err, fmt.Sprintf("failed to load private key from %s", privateKeyJWKPath))
 	}
 
 	// Step 3: Load the certificate chain if provided
@@ -347,7 +347,7 @@ func CreateTransferChainEntry(
 	if certChainFilePath != "" {
 		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
 		if err != nil {
-			return "", fmt.Errorf("failed to load certificate chain: %w", err)
+			return "", WrapEnvelopeError(err, "failed to load certificate chain")
 		}
 		certChain = chain
 	}
@@ -372,7 +372,7 @@ func CreateTransferChainEntry(
 		Build()
 
 	if err != nil {
-		return "", fmt.Errorf("failed to build transfer chain entry: %w", err)
+		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
 	}
 
 	// Step 5: Sign the transfer chain entry with the platform's private key
@@ -384,7 +384,7 @@ func CreateTransferChainEntry(
 		publicKey := key.Public().(ed25519.PublicKey)
 		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
 		if err != nil {
-			return "", fmt.Errorf("failed to generate key ID: %w", err)
+			return "", WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
 		if len(certChain) > 0 {
@@ -396,7 +396,7 @@ func CreateTransferChainEntry(
 	case *rsa.PrivateKey:
 		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
-			return "", fmt.Errorf("failed to generate key ID: %w", err)
+			return "", WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
 		if len(certChain) > 0 {
@@ -406,11 +406,11 @@ func CreateTransferChainEntry(
 		}
 
 	default:
-		return "", fmt.Errorf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey)
+		return "", NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("failed to sign transfer chain entry: %w", err)
+		return "", WrapEnvelopeError(err, "failed to sign transfer chain entry")
 	}
 
 	return signedContent, nil

@@ -1,0 +1,84 @@
+package ebl
+
+import "fmt"
+
+// Error represents a structured error from the ebl package.
+type Error interface {
+	error
+	Code() ErrorCode
+	Unwrap() error
+}
+
+type ErrorCode string
+
+const (
+	// ErrCodeSignature indicates signature verification or trust level failures.
+	ErrCodeSignature ErrorCode = "BSIG" // bad signature
+
+	// ErrCodeEnvelope indicates envelope integrity, validation, or processing failures.
+	ErrCodeEnvelope ErrorCode = "BENV" // bad envelope
+)
+
+// EblError represents a structured error from the ebl package.
+type EblError struct {
+	// code is the error code
+	code ErrorCode
+
+	// message is a human-readable error message
+	message string
+
+	// wrapped is the optional underlying error
+	wrapped error
+}
+
+func (e *EblError) Error() string {
+	if e.wrapped != nil {
+		return fmt.Sprintf("%s: %s: %v", e.code, e.message, e.wrapped)
+	}
+	return fmt.Sprintf("%s: %s", e.code, e.message)
+}
+
+func (e *EblError) Code() ErrorCode { return e.code }
+func (e *EblError) Unwrap() error   { return e.wrapped }
+
+// NewSignatureError creates a signature verification error.
+// Use this for errors related to JWS signature verification failures,
+// x5c certificate validation failures, or trust level determination failures.
+func NewSignatureError(msg string) error {
+	return &EblError{code: ErrCodeSignature, message: msg}
+}
+
+// WrapSignatureError wraps an existing error as a signature error,
+// adding context while preserving the original error for inspection.
+// Use this for errors related to JWS signature verification failures,
+// x5c certificate validation failures, or trust level determination failures.
+func WrapSignatureError(err error, msg string) error {
+	return &EblError{code: ErrCodeSignature, message: msg, wrapped: err}
+}
+
+// NewEnvelopeError creates an envelope error for any non-signature technical failure.
+// Use this for errors related to:
+// - Envelope structure validation (missing fields, invalid format)
+// - Input validation (invalid parameters, business rule violations)
+// - Checksum mismatches and integrity failures
+// - Transfer chain validation issues
+// - Internal processing errors (file I/O, key loading, etc.)
+//
+// Maps to DCSA "BENV" (Bad Envelope) response code.
+func NewEnvelopeError(msg string) error {
+	return &EblError{code: ErrCodeEnvelope, message: msg}
+}
+
+// WrapEnvelopeError wraps an existing error as an envelope error,
+// adding context while preserving the original error for inspection.
+// Use this for errors related to:
+// - Envelope structure validation (missing fields, invalid format)
+// - Input validation (invalid parameters, business rule violations)
+// - Checksum mismatches and integrity failures
+// - Transfer chain validation issues
+// - Internal processing errors (file I/O, key loading, etc.)
+//
+// Maps to DCSA "BENV" (Bad Envelope) response code.
+func WrapEnvelopeError(err error, msg string) error {
+	return &EblError{code: ErrCodeEnvelope, message: msg, wrapped: err}
+}

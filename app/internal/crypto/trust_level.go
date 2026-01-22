@@ -86,7 +86,7 @@ func DetermineTrustLevel(jwsString string) (TrustLevel, error) {
 	// Extract x5c from JWS (optional)
 	certChain, err := ParseX5CFromJWS(jwsString)
 	if err != nil {
-		return TrustLevelNoX5C, fmt.Errorf("failed to parse x5c: %w", err)
+		return TrustLevelNoX5C, WrapCertificateError(err, "failed to parse x5c")
 	}
 
 	// nil certChain means no x5c header was present
@@ -97,7 +97,7 @@ func DetermineTrustLevel(jwsString string) (TrustLevel, error) {
 	// get the leaf certificate (platform certificate)
 	cert := certChain[0]
 	if cert == nil {
-		return TrustLevelNoX5C, fmt.Errorf("leaf certificate is nil")
+		return TrustLevelNoX5C, NewInternalError("leaf certificate is nil")
 	}
 
 	// TODO - do we need more robust EV/OV detection?

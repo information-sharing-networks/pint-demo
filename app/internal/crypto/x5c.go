@@ -32,13 +32,13 @@ func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 	// JWS format: header.payload.signature
 	parts := strings.Split(jwsString, ".")
 	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
+		return nil, NewValidationError(fmt.Sprintf("invalid JWS format: expected 3 parts, got %d", len(parts)))
 	}
 
 	// Decode the header (base64url)
 	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode JWS header: %w", err)
+		return nil, WrapValidationError(err, "failed to decode JWS header")
 	}
 
 	// Parse header JSON and extract the x5c field
@@ -46,7 +46,7 @@ func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 		X5C []string `json:"x5c"`
 	}
 	if err := json.Unmarshal(headerBytes, &header); err != nil {
-		return nil, fmt.Errorf("failed to parse JWS header JSON: %w", err)
+		return nil, WrapValidationError(err, "failed to parse JWS header JSON")
 	}
 
 	// x5c is optional
@@ -60,13 +60,13 @@ func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 		// Decode base64 (NB: standard encoding, not URL encoding)
 		certDER, err := base64.StdEncoding.DecodeString(certStr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode certificate %d: %w", i, err)
+			return nil, WrapValidationError(err, fmt.Sprintf("failed to decode certificate %d", i))
 		}
 
 		// Parse DER certificate
 		cert, err := x509.ParseCertificate(certDER)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse certificate %d: %w", i, err)
+			return nil, WrapCertificateError(err, fmt.Sprintf("failed to parse certificate %d", i))
 		}
 
 		certs = append(certs, cert)
@@ -86,10 +86,10 @@ func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 //   - expectedDomain: Domain from DCSA registry or envelope (e.g., "wavebl.com")
 func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPool, expectedDomain string) error {
 	if len(certChain) == 0 {
-		return fmt.Errorf("empty certificate chain")
+		return NewValidationError("empty certificate chain")
 	}
 	if expectedDomain == "" {
-		return fmt.Errorf("empty expected domain")
+		return NewValidationError("empty expected domain")
 	}
 
 	// Build intermediate pool from chain (excluding leaf)
@@ -110,10 +110,10 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 	leaf := certChain[0]
 	chains, err := leaf.Verify(verifyOpts)
 	if err != nil {
-		return fmt.Errorf("certificate chain validation failed: %w", err)
+		return WrapCertificateError(err, "certificate chain validation failed")
 	}
 	if len(chains) == 0 {
-		return fmt.Errorf("no valid certificate chains found")
+		return NewCertificateError("no valid certificate chains found")
 	}
 
 	// Verify domain matches (prevents attacker using substituting their own certificate for the one from the x5c header)
@@ -130,7 +130,7 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 		} else if leaf.Subject.CommonName != "" {
 			certDomain = leaf.Subject.CommonName
 		}
-		return fmt.Errorf("certificate domain mismatch: cert contains %q, expected %q", certDomain, expectedDomain)
+		return NewCertificateError(fmt.Sprintf("certificate domain mismatch: cert contains %q, expected %q", certDomain, expectedDomain))
 	}
 
 	// TODO: Certificate revocation status (OCSP/CRL)
@@ -168,14 +168,14 @@ func ParseCertificateChain(pemData []byte) ([]*x509.Certificate, error) {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse certificate: %w", err)
+			return nil, WrapCertificateError(err, "failed to parse certificate")
 		}
 
 		certs = append(certs, cert)
 	}
 
 	if len(certs) == 0 {
-		return nil, fmt.Errorf("no certificates found in PEM data")
+		return nil, NewValidationError("no certificates found in PEM data")
 	}
 
 	return certs, nil
@@ -192,13 +192,13 @@ func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapInternalError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	pemData, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+		return nil, WrapInternalError(err, fmt.Sprintf("failed to read %s", path))
 	}
 
 	return ParseCertificateChain(pemData)
@@ -222,7 +222,7 @@ func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 //   - Public keys don't match
 func ValidateX5CMatchesKey(certChain []*x509.Certificate, publicKey any) error {
 	if len(certChain) == 0 {
-		return fmt.Errorf("empty certificate chain")
+		return NewValidationError("empty certificate chain")
 	}
 
 	// Extract public key from leaf certificate
@@ -233,24 +233,24 @@ func ValidateX5CMatchesKey(certChain []*x509.Certificate, publicKey any) error {
 	case ed25519.PublicKey:
 		certKey, ok := certPublicKey.(ed25519.PublicKey)
 		if !ok {
-			return fmt.Errorf("x5c certificate contains %T key, but expected ed25519.PublicKey", certPublicKey)
+			return NewCertificateError(fmt.Sprintf("x5c certificate contains %T key, but expected ed25519.PublicKey", certPublicKey))
 		}
 		if !key.Equal(certKey) {
-			return fmt.Errorf("x5c certificate public key does not match provided Ed25519 key")
+			return NewCertificateError("x5c certificate public key does not match provided Ed25519 key")
 		}
 
 	case *rsa.PublicKey:
 		certKey, ok := certPublicKey.(*rsa.PublicKey)
 		if !ok {
-			return fmt.Errorf("x5c certificate contains %T key, but expected *rsa.PublicKey", certPublicKey)
+			return NewCertificateError(fmt.Sprintf("x5c certificate contains %T key, but expected *rsa.PublicKey", certPublicKey))
 		}
 		// Compare RSA keys by checking N and E
 		if certKey.N.Cmp(key.N) != 0 || certKey.E != key.E {
-			return fmt.Errorf("x5c certificate public key does not match provided RSA key")
+			return NewCertificateError("x5c certificate public key does not match provided RSA key")
 		}
 
 	default:
-		return fmt.Errorf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey)
+		return NewValidationError(fmt.Sprintf("unsupported public key type: %T (expected ed25519.PublicKey or *rsa.PublicKey)", publicKey))
 	}
 
 	return nil

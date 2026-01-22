@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -181,7 +182,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BSIG",
-			wantErrContains: "signature verification failed", // Signature fails before x5c check
+			wantErrContains: "JWS verification failed", // Signature fails before x5c check
 		},
 		{
 			name: "tampered envelope manifest - signature invalid",
@@ -199,7 +200,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BSIG",
-			wantErrContains: "signature verification",
+			wantErrContains: "JWS verification failed",
 		},
 		{
 			name:            "wrong expected domain",
@@ -262,7 +263,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			publicKeyPath:   validPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  false,
-			wantErrCode:     "envelope validation failed",
+			wantErrCode:     "BENV",
 			wantErrContains: "at least one entry",
 		},
 	}
@@ -328,12 +329,17 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				t.Fatal("Expected verification to fail, but it succeeded")
 			}
 
-			// Check for expected error code
-			if !strings.Contains(err.Error(), tt.wantErrCode) {
-				t.Errorf("Expected error code %q, but got: %v", tt.wantErrCode, err)
+			// Check for expected error code using errors.As
+			var eblErr Error
+			if errors.As(err, &eblErr) {
+				if string(eblErr.Code()) != tt.wantErrCode {
+					t.Errorf("Expected error code %q, got %q", tt.wantErrCode, eblErr.Code())
+				}
+			} else {
+				t.Errorf("Expected EblError with code %q, but got: %v", tt.wantErrCode, err)
 			}
 
-			// Check for expected error message
+			// Check for expected error message substring (for additional context)
 			if !strings.Contains(err.Error(), tt.wantErrContains) {
 				t.Errorf("Expected error to contain %q, but got: %v", tt.wantErrContains, err)
 			}

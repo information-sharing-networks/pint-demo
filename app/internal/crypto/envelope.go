@@ -30,8 +30,8 @@ type EnvelopeManifest struct {
 
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the most recent entry
 	// in the transfer chain.
-	// This allows the receiving platform to verify that the envelope manifest was created by the
-	// sending platform specifically for this transfer, preventing replay attacks
+	// This binds the manifest to the specific transfer chain it was created for,
+	// preventing an attacker from replacing the last entry with a valid one from a different transfer.
 	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum"`
 
 	// EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).
@@ -56,19 +56,19 @@ type EnvelopeTransferChainEntrySignedContent string
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (e *EnvelopeManifest) Validate() error {
 	if e.TransportDocumentChecksum == "" {
-		return fmt.Errorf("transportDocumentChecksum is required")
+		return NewValidationError("transportDocumentChecksum is required")
 	}
 	if e.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
-		return fmt.Errorf("lastEnvelopeTransferChainEntrySignedContentChecksum is required")
+		return NewValidationError("lastEnvelopeTransferChainEntrySignedContentChecksum is required")
 	}
 	if e.EBLVisualisationByCarrier != nil {
 		if err := e.EBLVisualisationByCarrier.Validate(); err != nil {
-			return fmt.Errorf("eBLVisualisationByCarrier: %w", err)
+			return WrapValidationError(err, "eBLVisualisationByCarrier")
 		}
 	}
 	for i, doc := range e.SupportingDocuments {
 		if err := doc.Validate(); err != nil {
-			return fmt.Errorf("supportingDocuments[%d]: %w", i, err)
+			return WrapValidationError(err, fmt.Sprintf("supportingDocuments[%d]", i))
 		}
 	}
 	return nil
@@ -110,16 +110,16 @@ type DocumentMetadata struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (d *DocumentMetadata) Validate() error {
 	if d.Name == "" {
-		return fmt.Errorf("name is required")
+		return NewValidationError("name is required")
 	}
 	if d.Size <= 0 {
-		return fmt.Errorf("size must be greater than 0")
+		return NewValidationError("size must be greater than 0")
 	}
 	if d.MediaType == "" {
-		return fmt.Errorf("mediaType is required")
+		return NewValidationError("mediaType is required")
 	}
 	if d.DocumentChecksum == "" {
-		return fmt.Errorf("documentChecksum is required")
+		return NewValidationError("documentChecksum is required")
 	}
 	return nil
 }
@@ -161,29 +161,29 @@ func (b *EnvelopeManifestBuilder) WithSupportingDocuments(docs []DocumentMetadat
 func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 	// Validate required fields
 	if len(b.transportDocumentJSON) == 0 {
-		return nil, fmt.Errorf("transport document is required")
+		return nil, NewValidationError("transport document is required")
 	}
 
 	if b.lastEnvelopeTransferChainEntrySignedContent == "" {
-		return nil, fmt.Errorf("last transfer chain entry is required")
+		return nil, NewValidationError("last transfer chain entry is required")
 	}
 
 	// Canonicalize transport document
 	canonicalDocument, err := CanonicalizeJSON(b.transportDocumentJSON)
 	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize transport document: %w", err)
+		return nil, WrapValidationError(err, "failed to canonicalize transport document")
 	}
 
 	// Calculate checksums
 	transportDocumentChecksum, err := Hash(canonicalDocument)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash transport document: %w", err)
+		return nil, WrapInternalError(err, "failed to hash transport document")
 	}
 
 	// calculate the checksum of the last enevelope transfer chain entry
 	lastTransferChainChecksum, err := Hash([]byte(b.lastEnvelopeTransferChainEntrySignedContent))
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash last transfer chain entry: %w", err)
+		return nil, WrapInternalError(err, "failed to hash last transfer chain entry")
 	}
 
 	// Create EnvelopeManifest
@@ -195,7 +195,7 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 	// add eBL visualisation metadata (optional)
 	if b.eblVisualisationByCarrierContent != nil {
 		if err := b.eblVisualisationByCarrierContent.Validate(); err != nil {
-			return nil, fmt.Errorf("eBL visualisation: %w", err)
+			return nil, WrapValidationError(err, "eBL visualisation")
 		}
 		manifest.EBLVisualisationByCarrier = b.eblVisualisationByCarrierContent
 	}
@@ -204,7 +204,7 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 	if len(b.supportingDocuments) > 0 {
 		for i, doc := range b.supportingDocuments {
 			if err := doc.Validate(); err != nil {
-				return nil, fmt.Errorf("supporting document %d: %w", i, err)
+				return nil, WrapValidationError(err, fmt.Sprintf("supporting document %d", i))
 			}
 		}
 		manifest.SupportingDocuments = b.supportingDocuments
@@ -219,14 +219,14 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 func (m *EnvelopeManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
+		return "", WrapInternalError(err, "failed to marshal envelope manifest")
 
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithEd25519AndX5C)
 	jws, err := SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return EnvelopeManifestSignedContent(jws), nil
@@ -239,19 +239,19 @@ func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID 
 
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
+		return "", WrapInternalError(err, "failed to marshal envelope manifest")
 
 	}
 
 	// canonicalize the JSON
 	canonicalJSON, err := CanonicalizeJSON(jsonBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to canonicalize envelope manifest: %w", err)
+		return "", WrapValidationError(err, "failed to canonicalize envelope manifest")
 	}
 
 	jws, err := SignJSONWithEd25519(canonicalJSON, privateKey, keyID)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return EnvelopeManifestSignedContent(jws), nil
@@ -263,14 +263,14 @@ func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID 
 func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
+		return "", WrapInternalError(err, "failed to marshal envelope manifest")
 
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithRSAAndX5C)
 	jws, err := SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return EnvelopeManifestSignedContent(jws), nil
@@ -282,14 +282,14 @@ func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID s
 func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (EnvelopeManifestSignedContent, error) {
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal envelope manifest: %w", err)
+		return "", WrapInternalError(err, "failed to marshal envelope manifest")
 
 	}
 
 	// Sign (Canonicalization happens in SignJSONWithRSA)
 	jws, err := SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign manifest: %w", err)
+		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
 
 	return EnvelopeManifestSignedContent(jws), nil
@@ -317,17 +317,17 @@ type EblEnvelope struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (e *EblEnvelope) Validate() error {
 	if len(e.TransportDocument) == 0 {
-		return fmt.Errorf("transportDocument is required")
+		return NewValidationError("transportDocument is required")
 	}
 	if e.EnvelopeManifestSignedContent == "" {
-		return fmt.Errorf("envelopeManifestSignedContent is required")
+		return NewValidationError("envelopeManifestSignedContent is required")
 	}
 	if len(e.EnvelopeTransferChain) == 0 {
-		return fmt.Errorf("envelopeTransferChain must contain at least one entry")
+		return NewValidationError("envelopeTransferChain must contain at least one entry")
 	}
 	// Validate that transportDocument is valid JSON
 	if !json.Valid(e.TransportDocument) {
-		return fmt.Errorf("transportDocument must be valid JSON")
+		return NewValidationError("transportDocument must be valid JSON")
 	}
 	return nil
 }
@@ -379,7 +379,7 @@ func (b *EblEnvelopeBuilder) Build() (*EblEnvelope, error) {
 	}
 
 	if err := envelope.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid envelope: %w", err)
+		return nil, WrapValidationError(err, "invalid envelope")
 	}
 
 	return envelope, nil

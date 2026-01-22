@@ -78,7 +78,7 @@ func CreateIssuanceRequest(
 	// Step 1: Load the private key from JWK file (auto-detects Ed25519 or RSA)
 	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load private key from %s: %w", privateKeyJWKPath, err)
+		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to load private key from %s", privateKeyJWKPath))
 	}
 
 	// Step 2: create metadata for the eBL Visualisation file if provided
@@ -86,7 +86,7 @@ func CreateIssuanceRequest(
 	if issuanceRequestInput.EBLVisualisationFilePath != "" {
 		v, err := loadEblVisualisationFile(issuanceRequestInput.EBLVisualisationFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load Visualisation file: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to load Visualisation file")
 		}
 		eBLVisualisationByCarrier = v
 	}
@@ -96,7 +96,7 @@ func CreateIssuanceRequest(
 	if certChainFilePath != "" {
 		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load certificate chain: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to load certificate chain")
 		}
 		certChain = chain
 	}
@@ -112,7 +112,7 @@ func CreateIssuanceRequest(
 
 	issuanceManifest, err := builder.Build()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build issuance manifest: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to build issuance manifest")
 	}
 
 	// Step 5: Generate key ID (thumbprint of public key) and sign the issuance manifest
@@ -125,7 +125,7 @@ func CreateIssuanceRequest(
 		publicKey := key.Public().(ed25519.PublicKey)
 		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate key ID: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
 		if len(certChain) > 0 {
@@ -137,7 +137,7 @@ func CreateIssuanceRequest(
 
 		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate key ID: %w", err)
+			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
 		if len(certChain) > 0 {
@@ -146,10 +146,10 @@ func CreateIssuanceRequest(
 			issuanceManifestSignedContent, err = issuanceManifest.SignWithRSA(key, keyID)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey)
+		return nil, NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign issuance manifest: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to sign issuance manifest")
 	}
 
 	// Step 6: Assemble the complete IssuanceRequest
@@ -170,13 +170,13 @@ func loadEblVisualisationFile(filePath string) (*crypto.EBLVisualisationByCarrie
 	// Read the file
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open directory %s: %w", dir, err)
+		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to open directory %s", dir))
 	}
 	defer root.Close()
 
 	content, err := root.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, WrapEnvelopeError(err, "failed to read file")
 	}
 
 	// Detect content type (note defaults to application/octet-stream if no match)
