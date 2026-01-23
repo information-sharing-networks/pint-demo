@@ -13,5 +13,7 @@ import (
 //
 // If the input is not valid JSON, an error is returned (handled by jcs library).
 func CanonicalizeJSON(jsonData []byte) ([]byte, error) {
+
+	// TODO keep an eye on jsontext.Value.Canonicalize() - it is a new go stdlib implementation that will be available in go 1.27
 	return jcs.Transform(jsonData)
 }

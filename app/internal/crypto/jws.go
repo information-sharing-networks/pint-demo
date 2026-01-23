@@ -1,4 +1,5 @@
 // jws.go - Functions for signing and verifying JWS (JSON Web Signature)
+//
 // Note the DCSA standard requires that JWS compact serialization is used for signing and verifying transport documents
 // ... and that the signing process must be performed using a library (this implementation uses github.com/lestrrat-go/jwx/v3)
 // the DCSA spec does not say which signing algorithm should be used (this implementation can use either RS256 or EdDSA)
@@ -21,7 +22,7 @@ import (
 // JWSHeader represents the header of a JWS token as used in the PINT API
 type JWSHeader struct {
 
-	// Algorithm "RS256/EdDSA"
+	// Algorithm specifies the signing algorithm (EdDSA or RS256)
 	Algorithm string `json:"alg"`
 
 	// KeyID - this is used to look up the public key in the receiver's key manager

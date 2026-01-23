@@ -1,9 +1,7 @@
 // JWK (JSON Web Key) Implementation for DCSA PINT
-//
-// these functions convert raw RSA/Ed25519 public keys to JWK format (and vice versa)
 // Reference: https://datatracker.ietf.org/doc/html/rfc7517 (JSON Web Key standard)
 //
-// these functions are used by keymanager.go to convert JWKs to native crypto types for signature verification
+// These functions are used by keymanager.go to convert JWKs to native crypto types for signature verification
 // ... and by keygen CLI to generate JWKs for distribution via /.well-known/jwks.json
 // keygen also uses the PEM functions below to create a PEM file that can be used to create a CA CSR (certificate signing request)).
 //
