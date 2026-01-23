@@ -123,30 +123,31 @@ DCSA do not specify which algorithms should be used for signing. This implementa
 This app implements all the cryptographic validation steps recommended in the DCSA *Digital Signatures Implementation Guide*. It only does basic validation of the transport document JSON - schema validation is not implemented.
 
 ## Project Layout
-
 ```
 pint-demo/
-├── app/
-│   ├── cmd/
-│   │   ├── pint-receiver/    # Receiver platform HTTP server
-│   │   └── pint-sender/      # Sender platform CLI
-│   ├── internal/
-│   │   ├── cli/              # Sender CLI commands
-│   │   ├── crypto/           # Cryptographic operations
-│   │   ├── config/           
-│   │   ├── logger/           
-│   │   ├── server/           # HTTP server
-│   │   └── database/         # SQLC generated code
-│   │   └── ebl/              # eBL API functions
-│   ├── sql/
-│   │   ├── schema/           # Database migrations
-│   │   └── queries/          # SQL queries
-│   ├── go.mod
-│   └── sqlc.yaml
-├── docker-compose.yml
-├── Makefile
+   ├── app/
+   │   ├── cmd/
+   │   │   ├── keygen/                        # Key generation CLI
+   │   │   ├── pint-receiver/                 # Receiver platform HTTP server
+   │   │   └── pint-sender/                   # Sender platform CLI
+   │   ├── internal/
+   │   │   ├── client/                        # PINT API client 
+   │   │   ├── cli/                           # CLI commands
+   │   │   ├── config/                        # server configuration
+   │   │   ├── crypto/                        # JWS signing/verification, key management
+   │   │   │── database/                      # SQLC generated code
+   │   │   │── ebl/                           # eBL creation/verification
+   │   │   │── handlers/                      # HTTP handlers for PINT endpoints
+   │       ├── logger/                        # logging
+   │   │   └── server/                        # PINT API server 
+   │   ├── sql/
+   │   │   └── schema/                        # Database migrations
+   │   │   └── queries/                       # SQL queries
+   │   ├── go.mod
+   │   └── sqlc.yaml
+   ├── docker-compose.yml
+   └── Makefile
 ```
-
 ## Creating key pairs for PINT platforms
 
 The `keygen` command is part of the app and can be used to create a new key pair for a PINT platform:
