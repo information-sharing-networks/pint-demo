@@ -135,6 +135,10 @@ type EnvelopeVerificationResult struct {
 	// TransportDocumentChecksum is the checksum of the transport document
 	TransportDocumentChecksum string
 
+	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
+	// This is required in API responses and for duplicate detection
+	LastEnvelopeTransferChainEntrySignedContentChecksum string
+
 	// TrustLevel indicates the trust level achieved by the signature
 	TrustLevel crypto.TrustLevel
 
@@ -211,7 +215,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 
 	// Step 7: Verify transfer chain integrity and store all entries
 	// this prevents replay attacks, where an attacker replaces the last entry with a valid one from a different transfer
-	transferChain, err := verifyEnvelopeTransferChain(
+	transferChain, lastEntryChecksum, err := verifyEnvelopeTransferChain(
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
 		input.PublicKey,
@@ -222,6 +226,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		return nil, WrapEnvelopeError(err, "transfer chain verification failed")
 	}
 	result.TransferChain = transferChain
+	result.LastEnvelopeTransferChainEntrySignedContentChecksum = lastEntryChecksum
 
 	// these are included for convenience and to improve readablity of code using the result
 	result.FirstTransferChainEntry = transferChain[0]
@@ -345,29 +350,29 @@ func verifyIssuanceManifest(
 // The issuanceManifestSignedContent (inside the first entry) is signed by the carrier
 // and is verified separately in verifyIssuanceManifest().
 //
-// Returns all verified transfer chain entries in order (first to last)
+// Returns all verified transfer chain entries in order (first to last) and the checksum of the last entry
 func verifyEnvelopeTransferChain(
 	envelopeTransferChain []crypto.EnvelopeTransferChainEntrySignedContent,
 	manifest *crypto.EnvelopeManifest,
 	publicKey any,
 	expectedDomain string,
 	rootCAs *x509.CertPool,
-) ([]*crypto.EnvelopeTransferChainEntry, error) {
+) ([]*crypto.EnvelopeTransferChainEntry, string, error) {
 
 	if len(envelopeTransferChain) == 0 {
-		return nil, NewEnvelopeError("transfer chain is empty")
+		return nil, "", NewEnvelopeError("transfer chain is empty")
 	}
 
 	// Step 1: Verify last entry checksum matches the checksum in the manifest
 	lastEntryJWS := envelopeTransferChain[len(envelopeTransferChain)-1]
-	actualChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+	lastEntryChecksum, err := crypto.Hash([]byte(lastEntryJWS))
 	if err != nil {
-		return nil, WrapEnvelopeError(err, "failed to compute last entry checksum")
+		return nil, "", WrapEnvelopeError(err, "failed to compute last entry checksum")
 	}
 
-	if actualChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
-		return nil, NewEnvelopeError(fmt.Sprintf("last transfer chain entry checksum mismatch: expected %s, got %s",
-			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, actualChecksum))
+	if lastEntryChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
+		return nil, "", NewEnvelopeError(fmt.Sprintf("last transfer chain entry checksum mismatch: expected %s, got %s",
+			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryChecksum))
 	}
 
 	// Step 2: verify the chain and collect all entries
@@ -386,18 +391,18 @@ func verifyEnvelopeTransferChain(
 			rootCAs,
 		)
 		if err != nil {
-			return nil, WrapSignatureError(err, fmt.Sprintf("entry %d JWS verification failed", i))
+			return nil, "", WrapSignatureError(err, fmt.Sprintf("entry %d JWS verification failed", i))
 		}
 
 		// Parse the entry payload
 		var currentEntry crypto.EnvelopeTransferChainEntry
 		if err := json.Unmarshal(currentPayloadBytes, &currentEntry); err != nil {
-			return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to parse entry %d payload", i))
+			return nil, "", WrapEnvelopeError(err, fmt.Sprintf("failed to parse entry %d payload", i))
 		}
 
 		// Validate the entry has all the mandatory fields
 		if err := currentEntry.Validate(); err != nil {
-			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
+			return nil, "", WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
 		// Store the entry in the result slice
@@ -410,17 +415,17 @@ func verifyEnvelopeTransferChain(
 			// Compute checksum of previous entry
 			previousChecksum, err := crypto.Hash([]byte(previousEntryJWS))
 			if err != nil {
-				return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to compute checksum for entry %d", i-1))
+				return nil, "", WrapEnvelopeError(err, fmt.Sprintf("failed to compute checksum for entry %d", i-1))
 			}
 
 			// current entry should reference previous entry's checksum
 
 			if currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum == nil {
-				return nil, NewEnvelopeError(fmt.Sprintf("entry %d is missing previousEnvelopeTransferChainEntrySignedContentChecksum", i))
+				return nil, "", NewEnvelopeError(fmt.Sprintf("entry %d is missing previousEnvelopeTransferChainEntrySignedContentChecksum", i))
 			}
 
 			if *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != previousChecksum {
-				return nil, NewEnvelopeError(fmt.Sprintf("entry %d chain link broken: expected previous checksum %s, got %s",
+				return nil, "", NewEnvelopeError(fmt.Sprintf("entry %d chain link broken: expected previous checksum %s, got %s",
 					i, previousChecksum, *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum))
 			}
 		}
@@ -431,10 +436,10 @@ func verifyEnvelopeTransferChain(
 	firstChecksum := allEntries[0].TransportDocumentChecksum
 	for i := 1; i < len(allEntries); i++ {
 		if allEntries[i].TransportDocumentChecksum != firstChecksum {
-			return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum changed in entry %d: expected %s, got %s",
+			return nil, "", NewEnvelopeError(fmt.Sprintf("transport document checksum changed in entry %d: expected %s, got %s",
 				i, firstChecksum, allEntries[i].TransportDocumentChecksum))
 		}
 	}
 
-	return allEntries, nil
+	return allEntries, lastEntryChecksum, nil
 }
