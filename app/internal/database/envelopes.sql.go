@@ -12,19 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-const CountEnvelopesByState = `-- name: CountEnvelopesByState :one
-SELECT COUNT(*) FROM envelopes
-WHERE state = $1
-`
-
-func (q *Queries) CountEnvelopesByState(ctx context.Context, state string) (int64, error) {
-	row := q.db.QueryRow(ctx, CountEnvelopesByState, state)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const CreateEnvelope = `-- name: CreateEnvelope :one
+
 INSERT INTO envelopes (
     id,
     created_at,
@@ -35,34 +24,49 @@ INSERT INTO envelopes (
     transport_document,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content,
-    state
+    last_transfer_chain_entry_checksum,
+    sender_platform,
+    sender_ebl_platform,
+    trust_level,
+    state,
+    response_code
 ) VALUES (
     gen_random_uuid(),
     now(),
     now(),
-    $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, state, response_code
+    gen_random_uuid(),
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+) RETURNING id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code
 `
 
 type CreateEnvelopeParams struct {
-	EnvelopeReference                   string          `json:"envelope_reference"`
 	TransportDocumentReference          string          `json:"transport_document_reference"`
 	TransportDocumentChecksum           string          `json:"transport_document_checksum"`
 	TransportDocument                   json.RawMessage `json:"transport_document"`
 	EnvelopeManifestSignedContent       string          `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContent string          `json:"last_transfer_chain_entry_signed_content"`
+	LastTransferChainEntryChecksum      string          `json:"last_transfer_chain_entry_checksum"`
+	SenderPlatform                      string          `json:"sender_platform"`
+	SenderEblPlatform                   *string         `json:"sender_ebl_platform"`
+	TrustLevel                          string          `json:"trust_level"`
 	State                               string          `json:"state"`
+	ResponseCode                        *string         `json:"response_code"`
 }
 
+// Envelope queries for PINT API
 func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) (Envelope, error) {
 	row := q.db.QueryRow(ctx, CreateEnvelope,
-		arg.EnvelopeReference,
 		arg.TransportDocumentReference,
 		arg.TransportDocumentChecksum,
 		arg.TransportDocument,
 		arg.EnvelopeManifestSignedContent,
 		arg.LastTransferChainEntrySignedContent,
+		arg.LastTransferChainEntryChecksum,
+		arg.SenderPlatform,
+		arg.SenderEblPlatform,
+		arg.TrustLevel,
 		arg.State,
+		arg.ResponseCode,
 	)
 	var i Envelope
 	err := row.Scan(
@@ -75,6 +79,10 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		&i.TransportDocument,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
+		&i.LastTransferChainEntryChecksum,
+		&i.SenderPlatform,
+		&i.SenderEblPlatform,
+		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
 	)
@@ -82,7 +90,7 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 }
 
 const GetEnvelopeByID = `-- name: GetEnvelopeByID :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
 WHERE id = $1
 `
 
@@ -99,6 +107,40 @@ func (q *Queries) GetEnvelopeByID(ctx context.Context, id uuid.UUID) (Envelope, 
 		&i.TransportDocument,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
+		&i.LastTransferChainEntryChecksum,
+		&i.SenderPlatform,
+		&i.SenderEblPlatform,
+		&i.TrustLevel,
+		&i.State,
+		&i.ResponseCode,
+	)
+	return i, err
+}
+
+const GetEnvelopeByLastChainChecksum = `-- name: GetEnvelopeByLastChainChecksum :one
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+WHERE last_transfer_chain_entry_checksum = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetEnvelopeByLastChainChecksum(ctx context.Context, lastTransferChainEntryChecksum string) (Envelope, error) {
+	row := q.db.QueryRow(ctx, GetEnvelopeByLastChainChecksum, lastTransferChainEntryChecksum)
+	var i Envelope
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnvelopeReference,
+		&i.TransportDocumentReference,
+		&i.TransportDocumentChecksum,
+		&i.TransportDocument,
+		&i.EnvelopeManifestSignedContent,
+		&i.LastTransferChainEntrySignedContent,
+		&i.LastTransferChainEntryChecksum,
+		&i.SenderPlatform,
+		&i.SenderEblPlatform,
+		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
 	)
@@ -106,11 +148,11 @@ func (q *Queries) GetEnvelopeByID(ctx context.Context, id uuid.UUID) (Envelope, 
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
 WHERE envelope_reference = $1
 `
 
-func (q *Queries) GetEnvelopeByReference(ctx context.Context, envelopeReference string) (Envelope, error) {
+func (q *Queries) GetEnvelopeByReference(ctx context.Context, envelopeReference uuid.UUID) (Envelope, error) {
 	row := q.db.QueryRow(ctx, GetEnvelopeByReference, envelopeReference)
 	var i Envelope
 	err := row.Scan(
@@ -123,21 +165,25 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, envelopeReference 
 		&i.TransportDocument,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
+		&i.LastTransferChainEntryChecksum,
+		&i.SenderPlatform,
+		&i.SenderEblPlatform,
+		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
 	)
 	return i, err
 }
 
-const GetEnvelopeByTransportDocumentReference = `-- name: GetEnvelopeByTransportDocumentReference :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, state, response_code FROM envelopes
-WHERE transport_document_reference = $1
+const GetEnvelopeByTransportDocumentChecksum = `-- name: GetEnvelopeByTransportDocumentChecksum :one
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+WHERE transport_document_checksum = $1
 ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetEnvelopeByTransportDocumentReference(ctx context.Context, transportDocumentReference string) (Envelope, error) {
-	row := q.db.QueryRow(ctx, GetEnvelopeByTransportDocumentReference, transportDocumentReference)
+func (q *Queries) GetEnvelopeByTransportDocumentChecksum(ctx context.Context, transportDocumentChecksum string) (Envelope, error) {
+	row := q.db.QueryRow(ctx, GetEnvelopeByTransportDocumentChecksum, transportDocumentChecksum)
 	var i Envelope
 	err := row.Scan(
 		&i.ID,
@@ -149,6 +195,10 @@ func (q *Queries) GetEnvelopeByTransportDocumentReference(ctx context.Context, t
 		&i.TransportDocument,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
+		&i.LastTransferChainEntryChecksum,
+		&i.SenderPlatform,
+		&i.SenderEblPlatform,
+		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
 	)
@@ -156,7 +206,7 @@ func (q *Queries) GetEnvelopeByTransportDocumentReference(ctx context.Context, t
 }
 
 const ListEnvelopes = `-- name: ListEnvelopes :many
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
 `
@@ -185,6 +235,10 @@ func (q *Queries) ListEnvelopes(ctx context.Context, arg ListEnvelopesParams) ([
 			&i.TransportDocument,
 			&i.EnvelopeManifestSignedContent,
 			&i.LastTransferChainEntrySignedContent,
+			&i.LastTransferChainEntryChecksum,
+			&i.SenderPlatform,
+			&i.SenderEblPlatform,
+			&i.TrustLevel,
 			&i.State,
 			&i.ResponseCode,
 		); err != nil {
@@ -198,47 +252,11 @@ func (q *Queries) ListEnvelopes(ctx context.Context, arg ListEnvelopesParams) ([
 	return items, nil
 }
 
-const ListEnvelopesByTransportDocumentReference = `-- name: ListEnvelopesByTransportDocumentReference :many
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, state, response_code FROM envelopes
-WHERE transport_document_reference = $1
-ORDER BY created_at DESC
-`
-
-func (q *Queries) ListEnvelopesByTransportDocumentReference(ctx context.Context, transportDocumentReference string) ([]Envelope, error) {
-	rows, err := q.db.Query(ctx, ListEnvelopesByTransportDocumentReference, transportDocumentReference)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Envelope
-	for rows.Next() {
-		var i Envelope
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.EnvelopeReference,
-			&i.TransportDocumentReference,
-			&i.TransportDocumentChecksum,
-			&i.TransportDocument,
-			&i.EnvelopeManifestSignedContent,
-			&i.LastTransferChainEntrySignedContent,
-			&i.State,
-			&i.ResponseCode,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const UpdateEnvelopeState = `-- name: UpdateEnvelopeState :execrows
+const UpdateEnvelopeState = `-- name: UpdateEnvelopeState :exec
 UPDATE envelopes
-SET (updated_at, state, response_code) = (now(), $2, $3)
+SET state = $2,
+    response_code = $3,
+    updated_at = now()
 WHERE id = $1
 `
 
@@ -248,10 +266,7 @@ type UpdateEnvelopeStateParams struct {
 	ResponseCode *string   `json:"response_code"`
 }
 
-func (q *Queries) UpdateEnvelopeState(ctx context.Context, arg UpdateEnvelopeStateParams) (int64, error) {
-	result, err := q.db.Exec(ctx, UpdateEnvelopeState, arg.ID, arg.State, arg.ResponseCode)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+func (q *Queries) UpdateEnvelopeState(ctx context.Context, arg UpdateEnvelopeStateParams) error {
+	_, err := q.db.Exec(ctx, UpdateEnvelopeState, arg.ID, arg.State, arg.ResponseCode)
+	return err
 }

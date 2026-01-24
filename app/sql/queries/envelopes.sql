@@ -1,3 +1,5 @@
+-- Envelope queries for PINT API
+
 -- name: CreateEnvelope :one
 INSERT INTO envelopes (
     id,
@@ -9,44 +11,49 @@ INSERT INTO envelopes (
     transport_document,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content,
-    state
+    last_transfer_chain_entry_checksum,
+    sender_platform,
+    sender_ebl_platform,
+    trust_level,
+    state,
+    response_code
 ) VALUES (
     gen_random_uuid(),
     now(),
     now(),
-    $1, $2, $3, $4, $5, $6, $7
+    gen_random_uuid(),
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: GetEnvelopeByReference :one
 SELECT * FROM envelopes
 WHERE envelope_reference = $1;
 
+-- name: GetEnvelopeByTransportDocumentChecksum :one
+SELECT * FROM envelopes
+WHERE transport_document_checksum = $1
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: GetEnvelopeByLastChainChecksum :one
+SELECT * FROM envelopes
+WHERE last_transfer_chain_entry_checksum = $1
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: GetEnvelopeByID :one
 SELECT * FROM envelopes
 WHERE id = $1;
 
--- name: GetEnvelopeByTransportDocumentReference :one
-SELECT * FROM envelopes
-WHERE transport_document_reference = $1
-ORDER BY created_at DESC
-LIMIT 1;
-
--- name: ListEnvelopesByTransportDocumentReference :many
-SELECT * FROM envelopes
-WHERE transport_document_reference = $1
-ORDER BY created_at DESC;
-
--- name: UpdateEnvelopeState :execrows
+-- name: UpdateEnvelopeState :exec
 UPDATE envelopes
-SET (updated_at, state, response_code) = (now(), $2, $3)
+SET state = $2,
+    response_code = $3,
+    updated_at = now()
 WHERE id = $1;
 
 -- name: ListEnvelopes :many
 SELECT * FROM envelopes
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
-
--- name: CountEnvelopesByState :one
-SELECT COUNT(*) FROM envelopes
-WHERE state = $1;
 

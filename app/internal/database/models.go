@@ -25,12 +25,16 @@ type Envelope struct {
 	ID                                  uuid.UUID          `json:"id"`
 	CreatedAt                           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                           pgtype.Timestamptz `json:"updated_at"`
-	EnvelopeReference                   string             `json:"envelope_reference"`
+	EnvelopeReference                   uuid.UUID          `json:"envelope_reference"`
 	TransportDocumentReference          string             `json:"transport_document_reference"`
 	TransportDocumentChecksum           string             `json:"transport_document_checksum"`
 	TransportDocument                   json.RawMessage    `json:"transport_document"`
 	EnvelopeManifestSignedContent       string             `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContent string             `json:"last_transfer_chain_entry_signed_content"`
+	LastTransferChainEntryChecksum      string             `json:"last_transfer_chain_entry_checksum"`
+	SenderPlatform                      string             `json:"sender_platform"`
+	SenderEblPlatform                   *string            `json:"sender_ebl_platform"`
+	TrustLevel                          string             `json:"trust_level"`
 	State                               string             `json:"state"`
 	ResponseCode                        *string            `json:"response_code"`
 }
