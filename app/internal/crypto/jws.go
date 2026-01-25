@@ -63,7 +63,6 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 // Parameters:
 //   - jwsString: JWS compact serialization (header.payload.signature)
 //   - publicKey: Public key for signature verification (ed25519.PublicKey or *rsa.PublicKey)
-//   - expectedDomain: Expected sender domain (e.g., "wavebl.com"). Required if x5c is present.
 //   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
 //
 // Returns:
@@ -73,20 +72,15 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 func VerifyJWS(
 	jwsString string,
 	publicKey any,
-	expectedDomain string,
 	rootCAs *x509.CertPool,
 ) (payload []byte, certChain []*x509.Certificate, err error) {
 
 	if publicKey == nil {
-		return nil, nil, NewValidationError("public key is required")
-	}
-
-	if expectedDomain == "" {
-		return nil, nil, NewValidationError("expected domain is required")
+		return nil, nil, NewInternalError("public key is required")
 	}
 
 	if jwsString == "" {
-		return nil, nil, NewValidationError("jwsString is required")
+		return nil, nil, NewInternalError("jwsString is required")
 	}
 
 	// Step 1: Verify the JWS signature
@@ -116,6 +110,7 @@ func VerifyJWS(
 	}
 
 	// Step 3: Validate x5c public key matches the signing key
+	// this prevents an attacker including a valid certificate for someone other than the org that signed the JWS
 	if err = ValidateX5CMatchesKey(certChain, publicKey); err != nil {
 		return nil, nil, err
 	}
@@ -124,10 +119,11 @@ func VerifyJWS(
 	// This checks:
 	// - Certificate chain is valid and trusted by root CAs
 	// - Certificates are not expired
-	// - Domain in certificate matches expected domain
-	if err = ValidateCertificateChain(certChain, rootCAs, expectedDomain); err != nil {
+	if err := ValidateCertificateChain(certChain, rootCAs); err != nil {
 		return nil, nil, err
 	}
+
+	// TODO: Certificate revocation status (OCSP/CRL)
 
 	return payload, certChain, nil
 }
@@ -191,10 +187,10 @@ func CertChainToX5C(certChain []*x509.Certificate) []string {
 // - certChain: X.509 certificate chain (first cert must match the private key)
 func SignJSONWithEd25519AndX5C(payload []byte, privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 	if keyID == "" {
-		return "", NewValidationError("keyID is required")
+		return "", NewInternalError("keyID is required")
 	}
 	if len(certChain) == 0 {
-		return "", NewValidationError("certificate chain is required")
+		return "", NewInternalError("certificate chain is required")
 	}
 
 	// Create protected headers with kid and x5c
@@ -235,7 +231,7 @@ func SignJSONWithEd25519AndX5C(payload []byte, privateKey ed25519.PrivateKey, ke
 // SignJSONWithEd25519 signs payload using Ed25519 algorithm (no x5c header)
 func SignJSONWithEd25519(payload []byte, privateKey ed25519.PrivateKey, keyID string) (string, error) {
 	if keyID == "" {
-		return "", NewValidationError("keyID is required")
+		return "", NewInternalError("keyID is required")
 	}
 
 	// Create protected headers with kid
@@ -269,10 +265,10 @@ func SignJSONWithEd25519(payload []byte, privateKey ed25519.PrivateKey, keyID st
 // - certChain: X.509 certificate chain
 func SignJSONWithRSAAndX5C(payload []byte, privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (string, error) {
 	if keyID == "" {
-		return "", NewValidationError("keyID is required")
+		return "", NewInternalError("keyID is required")
 	}
 	if len(certChain) == 0 {
-		return "", NewValidationError("certificate chain is required")
+		return "", NewInternalError("certificate chain is required")
 	}
 
 	// Create protected headers with kid and x5c
@@ -311,7 +307,7 @@ func SignJSONWithRSAAndX5C(payload []byte, privateKey *rsa.PrivateKey, keyID str
 // SignJSONWithRSA signs payload using RSA algorithm (no x5c header)
 func SignJSONWithRSA(payload []byte, privateKey *rsa.PrivateKey, keyID string) (string, error) {
 	if keyID == "" {
-		return "", NewValidationError("keyID is required")
+		return "", NewInternalError("keyID is required")
 	}
 
 	// Create protected headers with kid

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 )
@@ -75,21 +74,16 @@ func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
-// ValidateCertificateChain validates an X.509 certificate chain and verifies domain binding.
+// ValidateCertificateChain validates an X.509 certificate chain against a set of trusted root CAs.
 //
 // This can be used to validate the content of the x5c header in a JWS received in a PINT message.
-// The certificate chain is validated against the expected domain and the trusted root CAs.
 //
 // Parameters:
 //   - certChain: Certificate chain (leaf first, root last)
 //   - roots: Root CA pool (nil = system roots, custom pool = testing/private CA)
-//   - expectedDomain: Domain from DCSA registry or envelope (e.g., "wavebl.com")
-func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPool, expectedDomain string) error {
+func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPool) error {
 	if len(certChain) == 0 {
-		return NewValidationError("empty certificate chain")
-	}
-	if expectedDomain == "" {
-		return NewValidationError("empty expected domain")
+		return NewInternalError("empty certificate chain")
 	}
 
 	// Build intermediate pool from chain (excluding leaf)
@@ -100,13 +94,14 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 		}
 	}
 
-	// Validate cert chain against SSL CAs (proves CA-backed identity)
+	// Validate cert chain against CAs (proves CA-backed identity)
 	verifyOpts := x509.VerifyOptions{
 		Roots:         roots, // nil = system roots
 		Intermediates: intermediates,
 		CurrentTime:   time.Now(),
 	}
 
+	// get the leaf (platform) certificate
 	leaf := certChain[0]
 	chains, err := leaf.Verify(verifyOpts)
 	if err != nil {
@@ -115,25 +110,6 @@ func ValidateCertificateChain(certChain []*x509.Certificate, roots *x509.CertPoo
 	if len(chains) == 0 {
 		return NewCertificateError("no valid certificate chains found")
 	}
-
-	// Verify domain matches (prevents attacker using substituting their own certificate for the one from the x5c header)
-	domainMatches := slices.Contains(leaf.DNSNames, expectedDomain)
-	if !domainMatches && len(leaf.DNSNames) == 0 {
-		domainMatches = leaf.Subject.CommonName == expectedDomain
-	}
-
-	// construct error message
-	if !domainMatches {
-		certDomain := "(no domain found)"
-		if len(leaf.DNSNames) > 0 {
-			certDomain = leaf.DNSNames[0]
-		} else if leaf.Subject.CommonName != "" {
-			certDomain = leaf.Subject.CommonName
-		}
-		return NewCertificateError(fmt.Sprintf("certificate domain mismatch: cert contains %q, expected %q", certDomain, expectedDomain))
-	}
-
-	// TODO: Certificate revocation status (OCSP/CRL)
 
 	return nil
 }
@@ -222,7 +198,7 @@ func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 //   - Public keys don't match
 func ValidateX5CMatchesKey(certChain []*x509.Certificate, publicKey any) error {
 	if len(certChain) == 0 {
-		return NewValidationError("empty certificate chain")
+		return NewInternalError("empty certificate chain")
 	}
 
 	// Extract public key from leaf certificate

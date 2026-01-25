@@ -93,12 +93,22 @@ you can override defaults at start-up, e.g
 
 ## Key distribution
 This app implements a hybrid approach to key distribution:
-- **Dynamic JWK endpoints**: Automatically fetches and caches public keys from `https://<domain>/.well-known/jwks.json` with auto-refresh (15min-24hr intervals)
-- **Manual keys**: Supports manually configured keys for testing or private networks
+- **Dynamic JWK endpoints**: Automatically fetches and caches public keys from configured JWKS endpoints. The list of endpoints is retrieved from the DCSA registry.
+- **Manual keys**: Supports manually configured keys for testing or private networks where keys are exchanged out of band.
 
 Keys are looked up by the KID retrieved from JWS headers. Per the DCSA recommendation, the KID is the thumbprint of the public key.
 
-As an additional precaution the app will also check the platform domain is in an approved list of participating platforms. This list is configured via the `DCSA_REGISTRY_URL` environment variable. This is done to prevent platforms from joining the network without first signing up to the DCSA agreement.
+## Platform registry
+This implementation relies on a platform registry that contains the list of all approved eBL PINT participants (carriers, banks and ebl platforms). 
+
+The registry is used for two purposes:
+- **Authorization**: The registry is the single source of truth for which platforms are allowed to participate in the PINT network. This is used to prevent platforms from joining the network without first signing up to the DCSA agreement.
+- **Security**: the registry contains the JWKS endpoint (if applicable) for each platform and - where no JWKS endpoint is specified - the KID of the manually configured key for the platform. This information is used to ensure that the public keys needed to verify JWS signatures are only retrieved from trusted locations.
+
+This list is configured via the `DCSA_REGISTRY_URL` environment variable.
+
+For the purpose of this demo the registry is based on a local file (`app/internal/crypto/testdata/platform-registry/eblsolutionproviders.csv`),
+ but in a real deployment the registry would be served from a secure endpoint and cover all participants in the PINT network.
 
 ## Trust model and non-repudiation
 This app implements an experimental approach to verifying the legal entities operating platforms in PINT exchanges. While DCSA does not mandate a specific verification method, this implementation extends their signature approach by enabling platforms to include x5c headers in the JWS.

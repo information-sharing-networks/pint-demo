@@ -1,8 +1,5 @@
-Name,Code,URL,Description
-Wave,WAVE,https://wavebl.com/,
-CargoX,CARX,https://cargox.io/,
-EdoxOnline,EDOX,https://web.edoxonline.com/,
-ed25519-eblplatform,EBL1,https://ed25519-eblplatform.example.com/,
-ed25519-carrier,CAR1,https://ed25519-carrier.example.com/,
-rsa-eblplatform,EBL2,https://rsa-eblplatform.example.com/,
-rsa-carrier,CAR2,https://rsa-carrier.example.com/,
+Code,Site,jwks_endpoint,manual_key_id
+EBL1,https://ed25519-eblplatform.example.com/,,ea8904dc74e9395a
+CAR1,https://ed25519-carrier.example.com/,,90c692d328071e01
+EBL2,https://rsa-eblplatform.example.com/,,7f6dc8fe0df74997
+CAR2,https://rsa-carrier.example.com/,https://rsa-carrier.example.com/.well-known/jwks.json,

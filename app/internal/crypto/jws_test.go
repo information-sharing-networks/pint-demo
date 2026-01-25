@@ -453,8 +453,6 @@ func TestVerifyJWS(t *testing.T) {
 
 	validPublicKey := validPrivateKey.Public().(ed25519.PublicKey)
 
-	validDomain := "ed25519-eblplatform.example.com"
-
 	validKeyID, err := GenerateKeyIDFromEd25519Key(validPublicKey)
 	if err != nil {
 		t.Fatalf("failed to generate key ID: %v", err)
@@ -479,7 +477,6 @@ func TestVerifyJWS(t *testing.T) {
 		name            string
 		setupJWS        func() string
 		publicKey       any
-		expectedDomain  string
 		rootCAs         *x509.CertPool
 		expectCertX5C   bool // true if we expect x5c cert chain to be returned
 		expectError     bool
@@ -492,11 +489,10 @@ func TestVerifyJWS(t *testing.T) {
 				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
 				return jws
 			},
-			publicKey:      validPublicKey,
-			expectedDomain: validDomain,
-			rootCAs:        rootCAs,
-			expectCertX5C:  true,
-			expectError:    false,
+			publicKey:     validPublicKey,
+			rootCAs:       rootCAs,
+			expectCertX5C: true,
+			expectError:   false,
 		},
 		{
 			name: "Valid JWS without x5c",
@@ -505,11 +501,10 @@ func TestVerifyJWS(t *testing.T) {
 				jws, _ := SignJSONWithEd25519(payload, validPrivateKey, validKeyID)
 				return jws
 			},
-			publicKey:      validPublicKey,
-			expectedDomain: validDomain,
-			rootCAs:        nil,
-			expectCertX5C:  false,
-			expectError:    false,
+			publicKey:     validPublicKey,
+			rootCAs:       nil,
+			expectCertX5C: false,
+			expectError:   false,
 		},
 		{
 			name: "Invalid signature",
@@ -522,23 +517,9 @@ func TestVerifyJWS(t *testing.T) {
 				return strings.Join(parts, ".")
 			},
 			publicKey:       validPublicKey,
-			expectedDomain:  validDomain,
 			rootCAs:         rootCAs,
 			expectError:     true,
 			expectedErrCode: ErrCodeInvalidSignature,
-		},
-		{
-			name: "Wrong domain in certificate",
-			setupJWS: func() string {
-				payload := []byte(`{"test":"data"}`)
-				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
-				return jws
-			},
-			publicKey:       validPublicKey,
-			expectedDomain:  "wrong-domain.com",
-			rootCAs:         rootCAs,
-			expectError:     true,
-			expectedErrCode: ErrCodeCertificate,
 		},
 		{
 			name: "Wrong public key - x5c mismatch",
@@ -551,7 +532,6 @@ func TestVerifyJWS(t *testing.T) {
 				_, wrongKey, _ := ed25519.GenerateKey(rand.Reader)
 				return wrongKey.Public().(ed25519.PublicKey)
 			}(),
-			expectedDomain:  "ed25519-eblplatform.example.com",
 			rootCAs:         rootCAs,
 			expectError:     true,
 			expectedErrCode: ErrCodeInvalidSignature,
@@ -565,7 +545,6 @@ func TestVerifyJWS(t *testing.T) {
 			payload, certChain, err := VerifyJWS(
 				jws,
 				tt.publicKey,
-				tt.expectedDomain,
 				tt.rootCAs,
 			)
 

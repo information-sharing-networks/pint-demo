@@ -11,29 +11,31 @@ import (
 
 // Environment variables with defaults
 type ServerEnvironment struct {
-	Environment       string        `env:"ENVIRONMENT,default=dev"`
-	Host              string        `env:"HOST,default=0.0.0.0"`
-	Port              int           `env:"PORT,default=8080"`
-	PublicBaseURL     string        `env:"PUBLIC_BASE_URL"`
-	SecretKey         string        `env:"SECRET_KEY,required=true"`
-	LogLevel          string        `env:"LOG_LEVEL,default=debug"`
-	DatabaseURL       string        `env:"DATABASE_URL,required=true"`
-	ReadTimeout       time.Duration `env:"READ_TIMEOUT,default=15s"`
-	WriteTimeout      time.Duration `env:"WRITE_TIMEOUT,default=15s"`
-	IdleTimeout       time.Duration `env:"IDLE_TIMEOUT,default=60s"`
-	AllowedOrigins    []string      `env:"ALLOWED_ORIGINS,separator=|"`
-	RateLimitRPS      int32         `env:"RATE_LIMIT_RPS,default=100"`
-	RateLimitBurst    int32         `env:"RATE_LIMIT_BURST,default=200"`
-	DBMaxConnections  int32         `env:"DB_MAX_CONNECTIONS,default=4"`
-	DBMinConnections  int32         `env:"DB_MIN_CONNECTIONS,default=0"`
-	DBMaxConnLifetime time.Duration `env:"DB_MAX_CONN_LIFETIME,default=60m"`
-	DBMaxConnIdleTime time.Duration `env:"DB_MAX_CONN_IDLE_TIME,default=30m"`
-	DBConnectTimeout  time.Duration `env:"DB_CONNECT_TIMEOUT,default=5s"`
-	PlatformID        string        `env:"PLATFORM_ID,default=DEMO_PLATFORM"`
-	PlatformName      string        `env:"PLATFORM_NAME,default=Demo Platform"`
-	DCSARegistryURL   string        `env:"DCSA_REGISTRY_URL,default=https://github.com/dcsaorg/DCSA-OpenAPI/raw/master/reference-data/eblsolutionproviders-v3.0.0.csv"`
-	MinTrustLevel     int           `env:"MIN_TRUST_LEVEL,default=2"`
-	SkipJWKCache      bool          `env:"SKIP_JWK_CACHE,default=false"`
+	Environment        string        `env:"ENVIRONMENT,default=dev"`
+	Host               string        `env:"HOST,default=0.0.0.0"`
+	Port               int           `env:"PORT,default=8080"`
+	PublicBaseURL      string        `env:"PUBLIC_BASE_URL"`
+	SecretKey          string        `env:"SECRET_KEY,required=true"`
+	LogLevel           string        `env:"LOG_LEVEL,default=debug"`
+	DatabaseURL        string        `env:"DATABASE_URL,required=true"`
+	ReadTimeout        time.Duration `env:"READ_TIMEOUT,default=15s"`
+	WriteTimeout       time.Duration `env:"WRITE_TIMEOUT,default=15s"`
+	IdleTimeout        time.Duration `env:"IDLE_TIMEOUT,default=60s"`
+	AllowedOrigins     []string      `env:"ALLOWED_ORIGINS,separator=|"`
+	RateLimitRPS       int32         `env:"RATE_LIMIT_RPS,default=100"`
+	RateLimitBurst     int32         `env:"RATE_LIMIT_BURST,default=200"`
+	DBMaxConnections   int32         `env:"DB_MAX_CONNECTIONS,default=4"`
+	DBMinConnections   int32         `env:"DB_MIN_CONNECTIONS,default=0"`
+	DBMaxConnLifetime  time.Duration `env:"DB_MAX_CONN_LIFETIME,default=60m"`
+	DBMaxConnIdleTime  time.Duration `env:"DB_MAX_CONN_IDLE_TIME,default=30m"`
+	DBConnectTimeout   time.Duration `env:"DB_CONNECT_TIMEOUT,default=5s"`
+	PlatformID         string        `env:"PLATFORM_ID,default=DEMO_PLATFORM"`
+	PlatformName       string        `env:"PLATFORM_NAME,default=Demo Platform"`
+	DCSARegistryURL    string        `env:"DCSA_REGISTRY_URL,required=true"`
+	MinTrustLevel      int           `env:"MIN_TRUST_LEVEL,default=2"`
+	SkipJWKCache       bool          `env:"SKIP_JWK_CACHE,default=false"`
+	JWKCacheMinRefresh time.Duration `env:"JWK_CACHE_MIN_REFRESH,default=10m"`
+	JWKCacheMaxRefresh time.Duration `env:"JWK_CACHE_MAX_REFRESH,default=12h"`
 }
 
 const (

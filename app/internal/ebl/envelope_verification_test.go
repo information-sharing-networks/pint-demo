@@ -161,7 +161,6 @@ var (
 	validDomain               = "ed25519-eblplatform.example.com"
 	validCarrierDomain        = "ed25519-carrier.example.com"
 	wrongPublicKeyPath        = "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk"
-	wrongDomain               = "wrong-domain.example.com"
 )
 
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
@@ -201,14 +200,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			useWrongCAPath:  false,
 			wantErrCode:     "BSIG",
 			wantErrContains: "JWS verification failed",
-		},
-		{
-			name:            "wrong expected domain",
-			domain:          wrongDomain,
-			publicKeyPath:   validPublicKeyPath,
-			useWrongCAPath:  false,
-			wantErrCode:     "BSIG",
-			wantErrContains: "domain mismatch",
 		},
 		{
 			name:            "wrong root CA",

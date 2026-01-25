@@ -158,7 +158,6 @@ func TestValidateCertificateChain(t *testing.T) {
 	testCases := []struct {
 		name          string
 		setupChain    func(t *testing.T) ([]*x509.Certificate, *x509.CertPool)
-		hostname      string
 		wantError     bool
 		expectedError string
 	}{
@@ -170,7 +169,7 @@ func TestValidateCertificateChain(t *testing.T) {
 				roots.AddCert(fullChain[len(fullChain)-1]) // Add root CA to trusted roots
 				return fullChain, roots
 			},
-			hostname:  "ed25519-eblplatform.example.com",
+			// Domain should be apex domain (from registry), not full hostname
 			wantError: false,
 		},
 		{
@@ -178,7 +177,6 @@ func TestValidateCertificateChain(t *testing.T) {
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
 				return nil, nil
 			},
-			hostname:      "ed25519-eblplatform.example.com",
 			wantError:     true,
 			expectedError: "empty certificate chain",
 		},
@@ -187,7 +185,6 @@ func TestValidateCertificateChain(t *testing.T) {
 			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
 				return []*x509.Certificate{}, nil
 			},
-			hostname:      "ed25519-eblplatform.example.com",
 			wantError:     true,
 			expectedError: "empty certificate chain",
 		},
@@ -199,33 +196,8 @@ func TestValidateCertificateChain(t *testing.T) {
 				roots.AddCert(fullChain[len(fullChain)-1])
 				return fullChain, roots
 			},
-			hostname:      "ed25519-eblplatform-invalid.example.com",
 			wantError:     true,
 			expectedError: "certificate chain validation failed",
-		},
-		{
-			name: "wrong domain",
-			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
-				fullChain := certs
-				roots := x509.NewCertPool()
-				roots.AddCert(fullChain[len(fullChain)-1])
-				return fullChain, roots
-			},
-			hostname:      "wrong.com",
-			wantError:     true,
-			expectedError: "domain mismatch",
-		},
-		{
-			name: "empty domain",
-			setupChain: func(t *testing.T) ([]*x509.Certificate, *x509.CertPool) {
-				fullChain := certs
-				roots := x509.NewCertPool()
-				roots.AddCert(fullChain[len(fullChain)-1])
-				return fullChain, roots
-			},
-			hostname:      "",
-			wantError:     true,
-			expectedError: "empty expected domain",
 		},
 	}
 
@@ -235,7 +207,7 @@ func TestValidateCertificateChain(t *testing.T) {
 			certs, roots := tc.setupChain(t)
 
 			// Execute: validate the certificate chain
-			err := ValidateCertificateChain(certs, roots, tc.hostname)
+			err := ValidateCertificateChain(certs, roots)
 
 			// Verify: check error expectation
 			if tc.wantError {
@@ -280,7 +252,7 @@ func TestValidateCertificateChain_ExpiredCert(t *testing.T) {
 	roots := x509.NewCertPool()
 	roots.AddCert(cert)
 
-	err = ValidateCertificateChain([]*x509.Certificate{cert}, roots, cert.Subject.CommonName)
+	err = ValidateCertificateChain([]*x509.Certificate{cert}, roots)
 
 	// Verify we got an expiry error
 	var certErr x509.CertificateInvalidError
@@ -320,7 +292,6 @@ func makeJWS(t *testing.T, x5cCerts []*x509.Certificate) string {
 	return headerB64 + "." + payloadB64 + "." + signatureB64
 }
 
-// TODO
 // makeFakeJWSWithInvalidX5C creates a fake JWS with invalid x5c values
 func makeFakeJWSWithInvalidX5C(t *testing.T, invalidX5CValues []string) string {
 	t.Helper()

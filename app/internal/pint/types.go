@@ -114,4 +114,3 @@ const (
 	// HTTP status: 409 Conflict
 	ResponseCodeDISE = "DISE"
 )
-

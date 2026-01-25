@@ -11,8 +11,8 @@ CREATE TABLE envelopes (
     transport_document JSONB NOT NULL,  -- The eBL document
     envelope_manifest_signed_content TEXT NOT NULL,  -- JWS-signed EnvelopeManifest
     last_transfer_chain_entry_signed_content TEXT NOT NULL,  -- JWS-signed last transfer chain entry
-    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content (for duplicate detection)
-    sender_platform TEXT NOT NULL,  -- eBL platform that sent this envelope (extracted from last chain entry)
+    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content 
+    sender_platform TEXT NOT NULL,  -- eBL platform that sent this envelope 
     sender_ebl_platform TEXT,  -- Optional: eBL platform identifier from JWS kid
     trust_level TEXT NOT NULL,  -- Certificate trust level: EV, OV, or DV
     state TEXT NOT NULL,

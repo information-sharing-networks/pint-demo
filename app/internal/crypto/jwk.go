@@ -10,7 +10,6 @@
 package crypto
 
 import (
-	"context"
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -23,10 +22,10 @@ import (
 // RSAPublicKeyToJWK converts a RSA public key to JWK format
 func RSAPublicKeyToJWK(publicKey *rsa.PublicKey, keyID string) (jwk.Key, error) {
 	if publicKey == nil {
-		return nil, NewValidationError("public key is nil")
+		return nil, NewInternalError("public key is nil")
 	}
 	if keyID == "" {
-		return nil, NewValidationError("keyID is required")
+		return nil, NewInternalError("keyID is required")
 	}
 
 	// create the jwk key
@@ -56,10 +55,10 @@ func RSAPublicKeyToJWK(publicKey *rsa.PublicKey, keyID string) (jwk.Key, error) 
 // RSAPrivateKeyToJWK converts an RSA private key to JWK format
 func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey, keyID string) (jwk.Key, error) {
 	if privateKey == nil {
-		return nil, NewValidationError("private key is nil")
+		return nil, NewInternalError("private key is nil")
 	}
 	if keyID == "" {
-		return nil, NewValidationError("keyID is required")
+		return nil, NewInternalError("keyID is required")
 	}
 
 	key, err := jwk.Import(privateKey)
@@ -88,10 +87,10 @@ func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey, keyID string) (jwk.Key, erro
 // Ed25519PublicKeyToJWK converts an Ed25519 public key to JWK format
 func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey, keyID string) (jwk.Key, error) {
 	if publicKey == nil {
-		return nil, NewValidationError("public key is nil")
+		return nil, NewInternalError("public key is nil")
 	}
 	if keyID == "" {
-		return nil, NewValidationError("keyID is required")
+		return nil, NewInternalError("keyID is required")
 	}
 
 	// Create JWK
@@ -121,10 +120,10 @@ func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey, keyID string) (jwk.Key, 
 // Ed25519PrivateKeyToJWK converts an Ed25519 private key to JWK format
 func Ed25519PrivateKeyToJWK(privateKey ed25519.PrivateKey, keyID string) (jwk.Key, error) {
 	if privateKey == nil {
-		return nil, NewValidationError("private key is nil")
+		return nil, NewInternalError("private key is nil")
 	}
 	if keyID == "" {
-		return nil, NewValidationError("keyID is required")
+		return nil, NewInternalError("keyID is required")
 	}
 
 	// Import the private key
@@ -154,7 +153,7 @@ func Ed25519PrivateKeyToJWK(privateKey ed25519.PrivateKey, keyID string) (jwk.Ke
 // JWKToRSAPublicKey converts a JWK to an RSA public key using lestrrat-go/jwx
 func JWKToRSAPublicKey(key jwk.Key) (*rsa.PublicKey, error) {
 	if key == nil {
-		return nil, NewValidationError("key is nil")
+		return nil, NewInternalError("key is nil")
 	}
 
 	var raw any
@@ -175,7 +174,7 @@ func JWKToRSAPublicKey(key jwk.Key) (*rsa.PublicKey, error) {
 // Ed25519JWKToPublicKey converts an Ed25519 JWK to an Ed25519 public key
 func Ed25519JWKToPublicKey(key jwk.Key) (ed25519.PublicKey, error) {
 	if key == nil {
-		return nil, NewValidationError("jwk is nil")
+		return nil, NewInternalError("jwk is nil")
 	}
 
 	var raw any
@@ -194,23 +193,12 @@ func Ed25519JWKToPublicKey(key jwk.Key) (ed25519.PublicKey, error) {
 
 }
 
-// FetchJWKSet fetches a JWK set from a URL
-func FetchJWKSet(ctx context.Context, url string) (jwk.Set, error) {
-	// Fetch the JWK set
-	set, err := jwk.Fetch(ctx, url)
-	if err != nil {
-		return nil, WrapKeyManagementError(err, "failed to fetch JWK set")
-	}
-
-	return set, nil
-}
-
 // GenerateKeyIDFromRSAKey generates a key ID from an RSA private key using SHA-256 thumbprint.
 // Returns the first 16 characters of the hex-encoded thumbprint.
 // This is the recommended approach for generating key IDs for PINT per DCSA guidance.
 func GenerateKeyIDFromRSAKey(publickey *rsa.PublicKey) (string, error) {
 	if publickey == nil {
-		return "", NewValidationError("private key is nil")
+		return "", NewInternalError("private key is nil")
 	}
 
 	// Import to JWK to calculate thumbprint
@@ -232,7 +220,7 @@ func GenerateKeyIDFromRSAKey(publickey *rsa.PublicKey) (string, error) {
 // This is the recommended approach for generating key IDs for PINT per DCSA guidance.
 func GenerateKeyIDFromEd25519Key(publicKey ed25519.PublicKey) (string, error) {
 	if len(publicKey) != ed25519.PublicKeySize {
-		return "", NewValidationError("invalid Ed25519 private key length")
+		return "", NewInternalError("invalid Ed25519 private key length")
 	}
 	// Import to JWK to calculate thumbprint
 	jwkKey, err := jwk.Import(publicKey)

@@ -30,7 +30,7 @@ import (
 // For base64-encoded binary content, use HashFromBase64 instead.
 func Hash(data []byte) (string, error) {
 	if len(data) == 0 {
-		return "", NewValidationError("data is empty")
+		return "", NewInternalError("data is empty")
 	}
 	hasher := sha256.New()
 
@@ -54,7 +54,7 @@ func Hash(data []byte) (string, error) {
 func HashFromBase64(encoded string, maxSize int64) (string, error) {
 
 	if len(encoded) == 0 {
-		return "", NewValidationError("data is empty")
+		return "", NewInternalError("data is empty")
 	}
 	// Check base64 input size
 	if int64(len(encoded)) > maxSize {

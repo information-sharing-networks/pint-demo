@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"context"
 	"crypto/ed25519"
 	"crypto/rsa"
 	"testing"
@@ -220,21 +219,4 @@ func TestEd25519JWKToPublicKey(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected an error when passing RSA JWK to Ed25519 converter, but got no error")
 	}
-}
-
-func TestFetchJWKSet(t *testing.T) {
-
-	ctx := context.Background()
-
-	urlString := "https://www.googleapis.com/oauth2/v3/certs"
-
-	keys, err := FetchJWKSet(ctx, urlString)
-	if err != nil {
-		t.Fatalf("error fetching JWK set: %v", err)
-	}
-
-	if keys == nil {
-		t.Errorf("expected a JWK set, but got nil")
-	}
-
 }

@@ -168,7 +168,6 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	manifestPayload, certChain, err := crypto.VerifyJWS(
 		string(input.Envelope.EnvelopeManifestSignedContent),
 		input.PublicKey,
-		input.ExpectedSenderDomain,
 		input.RootCAs,
 	)
 	if err != nil {
@@ -176,7 +175,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 
 	// Step 3: store verifed organisation information
-	// store the verified domain (domain was verified in VerifyJWS)
+	// store the expected sender domain (from registry/keystore lookup)
 	result.VerifiedDomain = input.ExpectedSenderDomain
 
 	// extract organisation name from x5c chain if available
@@ -314,7 +313,6 @@ func verifyIssuanceManifest(
 	issuanceManifestPayload, _, err := crypto.VerifyJWS(
 		string(*firstEntry.IssuanceManifestSignedContent),
 		carrierPublicKey,
-		expectedCarrierDomain,
 		rootCAs,
 	)
 	if err != nil {
@@ -387,7 +385,6 @@ func verifyEnvelopeTransferChain(
 		currentPayloadBytes, _, err := crypto.VerifyJWS(
 			string(currentEntryJWS),
 			publicKey,
-			expectedDomain,
 			rootCAs,
 		)
 		if err != nil {

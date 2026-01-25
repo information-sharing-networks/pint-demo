@@ -17,6 +17,7 @@ func TestErrorCodes(t *testing.T) {
 		{"internal_error", ErrCodeInternalError, 7005},
 		{"malformed_json", ErrCodeMalformedJSON, 7006},
 		{"key_error", ErrCodeKeyError, 7007},
+		{"registry_error", ErrCodeRegistryError, 7008},
 		{"unknown_party", ErrCodeUnknownParty, 8001},
 		{"insufficient_trust", ErrCodeInsufficientTrust, 8002},
 	}

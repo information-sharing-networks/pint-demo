@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
-	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
+	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,7 +20,7 @@ type Server struct {
 	config     *config.ServerEnvironment
 	logger     *slog.Logger
 	router     *chi.Mux
-	keyManager *crypto.KeyManager
+	keyManager *pint.KeyManager
 }
 
 func NewServer(
@@ -56,17 +56,19 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 	s.logger.Info("DCSA registry URL",
 		slog.String("url", registryURL.String()))
 
-	keyManagerConfig := crypto.NewConfig(
+	keyManagerConfig := pint.NewConfig(
 		registryURL,
 		"", // TODO: manual keys directory
 		config.JWKCacheHTTPTimeout,
 		s.config.SkipJWKCache,
+		s.config.JWKCacheMinRefresh,
+		s.config.JWKCacheMaxRefresh,
 	)
 
 	kmCtx, cancel := context.WithTimeout(ctx, config.RegistryFetchTimeout)
 	defer cancel()
 
-	keyManager, err := crypto.NewKeyManager(kmCtx, keyManagerConfig, s.logger)
+	keyManager, err := pint.NewKeyManager(kmCtx, keyManagerConfig, s.logger)
 	if err != nil {
 		return fmt.Errorf("failed to create KeyManager: %w", err)
 	}
