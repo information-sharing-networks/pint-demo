@@ -10,9 +10,6 @@
 //  3. **Request-scoped adhoc logging**: Use ContextRequestLogger(r.Context()) for events
 //     that occur during request processing. These logs include the request ID for tracing.
 //     Example: reqLogger.Error("Database query failed", slog.String("error", err.Error()))
-//
-// All request-scoped logs (patterns 2 and 3) automatically include request IDs for tracing.
-// This pattern works in both standalone UI mode and integrated signalsd mode.
 package logger
 
 import (

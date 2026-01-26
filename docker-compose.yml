@@ -51,25 +51,48 @@ services:
     environment:
       # Required - container-specific values
       - DOCKER_ENV=true
-      - SECRET_KEY=${SECRET_KEY:-dev-container-secret-key-12345}
       - DATABASE_URL=${DATABASE_URL:-postgres://pint-dev:@db:5432/pint_demo?sslmode=disable}
 
+      # Required PINT configuration - must be set in .env file
+      - REGISTRY_PATH
+      - MANUAL_KEYS_DIR
+      - SIGNING_KEY_PATH
+      - PLATFORM_CODE
+
       # Optional overrides - pass through from shell if set, otherwise app uses defaults
+
+      # HTTP server settings
       - HOST
       - PORT
       - ENVIRONMENT
       - LOG_LEVEL
+      - PUBLIC_BASE_URL
+      - SERVER_SHUTDOWN_TIMEOUT
       - READ_TIMEOUT
       - WRITE_TIMEOUT
       - IDLE_TIMEOUT
+
+      # Database settings
+      - DB_MAX_CONNECTIONS
+      - DB_MIN_CONNECTIONS
+      - DB_MAX_CONN_LIFETIME
+      - DB_MAX_CONN_IDLE_TIME
+      - DB_CONNECT_TIMEOUT
+      - DATABASE_PING_TIMEOUT
+
+      # Security and rate limiting
+      - ALLOWED_ORIGINS
       - RATE_LIMIT_RPS
       - RATE_LIMIT_BURST
-      - ALLOWED_ORIGINS
-      - PLATFORM_ID
-      - PLATFORM_NAME
+      - MIN_TRUST_LEVEL
+
+      # JWK cache settings
       - SKIP_JWK_CACHE
-      - DCSA_REGISTRY_URL
-      - KEY_MANAGER_MIN_TRUST_LEVEL
+      - JWK_CACHE_MIN_REFRESH
+      - JWK_CACHE_MAX_REFRESH
+      - JWK_CACHE_HTTP_TIMEOUT
+      - REGISTRY_FETCH_TIMEOUT
+
     working_dir: /pint-demo
     ports:
       - "${PORT:-8080}:${PORT:-8080}"

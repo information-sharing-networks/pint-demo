@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"io"
 	"log/slog"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -16,8 +15,8 @@ import (
 // TODO: end2end test with jwk endpoint
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
-	url, _ := url.Parse("../crypto/testdata/platform-registry/eblsolutionproviders.csv")
-	config := NewConfig(url, "", 30*time.Second, true, 15*time.Minute, 12*time.Hour)
+	url := "../crypto/testdata/platform-registry/eblsolutionproviders.csv"
+	config := NewKeymanagerConfig(url, "", 30*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	// Create a test logger that discards output
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -100,8 +99,8 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	// Create a KeyManager with that will load the public key we just saved
 	// Testing keys without certificates
 	ctx := context.Background()
-	registryURL, _ := url.Parse("../crypto/testdata/platform-registry/eblsolutionproviders.csv")
-	config := NewConfig(registryURL, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
+	RegistryPath := "../crypto/testdata/platform-registry/eblsolutionproviders.csv"
+	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -177,8 +176,8 @@ TEST,https://test.example.com/,,key-old-2024
 
 	// Create a KeyManager - it should reject the file with multiple keys
 	ctx := context.Background()
-	registryURL, _ := url.Parse(registryPath)
-	config := NewConfig(registryURL, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
+	RegistryPath := registryPath
+	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,

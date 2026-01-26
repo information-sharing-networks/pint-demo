@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
+	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server"
 	"github.com/information-sharing-networks/pint-demo/app/internal/version"
@@ -45,22 +46,19 @@ func run() error {
 
 	appLogger := logger.InitLogger(logger.ParseLogLevel(cfg.LogLevel), cfg.Environment)
 
+	// TODO log full env
 	appLogger.Info("Configuration loaded",
 		slog.String("ENVIRONMENT", cfg.Environment),
 		slog.String("HOST", cfg.Host),
 		slog.Int("PORT", cfg.Port),
 		slog.String("LOG_LEVEL", cfg.LogLevel),
-		slog.Duration("READ_TIMEOUT", cfg.ReadTimeout),
-		slog.Duration("WRITE_TIMEOUT", cfg.WriteTimeout),
-		slog.Duration("IDLE_TIMEOUT", cfg.IdleTimeout),
-		slog.Int("DB_MAX_CONNECTIONS", int(cfg.DBMaxConnections)),
-		slog.Int("DB_MIN_CONNECTIONS", int(cfg.DBMinConnections)),
-		slog.Duration("DB_MAX_CONN_LIFETIME", cfg.DBMaxConnLifetime),
-		slog.Duration("DB_MAX_CONN_IDLE_TIME", cfg.DBMaxConnIdleTime),
-		slog.Duration("DB_CONNECT_TIMEOUT", cfg.DBConnectTimeout),
+		slog.String("DATABASE_URL", cfg.DatabaseURL),
+		slog.String("REGISTRY_PATH", cfg.RegistryPath),
+		slog.String("MANUAL_KEYS_DIR", cfg.ManualKeysDir),
+		slog.String("PLATFORM_CODE", cfg.PlatformCode),
 	)
 
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), config.DatabasePingTimeout)
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), cfg.DatabasePingTimeout)
 	defer dbCancel()
 
 	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
@@ -88,23 +86,30 @@ func run() error {
 
 	appLogger.Info("connected to PostgreSQL")
 
+	// get the sqlc generated database queries
+	queries := database.New(pool)
+
 	appLogger.Info("Starting server", slog.String("version", version.Get().Version))
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// configure the server
 	server, err := server.NewServer(
 		pool,
+		queries,
 		cfg,
 		appLogger,
+		ctx,
 	)
 	if err != nil {
 		appLogger.Error("Failed to create server", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	defer server.DatabaseShutdown()
 
+	// start the server
 	if err := server.Start(ctx); err != nil {
 		appLogger.Error("Server error", slog.String("error", err.Error()))
 		return err

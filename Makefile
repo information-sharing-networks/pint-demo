@@ -35,7 +35,7 @@ help: ## Show this help message
 # Docker management
 docker-up:
 	@echo "🐳 Starting Docker containers..."
-	@DCSA_REGISTRY_URL="internal/crypto/testdata/platform-registry/eblsolutionproviders.csv" docker compose up 
+	@docker compose up 
 
 docker-down:
 	@echo "🐳 Stopping Docker containers..."

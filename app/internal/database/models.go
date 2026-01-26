@@ -39,15 +39,6 @@ type Envelope struct {
 	ResponseCode                        *string            `json:"response_code"`
 }
 
-type PlatformKey struct {
-	ID           uuid.UUID          `json:"id"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	PlatformID   string             `json:"platform_id"`
-	PlatformName *string            `json:"platform_name"`
-	Jwks         json.RawMessage    `json:"jwks"`
-}
-
 type TransferChainEntry struct {
 	ID            uuid.UUID          `json:"id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`

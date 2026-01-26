@@ -1,5 +1,6 @@
-// start_transfer.go implements the POST /v3/envelopes endpoint for starting envelope transfers.
 package handlers
+
+// start_transfer.go implements the POST /v3/envelopes endpoint for starting envelope transfers.
 
 import (
 	"context"
@@ -18,15 +19,17 @@ import (
 
 // StartTransferHandler handles POST /v3/envelopes requests
 type StartTransferHandler struct {
-	queries *database.Queries
-	// TODO: Add key manager for fetching public keys
-	// TODO: Add signing key for signing responses
+	queries    *database.Queries
+	keyManager *pint.KeyManager
+	signingKey any // ed25519.PrivateKey or *rsa.PrivateKey
 }
 
 // NewStartTransferHandler creates a new handler for starting envelope transfers
-func NewStartTransferHandler(queries *database.Queries) *StartTransferHandler {
+func NewStartTransferHandler(queries *database.Queries, keyManager *pint.KeyManager, signingKey any) *StartTransferHandler {
 	return &StartTransferHandler{
-		queries: queries,
+		queries:    queries,
+		keyManager: keyManager,
+		signingKey: signingKey,
 	}
 }
 

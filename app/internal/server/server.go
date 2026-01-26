@@ -5,28 +5,33 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
+	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
+	"github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Server struct {
 	pool       *pgxpool.Pool
+	queries    *database.Queries
 	config     *config.ServerEnvironment
 	logger     *slog.Logger
 	router     *chi.Mux
 	keyManager *pint.KeyManager
+	signingKey any // Ed22519.PrivateKey or *rsa.PrivateKey
 }
 
 func NewServer(
 	pool *pgxpool.Pool,
+	queries *database.Queries,
 	cfg *config.ServerEnvironment,
 	logger *slog.Logger,
+	ctx context.Context,
 ) (*Server, error) {
 	server := &Server{
 		pool:   pool,
@@ -35,10 +40,18 @@ func NewServer(
 		router: chi.NewRouter(),
 	}
 
-	if err := server.initKeyManager(context.Background()); err != nil {
+	// load signing key
+	signingKey, err := crypto.ReadPrivateKeyFromJWKFile(cfg.SigningKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read signing key: %w", err)
+	}
+
+	server.signingKey = signingKey
+	if err := server.initKeyManager(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize KeyManager: %w", err)
 	}
 
+	// setup middleware and routes
 	server.setupMiddleware()
 	server.registerRoutes()
 
@@ -48,24 +61,19 @@ func NewServer(
 // initKeyManager creates and initializes the KeyManager.
 func (s *Server) initKeyManager(ctx context.Context) error {
 
-	registryURL, err := url.Parse(s.config.DCSARegistryURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse DCSA registry URL: %w", err)
-	}
-
 	s.logger.Info("DCSA registry URL",
-		slog.String("url", registryURL.String()))
+		slog.String("url", s.config.RegistryPath))
 
-	keyManagerConfig := pint.NewConfig(
-		registryURL,
-		"", // TODO: manual keys directory
-		config.JWKCacheHTTPTimeout,
+	keyManagerConfig := pint.NewKeymanagerConfig(
+		s.config.RegistryPath,
+		s.config.ManualKeysDir,
+		s.config.JWKCacheHTTPTimeout,
 		s.config.SkipJWKCache,
 		s.config.JWKCacheMinRefresh,
 		s.config.JWKCacheMaxRefresh,
 	)
 
-	kmCtx, cancel := context.WithTimeout(ctx, config.RegistryFetchTimeout)
+	kmCtx, cancel := context.WithTimeout(ctx, s.config.RegistryFetchTimeout)
 	defer cancel()
 
 	keyManager, err := pint.NewKeyManager(kmCtx, keyManagerConfig, s.logger)
@@ -83,15 +91,20 @@ func (s *Server) setupMiddleware() {
 	s.router.Use(middleware.RequestID)
 	s.router.Use(middleware.RealIP)
 	s.router.Use(middleware.Recoverer)
-	s.router.Use(middleware.Timeout(60 * time.Second))
+	// TODO: handle timeouts
+	//s.router.Use(middleware.Timeout(60 * time.Second))
 }
 
 func (s *Server) registerRoutes() {
+
 	s.router.Get("/health", s.handleHealth)
+
+	// Create handlers with dependencies
+	startTransferHandler := handlers.NewStartTransferHandler(s.queries, s.keyManager, s.config.SigningKeyPath)
 
 	s.router.Route("/v3", func(r chi.Router) {
 		r.Post("/receiver-validation", s.handleReceiverValidation)
-		r.Post("/envelopes", s.handleStartEnvelopeTransfer)
+		r.Post("/envelopes", startTransferHandler.HandleStartTransfer)
 		r.Put("/envelopes/{envelopeReference}/additional-documents/{documentChecksum}", s.handleTransferAdditionalDocument)
 		r.Put("/envelopes/{envelopeReference}/finish-transfer", s.handleFinishEnvelopeTransfer)
 	})
@@ -130,7 +143,7 @@ func (s *Server) Start(ctx context.Context) error {
 		s.logger.Info("shutdown signal received")
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), config.ServerShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), s.config.ServerShutdownTimeout)
 	defer shutdownCancel()
 
 	s.logger.Info("shutting down HTTP server")
@@ -164,14 +177,15 @@ func (s *Server) handleReceiverValidation(w http.ResponseWriter, r *http.Request
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
 
-func (s *Server) handleStartEnvelopeTransfer(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
-}
-
 func (s *Server) handleTransferAdditionalDocument(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) handleFinishEnvelopeTransfer(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "Not implemented", http.StatusNotImplemented)
+}
+
+// handleJWKS serves the JSON Web Key Set at /.well-known/jwks.json
+func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }

@@ -27,6 +27,8 @@
 // TODO: for the demo app the registry is a simple CSV file, but in a real deployment the registry would be served
 // from a secure endpoint and cover all participants in the PINT network.
 // We would also need to implement a mechanism to refresh the registry in case of changes (for now it is loaded at startup and not refreshed)
+//
+// TODO: do we need to keep a record of expired keys so we can validate signatures on old documents?
 package pint
 
 import (
@@ -114,13 +116,13 @@ type KeyManager struct {
 	mu sync.RWMutex
 
 	// config holds the KeyManager configuration.
-	config *Config
+	config *KeyManagerConfig
 }
 
-// Config holds configuration for the KeyManager.
-type Config struct {
-	// eblSolutionProvidersRegistryURL is the URL to fetch the DCSA approved platforms list.
-	eblSolutionProvidersRegistryURL *url.URL
+// KeyManagerConfig holds configuration for the KeyManager.
+type KeyManagerConfig struct {
+	// eblSolutionProvidersRegistryPath is the URL to fetch the DCSA approved platforms list.
+	eblSolutionProvidersRegistryPath string
 
 	// ManualKeysDir is the directory containing manually configured keys.
 	// Each file must contain exactly ONE key (files with multiple keys are rejected).
@@ -141,20 +143,20 @@ type Config struct {
 	JWKCacheMaxRefreshInterval time.Duration
 }
 
-// NewConfig creates a new keymanager Config with the specified parameters.
-func NewConfig(registryURL *url.URL, manualKeysDir string, httpTimeout time.Duration, skipJWKCache bool, minRefreshInterval, maxRefreshInterval time.Duration) *Config {
-	return &Config{
-		eblSolutionProvidersRegistryURL: registryURL,
-		ManualKeysDir:                   manualKeysDir,
-		HTTPTimeout:                     httpTimeout,
-		SkipJWKCache:                    skipJWKCache,
-		JWKCacheMinRefreshInterval:      minRefreshInterval,
-		JWKCacheMaxRefreshInterval:      maxRefreshInterval,
+// NewKeymanagerConfig creates a new keymanager Config with the specified parameters.
+func NewKeymanagerConfig(RegistryPath string, manualKeysDir string, httpTimeout time.Duration, skipJWKCache bool, minRefreshInterval, maxRefreshInterval time.Duration) *KeyManagerConfig {
+	return &KeyManagerConfig{
+		eblSolutionProvidersRegistryPath: RegistryPath,
+		ManualKeysDir:                    manualKeysDir,
+		HTTPTimeout:                      httpTimeout,
+		SkipJWKCache:                     skipJWKCache,
+		JWKCacheMinRefreshInterval:       minRefreshInterval,
+		JWKCacheMaxRefreshInterval:       maxRefreshInterval,
 	}
 }
 
 // NewKeyManager creates a new KeyManager with the given configuration.
-func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*KeyManager, error) {
+func NewKeyManager(ctx context.Context, config *KeyManagerConfig, logger *slog.Logger) (*KeyManager, error) {
 	if config == nil {
 		return nil, NewInternalError("config is nil")
 	}
@@ -162,9 +164,9 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 		return nil, NewInternalError("logger cannot be nil")
 	}
 
-	// check for nil url
-	if config.eblSolutionProvidersRegistryURL == nil {
-		return nil, NewInternalError("eblSolutionProvidersRegistryURL is required")
+	_, err := url.Parse(config.eblSolutionProvidersRegistryPath)
+	if err != nil {
+		return nil, NewInternalError("failed to parse eblSolutionProvidersRegistryPath")
 	}
 
 	if config.HTTPTimeout == 0 {
@@ -184,7 +186,7 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 	}
 
 	logger.Info("initializing KeyManager",
-		slog.String("DCSA_REGISTRY_URL", config.eblSolutionProvidersRegistryURL.String()),
+		slog.String("DCSA_REGISTRY_PATH", config.eblSolutionProvidersRegistryPath),
 		slog.Bool("SKIP_JWK_CACHE", config.SkipJWKCache))
 
 	// Load DCSA registry of approved eBL solution providers
@@ -222,10 +224,10 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 // but in a real deployment this would be served from a secure endpoint
 func (km *KeyManager) loadEbLSolutionProviders() error {
 	km.logger.Info("loading DCSA registry",
-		slog.String("url", km.config.eblSolutionProvidersRegistryURL.String()))
+		slog.String("url", km.config.eblSolutionProvidersRegistryPath))
 
 	// Fetch the CSV data
-	data, err := os.ReadFile(km.config.eblSolutionProvidersRegistryURL.String())
+	data, err := os.ReadFile(km.config.eblSolutionProvidersRegistryPath)
 	if err != nil {
 		return err
 	}
@@ -260,7 +262,7 @@ func (km *KeyManager) loadEbLSolutionProviders() error {
 
 		_, err := url.Parse(site)
 		if err != nil {
-			return NewRegistryError(fmt.Sprintf("invalid registry record - invalid webskte: %v", record))
+			return NewRegistryError(fmt.Sprintf("invalid registry record - invalid website: %v", record))
 		}
 
 		jwksEndpoint := record[2]
@@ -403,23 +405,6 @@ func (km *KeyManager) loadManualKeys() error {
 				continue
 			}
 
-			// Find registry entry with matching manual key id
-			var eblSolutionProvider *eblSolutionProvider
-			for _, provider := range km.eblSolutionProviders {
-				if provider.ManualKeyID == keyID {
-					eblSolutionProvider = provider
-					break
-				}
-			}
-
-			// if no registry entry found, skip the key
-			if eblSolutionProvider == nil {
-				km.logger.Warn("manual key for unknown provider - skipping",
-					slog.String("kid", keyID),
-					slog.String("file", filename))
-				continue
-			}
-
 			// get the key material
 			var raw any
 			if err := jwk.Export(key, &raw); err != nil {
@@ -443,16 +428,33 @@ func (km *KeyManager) loadManualKeys() error {
 			case *rsa.PrivateKey:
 				keyType = "RSA private key"
 			case ed25519.PrivateKey:
-				keyType = fmt.Sprintf("Ed25519 private key (%d bytes)", len(v))
+				keyType = "Ed25519 private key"
 			default:
 				keyType = fmt.Sprintf("unknown type: %T", v)
 			}
 
 			if !isValidPublicKey {
-				km.logger.Warn("the key in the .public.jwk file is not a RSA or ED25519 public key - skipping",
+				km.logger.Warn("file does not contain a RSA or ED25519 public key - skipping",
 					slog.String("kid", keyID),
 					slog.String("file", filename),
 					slog.String("key_type", keyType))
+				continue
+			}
+
+			// Find registry entry with matching manual key id
+			var eblSolutionProvider *eblSolutionProvider
+			for _, provider := range km.eblSolutionProviders {
+				if provider.ManualKeyID == keyID {
+					eblSolutionProvider = provider
+					break
+				}
+			}
+
+			// if no registry entry found, skip the key
+			if eblSolutionProvider == nil {
+				km.logger.Warn("the ebl platform with this key id is not configured in the registry - skipping",
+					slog.String("kid", keyID),
+					slog.String("file", filename))
 				continue
 			}
 
@@ -479,8 +481,6 @@ func (km *KeyManager) loadManualKeys() error {
 // initJWKCache initializes the JWK cache and registers all eBL solution provider JWK endpoints.
 // The cache will automatically fetch and refresh JWK sets from each provider in the background.
 func (km *KeyManager) initJWKCache(ctx context.Context) error {
-	km.logger.Info("initializing JWK cache",
-		slog.Int("providers", len(km.eblSolutionProviders)))
 
 	client := httprc.NewClient()
 

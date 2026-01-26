@@ -75,21 +75,8 @@ CREATE TABLE transfer_chain_entries (
 
 CREATE INDEX idx_transfer_chain_envelope ON transfer_chain_entries(envelope_id, sequence);
 
--- Platform keys table - stores public keys from other platforms for JWS verification
-CREATE TABLE platform_keys (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    platform_id TEXT NOT NULL UNIQUE,
-    platform_name TEXT,
-    jwks JSONB NOT NULL
-);
-
-CREATE INDEX idx_platform_keys_platform_id ON platform_keys(platform_id);
-
 -- +goose Down
 
-DROP TABLE IF EXISTS platform_keys CASCADE;
 DROP TABLE IF EXISTS transfer_chain_entries CASCADE;
 DROP TABLE IF EXISTS additional_documents CASCADE;
 DROP TABLE IF EXISTS envelopes CASCADE;

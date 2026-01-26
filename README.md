@@ -9,41 +9,47 @@ A demonstration implementation of the DCSA PINT (Platform Interoperability) API 
 
 ### Prerequisites
 
-- Docker
-- go 1.25+ (if you plan to make changes to the code)
+To run the app you need to install:
+- [Docker Desktop](https://docs.docker.com/get-docker)
+
+... and if you plan to make changes to the code:
+- [Go 1.25.4 or above](https://go.dev/doc/install)
 
 ### Quick Start
 
-1. **Start the development environment**:
+#### 1. create a .env file in the root of the project:
+```bash
+SIGNING_KEY_PATH="internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+MANUAL_KEYS_DIR="internal/crypto/testdata/keys"
+REGISTRY_PATH="internal/crypto/testdata/platform-registry/eblsolutionproviders.csv"
+PLATFORM_CODE="EBL1"
+```
+
+#### 2. Start the development environment:
    ```bash
    cd pint-demo
-   docker compose up
+   . .env
+   make docker-up
    ```
 
    This will:
    - Start the db contaienr (PostgreSQL 17)
-   - Generate SQLC code
+   - Generate SQLC code and API docs
    - Run database migrations
    - Start the app container (pint-receiver service) on http://localhost:8080
   
 
-2. **Check the service is running**:
-   ```bash
-   curl http://localhost:8080/health
-   ```
+you can override defaults configs by setting environment variables when you start the server, e.g.
 
-3. **Access the database**:
-   ```bash
-   make psql
-   ```
+```bash
+SKIP_JWK_CACHE=false make docker-up                 # Set true to disable JWK caching
+PORT=8081 make docker-up                            # server port (default is 8080)
+LOG_LEVEL=info make docker-up                       # debug, info, warn, error (default is debug)
+MIN_TRUST_LEVEL=2                                   # 1=EV/OV, 2=DV, 3=NoX5C (defaults to the 1, the highest trust level)
+```
+Other configs have sensible defaults (see `app/internal/server/config/config.go` for the full list).
 
-4. **View logs**:
-   ```bash
-   make logs
-   ```
-
-
-#### Development Tools
+## Development Tools
 
 All development tools are available via Docker (no local installation needed):
 
@@ -51,8 +57,10 @@ All development tools are available via Docker (no local installation needed):
 make sqlc      # Generate SQLC code
 make migrate   # Run database migrations
 make docs      # generate swagger (openAPI) docs
+make swag-fmt  # format swag comments
 make test      # Run tests
 make check     # Run all checks (fmt, vet, test, lint, security)
+make psql      # run psql against the dev database
 ```
 
 if there are updates to the go dependencies (go.mod), you will need to rebuild the app container:
@@ -61,33 +69,6 @@ if there are updates to the go dependencies (go.mod), you will need to rebuild t
 docker compose up build app
 ```
 
-## Configuration
-
-Key environment variables (all have sensible defaults):
-
-```bash
-# Required for production
-DATABASE_URL=postgres://user:pass@host:5432/dbname?sslmode=disable
-SECRET_KEY=your-secret-key-here
-
-# Platform identity
-PLATFORM_ID=platform-a.example.com
-PLATFORM_NAME="Platform A"
-
-# Trust and security
-KEY_MANAGER_MIN_TRUST_LEVEL=1          # 1=EV/OV, 2=DV, 3=NoX5C
-DCSA_REGISTRY_URL=https://registry.dcsa.org/ebl-solution-providers.json
-SKIP_JWK_CACHE=false                   # Set true to disable JWK caching
-
-# Server settings
-PORT=8080
-ENVIRONMENT=development                # development, staging, production
-LOG_LEVEL=info                         # debug, info, warn, error
-```
-
-you can override defaults at start-up, e.g 
-
-```PORT=8081 docker compose up app```
 
 # Concepts
 
@@ -105,7 +86,7 @@ The registry is used for two purposes:
 - **Authorization**: The registry is the single source of truth for which platforms are allowed to participate in the PINT network. This is used to prevent platforms from joining the network without first signing up to the DCSA agreement.
 - **Security**: the registry contains the JWKS endpoint (if applicable) for each platform and - where no JWKS endpoint is specified - the KID of the manually configured key for the platform. This information is used to ensure that the public keys needed to verify JWS signatures are only retrieved from trusted locations.
 
-This list is configured via the `DCSA_REGISTRY_URL` environment variable.
+This list is configured via the `DCSA_REGISTRY_PATH` environment variable.
 
 For the purpose of this demo the registry is based on a local file (`app/internal/crypto/testdata/platform-registry/eblsolutionproviders.csv`),
  but in a real deployment the registry would be served from a secure endpoint and cover all participants in the PINT network.
@@ -120,7 +101,7 @@ The x5c is optional - there are three tiers of trust supported:
 2. **TrustLevelDV**: x5c with DV certificates (domain ownership verified by CA)
 3. **TrustLevelNoX5C**: no x5c (no verification of legal entity) - testing only
 
-The platform can enforce a minimum trust level policy via the `KEY_MANAGER_MIN_TRUST_LEVEL` environment variable (1=EV/OV, 2=DV, 3=NoX5C). Signatures below the minimum trust level are rejected.
+The platform can enforce a minimum trust level policy via the `MIN_TRUST_LEVEL` environment variable (1=EV/OV, 2=DV, 3=NoX5C). Signatures below the minimum trust level are rejected.
 
 Per DCSA, it is not clear how PINT networks operating at the 2nd and 3rd trust levels could support non-repudiation, but they are supported in case they are needed.
 
@@ -147,9 +128,9 @@ pint-demo/
    │   │   ├── crypto/                        # JWS signing/verification, key management
    │   │   │── database/                      # SQLC generated code
    │   │   │── ebl/                           # eBL creation/verification
-   │   │   │── handlers/                      # HTTP handlers for PINT endpoints
    │       ├── logger/                        # logging
-   │   │   └── server/                        # PINT API server 
+   │   │   │── pint/                          # PINT API handlers
+   │   │   └── server/                        # HTTP server
    │   ├── sql/
    │   │   └── schema/                        # Database migrations
    │   │   └── queries/                       # SQL queries
