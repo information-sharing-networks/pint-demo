@@ -169,7 +169,6 @@ func TestValidateCertificateChain(t *testing.T) {
 				roots.AddCert(fullChain[len(fullChain)-1]) // Add root CA to trusted roots
 				return fullChain, roots
 			},
-			// Domain should be apex domain (from registry), not full hostname
 			wantError: false,
 		},
 		{

@@ -216,7 +216,7 @@ func NewKeyManager(ctx context.Context, config *Config, logger *slog.Logger) (*K
 	return km, nil
 }
 
-// loadEbLSolutionProviders fetches the DCSA registry of approved domains.
+// loadEbLSolutionProviders fetches the DCSA registry of approved platforms
 //
 // For the demo this is a csv file (code, site, jwks_endpoint, manual_key_id)
 // but in a real deployment this would be served from a secure endpoint

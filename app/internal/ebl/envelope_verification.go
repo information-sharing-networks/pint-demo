@@ -28,39 +28,19 @@ package ebl
 //
 // see crypto.JwsVerify for details on the signature verification process.
 //
-// # Platform Identification and Domain Verification
+// # Platform Identification
 //
-// Platform identification involves two steps:
-//
-// 1. Key Lookup:
-//    - Extract 'kid' from the JWS header
-//    - Look up the public key in the app's key store (KeyManager)
-//    - If not found locally, fetch from the platform's JWKS endpoint
-//
-// 2. Domain Verification
-//    This is done in two for two reasons
-//    a) Platform Authorization: Verify the platform's domain is approved for eBL transfers (DCSA registry)
-//    b) Certificate Binding: Where x5c headers are supplied in the JWS, verify the domain
-//       in the x5c certificate matches the platform's expected domain.
-//
-// The platform's expected domain is established through one of these methods:
-//
-//    - JWKS Endpoint: Domain extracted from JWKS URL (e.g., https://platform.example.com/.well-known/jwks.json)
-//      and verified against DCSA registry
-//
-//    - Out-of-Band: Domain established during platform onboarding/configuration and stored in the key store
-//      alongside the public key. Retrieved when looking up the key by kid.
-//
-// Note: In the current implementation, ExpectedSenderDomain and ExpectedCarrierDomain must be provided by the caller
-// (typically the HTTP handler, which retrieves it from the key store)
-//
-// # Trust Hierarchy
-// This app implements a trust hierarchy based on certificate validation level (see crypto/trust_level.go)
-//
-// The caller (typically the HTTP handler) is responsible for enforcing the minimum acceptable trust level.
+// Platform identification is done by looking up the platform in the DCSA registry
+// using the JWS key ID (see app/internal/pint/keymanager.go)
 //
 // # Key ID (kid) Usage
 // This app uses the JWK thumbprint of the signing public key as the key ID.
+//
+// # Trust Hierarchy
+// This app implements a trust hierarchy based on the type of certificate in the
+// x5c header (if present) - see crypto/trust_level.go
+//
+// The caller (typically the HTTP handler) is responsible for enforcing the minimum acceptable trust level.
 
 import (
 	"crypto/x509"
@@ -75,12 +55,6 @@ type EnvelopeVerificationInput struct {
 
 	// Envelope is the complete eBL Envelope received from POST /v3/envelopes
 	Envelope *crypto.EblEnvelope
-
-	// ExpectedSenderDomain is the expected sender's domain (e.g., "wavebl.com")
-	// Used to validate the JWK endpoint domain or stored certificate domain matches
-	// the expected sender.
-	// The sender domain should be on the DCSA registry of approved platforms.
-	ExpectedSenderDomain string
 
 	// RootCAs is the root CA pool for certificate validation
 	// nil = use system roots (typically used for production), custom pool = testing/private CA
@@ -104,10 +78,6 @@ type EnvelopeVerificationInput struct {
 	//
 	// The key type should be ed25519.PublicKey or *rsa.PublicKey.
 	CarrierPublicKey any
-
-	// ExpectedCarrierDomain is the expected carrier's domain (e.g., "maersk.com")
-	// this is used to validate the carrier's certificate domain matches the expected carrier.
-	ExpectedCarrierDomain string
 }
 
 // EnvelopeVerificationResult contains the results of envelope verification.
@@ -142,10 +112,10 @@ type EnvelopeVerificationResult struct {
 	// TrustLevel indicates the trust level achieved by the signature
 	TrustLevel crypto.TrustLevel
 
-	// VerifiedDomain is the domain that was successfully verified against the certificate
+	// VerifiedDomain is the domain that was extracted from the x5c certificate chain (if present)
 	VerifiedDomain string
 
-	// VerifiedOrganisation contains the verified organisation name if available (extracted from the x5c header in the JWS signature).
+	// VerifiedOrganisation contains the verified organisation name extracted from the x5c certificate chain (if present)
 	//
 	// Only populated for TrustLevelEVOV (Extended Validation or Organization Validation certificates)
 	// This is the legal entity name from the certificate's Organization field
@@ -174,9 +144,16 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		return nil, WrapSignatureError(err, "JWS verification failed")
 	}
 
-	// Step 3: store verifed organisation information
-	// store the expected sender domain (from registry/keystore lookup)
-	result.VerifiedDomain = input.ExpectedSenderDomain
+	// Step 3: extract the domain from the leaf (platform) certificate if the x5c header was present
+	if len(certChain) > 0 {
+		// try the sans first and fall back to the common name if not available
+		// note CN is not verified and might not be a valid domain
+		if len(certChain[0].DNSNames) > 0 {
+			result.VerifiedDomain = certChain[0].DNSNames[0]
+		} else {
+			result.VerifiedDomain = certChain[0].Subject.CommonName
+		}
+	}
 
 	// extract organisation name from x5c chain if available
 	// this is only populated for EV/OV certificates (TrustLevelEVOV)
@@ -218,7 +195,6 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
 		input.PublicKey,
-		input.ExpectedSenderDomain,
 		input.RootCAs,
 	)
 	if err != nil {
@@ -235,7 +211,6 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	if err := verifyIssuanceManifest(
 		result.FirstTransferChainEntry,
 		input.CarrierPublicKey,
-		input.ExpectedCarrierDomain,
 		input.RootCAs,
 	); err != nil {
 		return nil, WrapEnvelopeError(err, "issuance manifest verification failed")
@@ -296,7 +271,6 @@ func verifyTransportDocumentChecksum(
 func verifyIssuanceManifest(
 	firstEntry *crypto.EnvelopeTransferChainEntry,
 	carrierPublicKey any,
-	expectedCarrierDomain string,
 	rootCAs *x509.CertPool,
 ) error {
 
@@ -353,7 +327,6 @@ func verifyEnvelopeTransferChain(
 	envelopeTransferChain []crypto.EnvelopeTransferChainEntrySignedContent,
 	manifest *crypto.EnvelopeManifest,
 	publicKey any,
-	expectedDomain string,
 	rootCAs *x509.CertPool,
 ) ([]*crypto.EnvelopeTransferChainEntry, string, error) {
 

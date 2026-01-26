@@ -82,12 +82,10 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 
 			// Create verification input
 			input := EnvelopeVerificationInput{
-				Envelope:              &envelope,
-				ExpectedSenderDomain:  test.expectedSenderDomain,
-				RootCAs:               rootCAs,
-				PublicKey:             publicKey,
-				CarrierPublicKey:      carrierPublicKey,
-				ExpectedCarrierDomain: test.expectedCarrierDomain,
+				Envelope:         &envelope,
+				RootCAs:          rootCAs,
+				PublicKey:        publicKey,
+				CarrierPublicKey: carrierPublicKey,
 			}
 
 			// Verify the envelope
@@ -130,9 +128,9 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			if result.VerifiedDomain == "" {
 				t.Errorf("Expected verified domain to be populated")
 			}
-			if result.VerifiedDomain != input.ExpectedSenderDomain {
+			if result.VerifiedDomain != test.expectedSenderDomain {
 				t.Errorf("Expected verified domain to match input domain: got %q, want %q",
-					result.VerifiedDomain, input.ExpectedSenderDomain)
+					result.VerifiedDomain, test.expectedSenderDomain)
 			}
 
 			// Validate organisation name is populated for x5c certificates
@@ -159,7 +157,6 @@ var (
 	validFullChainPath        = "../crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
 	validRootCAPath           = "../crypto/testdata/certs/root-ca.crt"
 	validDomain               = "ed25519-eblplatform.example.com"
-	validCarrierDomain        = "ed25519-carrier.example.com"
 	wrongPublicKeyPath        = "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk"
 )
 
@@ -304,12 +301,10 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
 			// Create verification input
 			input := EnvelopeVerificationInput{
-				Envelope:              &envelope,
-				ExpectedSenderDomain:  tt.domain,
-				RootCAs:               rootCAs,
-				PublicKey:             publicKey,
-				CarrierPublicKey:      carrierPublicKey,
-				ExpectedCarrierDomain: validCarrierDomain,
+				Envelope:         &envelope,
+				RootCAs:          rootCAs,
+				PublicKey:        publicKey,
+				CarrierPublicKey: carrierPublicKey,
 			}
 
 			// Verify the envelope - should fail
@@ -430,12 +425,10 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
-		Envelope:              envelope,
-		ExpectedSenderDomain:  validDomain,
-		RootCAs:               rootCAs,
-		PublicKey:             privateKey.Public(),
-		CarrierPublicKey:      carrierPublicKey,
-		ExpectedCarrierDomain: validCarrierDomain,
+		Envelope:         envelope,
+		RootCAs:          rootCAs,
+		PublicKey:        privateKey.Public(),
+		CarrierPublicKey: carrierPublicKey,
 	}
 
 	_, err = VerifyEnvelopeTransfer(input)
@@ -516,12 +509,10 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
-		Envelope:              envelope,
-		ExpectedSenderDomain:  validDomain,
-		RootCAs:               rootCAs,
-		PublicKey:             privateKey.Public(),
-		CarrierPublicKey:      carrierPublicKey,
-		ExpectedCarrierDomain: validCarrierDomain,
+		Envelope:         envelope,
+		RootCAs:          rootCAs,
+		PublicKey:        privateKey.Public(),
+		CarrierPublicKey: carrierPublicKey,
 	}
 
 	_, err = VerifyEnvelopeTransfer(input)

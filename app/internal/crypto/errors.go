@@ -95,7 +95,7 @@ func WrapSignatureError(err error, msg string) error {
 
 // NewCertificateError creates a certificate validation error.
 // Use this for errors related to expired certificates, untrusted CAs,
-// domain mismatches, or certificate chain validation failures.
+// or certificate chain validation failures.
 //
 // The returned error will have code ErrCodeCertificate.
 func NewCertificateError(msg string) error {
@@ -104,7 +104,7 @@ func NewCertificateError(msg string) error {
 
 // WrapCertificateError wraps an existing error as a certificate error.
 // Use this for errors related to expired certificates, untrusted CAs,
-// domain mismatches, or certificate chain validation failures.
+// or certificate chain validation failures.
 //
 // The returned error will have code ErrCodeCertificate.
 func WrapCertificateError(err error, msg string) error {

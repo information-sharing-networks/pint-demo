@@ -1,3 +1,5 @@
+package ebl
+
 // envelope_transfer.go provides high-level functions for creating DCSA EBL_PINT API envelope transfer requests.
 //
 // CreateEnvelopeTransfer is used to create a complete envelope transfer request for POST /v3/envelopes.
@@ -16,8 +18,6 @@
 // 2c. Include the transfer chain in the envelope transer
 //
 // the functions below include wrappers to help construct and sign transfer chain entries
-
-package ebl
 
 import (
 	"crypto/ed25519"
