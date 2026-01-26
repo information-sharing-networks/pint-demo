@@ -1,3 +1,5 @@
+package ebl
+
 // envelope_verification.go provides high-level functions for verifying DCSA EBL_PINT API envelope transfers.
 //
 // the verification process is as follows:
@@ -59,8 +61,6 @@
 //
 // # Key ID (kid) Usage
 // This app uses the JWK thumbprint of the signing public key as the key ID.
-
-package ebl
 
 import (
 	"crypto/x509"

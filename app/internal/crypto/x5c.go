@@ -1,6 +1,7 @@
+package crypto
+
 // x5c.go - Functions for parsing and validating X.509 certificate chains from JWS headers
 // this implementation of PINT uses x5c certificates for non-repudiation.
-package crypto
 
 import (
 	"crypto/ed25519"

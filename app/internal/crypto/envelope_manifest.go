@@ -1,3 +1,5 @@
+package crypto
+
 // envelope.go implements the DCSA EBL_PINT v3.0.0 specification for creating and signing envelope manifests.
 //
 // PINT Transfer Flow:
@@ -8,8 +10,6 @@
 // v)   Create EnvelopeManifest with checksums (transportDocument, lastTransferChainEntry) and document metadata (eblVisualisationByCarrier, supportingDocuments)
 // vi)  Sign the canonical EnvelopeManifest to create JWS
 // vii) Include JWS in EblEnvelope.envelopeManifestSignedContent
-
-package crypto
 
 import (
 	"crypto/ed25519"

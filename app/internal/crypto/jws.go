@@ -1,3 +1,5 @@
+package crypto
+
 // jws.go - Functions for signing and verifying JWS (JSON Web Signature)
 //
 // Note the DCSA standard requires that JWS compact serialization is used for signing and verifying transport documents
@@ -6,7 +8,6 @@
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc)
 // you will not need to call these functions directly. See the ebl package for high level functions.
-package crypto
 
 import (
 	"crypto/ed25519"

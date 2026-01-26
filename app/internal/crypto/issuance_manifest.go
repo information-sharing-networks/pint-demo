@@ -1,5 +1,7 @@
-// issuance.go implements DCSA EBL_ISS specification for issuance manifests.
+package crypto
 
+// issuance.go implements DCSA EBL_ISS specification for issuance manifests.
+//
 // these functions are included to allow the pint-demo app to do a full end to end flow of the DCSA APIs from issuance to surrender
 //
 // If you're creating an IssuanceRequest for the DCSA API, you probably want
@@ -18,8 +20,6 @@
 //  iv)  Create IssuanceManifest with checksums (document, issueTo, eblVisualisationByCarrier)
 //  v)   Sign the canonical IssuanceManifest to create JWS
 //  vi)  Include JWS in IssuanceRequest.issuanceManifestSignedContent
-
-package crypto
 
 import (
 	"crypto/ed25519"

@@ -1,6 +1,7 @@
+package pint
+
 // errors.go implements the DCSA standard error response format for the PINT API
 // the errors are primarily about issues occuring in the HTTP API layer, and are translated from lower level errors in the crypto and ebl packages.
-package pint
 
 import (
 	"errors"

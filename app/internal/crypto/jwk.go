@@ -1,3 +1,5 @@
+package crypto
+
 // JWK (JSON Web Key) Implementation for DCSA PINT
 // Reference: https://datatracker.ietf.org/doc/html/rfc7517 (JSON Web Key standard)
 //
@@ -6,8 +8,6 @@
 // keygen also uses the PEM functions below to create a PEM file that can be used to create a CA CSR (certificate signing request)).
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
-
-package crypto
 
 import (
 	"crypto"

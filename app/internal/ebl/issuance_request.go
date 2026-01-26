@@ -1,3 +1,5 @@
+package ebl
+
 // issuanceRequest.go provides high-level functions for creating DCSA EBL_ISS API issuace requests.
 //
 // CreateIssuanceRequest is used in the demo app to simulate the initial issuance request from the carrier to the ebl platform (PUT /v3/ebl-issuance-requests)
@@ -9,7 +11,6 @@
 // 3. construct the issuance request json combining the document JSON, issueTo JSON, eblVisualisationByCarrier and issuanceManifestSignedContent
 //
 // the CreateIssuanceRequest function shows how to use the low level functions to perform these steps.
-package ebl
 
 import (
 	"crypto/ed25519"

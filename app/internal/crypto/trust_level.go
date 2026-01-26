@@ -1,3 +1,5 @@
+package crypto
+
 // trust.go - Trust level definitions and certificate validation logic
 //
 // Trust levels are determined by analyzing the x5c (X.509 certificate chain) in JWS headers.
@@ -9,7 +11,6 @@
 //
 // trust level is used by the pint-demo service at startup to determine which trust level to require for signatures.
 // the trust level is established when verifying the JWS signatures in the ebl envelope.
-package crypto
 
 import (
 	"fmt"

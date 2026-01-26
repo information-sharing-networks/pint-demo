@@ -1,3 +1,5 @@
+package crypto
+
 // this file provides SHA-256 hashing functions compliant with DCSA specifications.
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
@@ -6,8 +8,6 @@
 //   1. Canonical JSON documents (transport docs, issueTo, etc.)
 //   2. Binary content decoded from base64 (eBL Visualisations/associated documents)
 //   3. JWS strings (transfer chain entries)
-
-package crypto
 
 import (
 	"bytes"

@@ -1,3 +1,5 @@
+package crypto
+
 // keys.go contains functions to generate and manage public/private key pairs used in the PINT API
 //
 // Because participating parties in PINT exchanges may have different policies on acceptable key types,
@@ -12,7 +14,6 @@
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
 // See the ebl package for high level functions
-package crypto
 
 import (
 	"crypto/ed25519"

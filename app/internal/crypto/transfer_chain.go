@@ -1,3 +1,5 @@
+package crypto
+
 // transfer_chain.go provides the low level function used to create and sign transfer chain entries.
 //
 // The transfer chain represents the complete history of an eBL document, including issuance,
@@ -5,7 +7,6 @@
 // each entry in the transfer chain represents a batch of transactions that happened on a single platform.
 //
 // TODO improve validation using DCSA reference data to confirm valid ebl platforms, action codes etc.
-package crypto
 
 import (
 	"crypto/ed25519"
