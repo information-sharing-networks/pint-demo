@@ -69,6 +69,8 @@ func (h *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 }
 
 // verifyEnvelope performs complete envelope verification
+//
+//lint:ignore U1000 TODO
 func (h *StartTransferHandler) verifyEnvelope(
 	ctx context.Context,
 	envelope *crypto.EblEnvelope,
@@ -81,6 +83,8 @@ func (h *StartTransferHandler) verifyEnvelope(
 }
 
 // checkDuplicate checks if this envelope has already been received
+//
+//lint:ignore U1000 TODO
 func (h *StartTransferHandler) checkDuplicate(
 	ctx context.Context,
 	lastChainChecksum string,
@@ -96,6 +100,8 @@ func (h *StartTransferHandler) checkDuplicate(
 }
 
 // persistEnvelope stores the envelope in the database
+//
+//lint:ignore U1000 TODO
 func (h *StartTransferHandler) persistEnvelope(
 	ctx context.Context,
 	envelope *crypto.EblEnvelope,
@@ -111,6 +117,8 @@ func (h *StartTransferHandler) persistEnvelope(
 }
 
 // generateResponse creates the appropriate response based on envelope state
+//
+//lint:ignore U1000 TODO
 func (h *StartTransferHandler) generateResponse(
 	ctx context.Context,
 	envelope *database.Envelope,
