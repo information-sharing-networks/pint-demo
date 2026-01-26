@@ -14,6 +14,7 @@ help: ## Show this help message
 	@echo "  make help            - Show this help message"
 	@echo "  make docker-up       - Start Docker containers"
 	@echo "  make docker-down     - Stop Docker containers"
+	@echo "  make docker-reset    - Drop the database and restart the containers"
 	@echo "  make restart         - Restart the app container"
 	@echo "  make logs            - Follow docker logs"
 	@echo "  make psql            - Run psql against the dev database"
@@ -39,6 +40,13 @@ docker-up:
 docker-down:
 	@echo "🐳 Stopping Docker containers..."
 	@docker compose down
+
+# drop the db volume and restart the containers
+docker-reset:
+	@echo "🔄 Resetting database..."
+	$(MAKE) docker-down
+	@docker volume rm pint-demo_db-data || true
+	$(MAKE) docker-up
 
 restart:
 	@echo "🐳 Restarting app container..."
