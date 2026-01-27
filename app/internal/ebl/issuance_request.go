@@ -54,10 +54,10 @@ type IssuanceRequest struct {
 	IssueTo json.RawMessage `json:"issueTo"`
 
 	// EBLVisualisationByCarrier is the optional Visualisation (e.g., PDF)
-	EBLVisualisationByCarrier *crypto.EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier,omitempty"`
+	EBLVisualisationByCarrier *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier,omitempty"`
 
 	// IssuanceManifestSignedContent is the JWS signature proving integrity
-	IssuanceManifestSignedContent crypto.IssuanceManifestSignedContent `json:"issuanceManifestSignedContent"`
+	IssuanceManifestSignedContent IssuanceManifestSignedContent `json:"issuanceManifestSignedContent"`
 }
 
 // CreateIssuanceRequest creates a complete DCSA IssuanceRequest ready to send to the API (PUT /v3/ebl-issuance-requests)
@@ -83,7 +83,7 @@ func CreateIssuanceRequest(
 	}
 
 	// Step 2: create metadata for the eBL Visualisation file if provided
-	var eBLVisualisationByCarrier *crypto.EBLVisualisationByCarrier
+	var eBLVisualisationByCarrier *EBLVisualisationByCarrier
 	if issuanceRequestInput.EBLVisualisationFilePath != "" {
 		v, err := loadEblVisualisationFile(issuanceRequestInput.EBLVisualisationFilePath)
 		if err != nil {
@@ -103,7 +103,7 @@ func CreateIssuanceRequest(
 	}
 
 	// Step 4: Build the issuanceManifest using the builder
-	builder := crypto.NewIssuanceManifestBuilder().
+	builder := NewIssuanceManifestBuilder().
 		WithDocument(issuanceRequestInput.Document).
 		WithIssueTo(issuanceRequestInput.IssueTo)
 
@@ -117,7 +117,7 @@ func CreateIssuanceRequest(
 	}
 
 	// Step 5: Generate key ID (thumbprint of public key) and sign the issuance manifest
-	var issuanceManifestSignedContent crypto.IssuanceManifestSignedContent
+	var issuanceManifestSignedContent IssuanceManifestSignedContent
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -164,7 +164,7 @@ func CreateIssuanceRequest(
 
 // loadEblVisualisationFile reads a file and creates an EBLVisualisationByCarrier.
 // TODO - move to a separate document.go file?
-func loadEblVisualisationFile(filePath string) (*crypto.EBLVisualisationByCarrier, error) {
+func loadEblVisualisationFile(filePath string) (*EBLVisualisationByCarrier, error) {
 	dir := filepath.Dir(filePath)
 	filename := filepath.Base(filePath)
 
@@ -186,7 +186,7 @@ func loadEblVisualisationFile(filePath string) (*crypto.EBLVisualisationByCarrie
 	// Base64 encode the content
 	encodedContent := base64.StdEncoding.EncodeToString(content)
 
-	return &crypto.EBLVisualisationByCarrier{
+	return &EBLVisualisationByCarrier{
 		Name:        filename,
 		ContentType: contentType,
 		Content:     encodedContent,

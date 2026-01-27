@@ -5,8 +5,6 @@ import (
 	"log"
 	"os"
 	"testing"
-
-	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // TestRecreateSampleEblEnvelope tests that we can recreate the sample ebl envelope in testdata/pint-transfers
@@ -51,7 +49,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 			}
 
 			// unmarshal the sample transfer chain entry to get the transport document checksum and CTR
-			sampleIssueEntry := &crypto.EnvelopeTransferChainEntry{}
+			sampleIssueEntry := &EnvelopeTransferChainEntry{}
 			if err := json.Unmarshal(issueData, sampleIssueEntry); err != nil {
 				t.Fatalf("failed to unmarshal sample transfer chain entry: %v", err)
 			}
@@ -63,7 +61,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 			}
 
 			// unmarshal the transfer chain entry
-			sampleTransferEntry := &crypto.EnvelopeTransferChainEntry{}
+			sampleTransferEntry := &EnvelopeTransferChainEntry{}
 			if err := json.Unmarshal(transferData, sampleTransferEntry); err != nil {
 				t.Fatalf("failed to unmarshal previous transfer chain entry: %v", err)
 			}
@@ -104,7 +102,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 				t.Fatalf("failed to read sample ebl envelope: %v", err)
 			}
 
-			sampleEblEnvelope := &crypto.EblEnvelope{}
+			sampleEblEnvelope := &EblEnvelope{}
 			if err := json.Unmarshal(sampleEblEnvelopeData, sampleEblEnvelope); err != nil {
 				t.Fatalf("failed to unmarshal sample ebl envelope: %v", err)
 			}
@@ -112,7 +110,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 			// recreate the ebl envelope using computed transfer chain entries and sample transport document and supporting documents
 			envelope, err := CreateEnvelopeTransfer(EnvelopeTransferInput{
 				TransportDocument: sampleEblEnvelope.TransportDocument,
-				EnvelopeTransferChain: []crypto.EnvelopeTransferChainEntrySignedContent{
+				EnvelopeTransferChain: []EnvelopeTransferChainEntrySignedContent{
 					signedIssueEntry,
 					signedTransferEntry,
 				},

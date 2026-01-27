@@ -1,4 +1,4 @@
-package crypto
+package ebl
 
 // issuance.go implements DCSA EBL_ISS specification for issuance manifests.
 //
@@ -26,6 +26,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // IssuanceManifest represents the DCSA IssuanceManifest structure
@@ -49,10 +51,10 @@ type IssuanceManifestSignedContent string
 // Validate checks that all required fields are present per DCSA EBL_ISS specification
 func (i *IssuanceManifest) Validate() error {
 	if i.DocumentChecksum == "" {
-		return NewValidationError("documentChecksum is required")
+		return NewIssuanceBadRequestError("documentChecksum is required")
 	}
 	if i.IssueToChecksum == "" {
-		return NewValidationError("issueToChecksum is required")
+		return NewIssuanceBadRequestError("issueToChecksum is required")
 	}
 	return nil
 }
@@ -87,13 +89,13 @@ type EBLVisualisationByCarrier struct {
 // Validate checks that all required fields are present per DCSA EBL_ISS specification
 func (e *EBLVisualisationByCarrier) Validate() error {
 	if e.Name == "" {
-		return NewValidationError("name is required")
+		return NewIssuanceBadRequestError("name is required")
 	}
 	if e.Content == "" {
-		return NewValidationError("content is required")
+		return NewIssuanceBadRequestError("content is required")
 	}
 	if e.ContentType == "" {
-		return NewValidationError("contentType is required")
+		return NewIssuanceBadRequestError("contentType is required")
 	}
 	return nil
 }
@@ -137,31 +139,31 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 
 	// Validate required fields
 	if len(b.documentJSON) == 0 {
-		return nil, NewValidationError("document is required")
+		return nil, NewIssuanceBadRequestError("document is required")
 	}
 	if len(b.issueToJSON) == 0 {
-		return nil, NewValidationError("issueTo is required")
+		return nil, NewIssuanceBadRequestError("issueTo is required")
 	}
 
 	// Canonicalize JSON documents
-	canonicalDocument, err := CanonicalizeJSON(b.documentJSON)
+	canonicalDocument, err := crypto.CanonicalizeJSON(b.documentJSON)
 	if err != nil {
-		return nil, WrapValidationError(err, "failed to canonicalize document")
+		return nil, WrapIssuanceBadRequestError(err, "failed to canonicalize document")
 	}
 
-	canonicalIssueTo, err := CanonicalizeJSON(b.issueToJSON)
+	canonicalIssueTo, err := crypto.CanonicalizeJSON(b.issueToJSON)
 	if err != nil {
-		return nil, WrapValidationError(err, "failed to canonicalize issueTo")
+		return nil, WrapIssuanceBadRequestError(err, "failed to canonicalize issueTo")
 	}
 
 	// Calculate SHA-256 checksums
-	documentChecksum, err := Hash(canonicalDocument)
+	documentChecksum, err := crypto.Hash(canonicalDocument)
 	if err != nil {
-		return nil, WrapInternalError(err, "failed to hash document")
+		return nil, WrapInternalError(err, "failed to crypto.Hash document")
 	}
-	issueToChecksum, err := Hash(canonicalIssueTo)
+	issueToChecksum, err := crypto.Hash(canonicalIssueTo)
 	if err != nil {
-		return nil, WrapInternalError(err, "failed to hash issueTo")
+		return nil, WrapInternalError(err, "failed to crypto.Hash issueTo")
 	}
 
 	// Create IssuanceManifest
@@ -173,18 +175,18 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 	// add eBL visualisation checksum
 	if b.eBLVisualisationByCarrier != nil {
 		if err := b.eBLVisualisationByCarrier.Validate(); err != nil {
-			return nil, WrapValidationError(err, "eBLVisualisationByCarrier")
+			return nil, crypto.WrapValidationError(err, "eBLVisualisationByCarrier")
 		}
 
 		// TODO check mime type is consistent with binary content?
 
 		// the checksum is calculated from the decoded binary content
-		visualisationChecksum, err := HashFromBase64(
+		visualisationChecksum, err := crypto.HashFromBase64(
 			b.eBLVisualisationByCarrier.Content,
-			MaxDocumentSize,
+			crypto.MaxDocumentSize,
 		)
 		if err != nil {
-			return nil, WrapValidationError(err, "failed to hash eBL visualisation")
+			return nil, crypto.WrapValidationError(err, "failed to crypto.Hash eBL visualisation")
 		}
 		issuanceManifest.EBLVisualisationByCarrierChecksum = &visualisationChecksum
 	}
@@ -203,8 +205,8 @@ func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, 
 		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithEd25519AndX5C)
-	jws, err := SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
+	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519AndX5C)
+	jws, err := crypto.SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
@@ -221,8 +223,8 @@ func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID 
 		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithEd25519)
-	jws, err := SignJSONWithEd25519(jsonBytes, privateKey, keyID)
+	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519)
+	jws, err := crypto.SignJSONWithEd25519(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
@@ -240,8 +242,8 @@ func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID s
 		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithRSAAndX5C)
-	jws, err := SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
+	// Sign (Canonicalization happens in crypto.SignJSONWithRSAAndX5C)
+	jws, err := crypto.SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
@@ -258,8 +260,8 @@ func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string)
 		return "", WrapInternalError(err, "failed to serialize to JSON")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithRSA)
-	jws, err := SignJSONWithRSA(jsonBytes, privateKey, keyID)
+	// Sign (Canonicalization happens in crypto.SignJSONWithRSA)
+	jws, err := crypto.SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}

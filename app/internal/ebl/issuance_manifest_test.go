@@ -1,4 +1,4 @@
-package crypto
+package ebl
 
 import (
 	"encoding/base64"

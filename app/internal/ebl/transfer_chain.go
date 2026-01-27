@@ -1,6 +1,6 @@
-package crypto
+package ebl
 
-// transfer_chain.go provides the low level function used to create and sign transfer chain entries.
+// transfer_chain.go provides the high level function used to create and sign transfer chain entries.
 //
 // The transfer chain represents the complete history of an eBL document, including issuance,
 // transfers, endorsements, and surrenders across different eBL platforms.
@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // EnvelopeTransferChainEntry represents a DCSA EnvelopeTransferChainEntry
@@ -49,13 +51,13 @@ type EnvelopeTransferChainEntry struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (e *EnvelopeTransferChainEntry) Validate() error {
 	if e.EblPlatform == "" {
-		return NewValidationError("eblPlatform is required")
+		return NewEnvelopeError("eblPlatform is required")
 	}
 	if e.TransportDocumentChecksum == "" {
-		return NewValidationError("transportDocumentChecksum is required")
+		return NewEnvelopeError("transportDocumentChecksum is required")
 	}
 	if len(e.Transactions) == 0 {
-		return NewValidationError("at least one transaction is required")
+		return NewEnvelopeError("at least one transaction is required")
 	}
 
 	// Validate first vs subsequent entry rules
@@ -63,11 +65,11 @@ func (e *EnvelopeTransferChainEntry) Validate() error {
 	hasPreviousEntry := e.PreviousEnvelopeTransferChainEntrySignedContentChecksum != nil
 
 	if hasIssuanceManifest && hasPreviousEntry {
-		return NewValidationError("entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum")
+		return NewEnvelopeError("entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum")
 	}
 
 	if !hasIssuanceManifest && !hasPreviousEntry {
-		return NewValidationError("entry must have either issuanceManifestSignedContent (first entry) or previousEnvelopeTransferChainEntrySignedContentChecksum (subsequent entry)")
+		return NewEnvelopeError("entry must have either issuanceManifestSignedContent (first entry) or previousEnvelopeTransferChainEntrySignedContentChecksum (subsequent entry)")
 	}
 
 	// First entry specific validation
@@ -76,7 +78,7 @@ func (e *EnvelopeTransferChainEntry) Validate() error {
 		if e.ControlTrackingRegistry != nil {
 			// Validate CTR URL format
 			if _, err := url.Parse(*e.ControlTrackingRegistry); err != nil {
-				return WrapValidationError(err, "invalid controlTrackingRegistry URL")
+				return WrapEnvelopeError(err, "invalid controlTrackingRegistry URL")
 			}
 		}
 	}
@@ -84,14 +86,14 @@ func (e *EnvelopeTransferChainEntry) Validate() error {
 	// Subsequent entry specific validation
 	if hasPreviousEntry {
 		if e.ControlTrackingRegistry != nil {
-			return NewValidationError("controlTrackingRegistry should only be present in first entry")
+			return NewEnvelopeError("controlTrackingRegistry should only be present in first entry")
 		}
 	}
 
 	// Validate each transaction
 	for i, tx := range e.Transactions {
 		if err := tx.Validate(); err != nil {
-			return WrapValidationError(err, fmt.Sprintf("transaction[%d]", i))
+			return WrapEnvelopeError(err, fmt.Sprintf("transaction[%d]", i))
 		}
 	}
 
@@ -130,18 +132,18 @@ type Transaction struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (t *Transaction) Validate() error {
 	if t.ActionCode == "" {
-		return NewValidationError("actionCode is required")
+		return NewEnvelopeError("actionCode is required")
 	}
 	if err := t.Actor.Validate(); err != nil {
-		return WrapValidationError(err, "actor")
+		return WrapEnvelopeError(err, "actor")
 	}
 	if t.ActionDateTime == "" {
-		return NewValidationError("actionDateTime is required")
+		return NewEnvelopeError("actionDateTime is required")
 	}
 	// Recipient is optional (e.g., for SIGN action code)
 	if t.Recipient != nil {
 		if err := t.Recipient.Validate(); err != nil {
-			return WrapValidationError(err, "recipient")
+			return WrapEnvelopeError(err, "recipient")
 		}
 	}
 	return nil
@@ -170,22 +172,22 @@ type ActorParty struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (a *ActorParty) Validate() error {
 	if a.PartyName == "" {
-		return NewValidationError("partyName is required")
+		return NewEnvelopeError("partyName is required")
 	}
 	if a.EblPlatform == "" {
-		return NewValidationError("eblPlatform is required")
+		return NewEnvelopeError("eblPlatform is required")
 	}
 	if len(a.IdentifyingCodes) == 0 {
-		return NewValidationError("at least one identifyingCode is required")
+		return NewEnvelopeError("at least one identifyingCode is required")
 	}
 	for i, code := range a.IdentifyingCodes {
 		if err := code.Validate(); err != nil {
-			return WrapValidationError(err, fmt.Sprintf("identifyingCodes[%d]", i))
+			return WrapEnvelopeError(err, fmt.Sprintf("identifyingCodes[%d]", i))
 		}
 	}
 	if a.RepresentedParty != nil {
 		if err := a.RepresentedParty.Validate(); err != nil {
-			return WrapValidationError(err, "representedParty")
+			return WrapEnvelopeError(err, "representedParty")
 		}
 	}
 	return nil
@@ -214,22 +216,22 @@ type RecipientParty struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (r *RecipientParty) Validate() error {
 	if r.PartyName == "" {
-		return NewValidationError("partyName is required")
+		return NewEnvelopeError("partyName is required")
 	}
 	if r.EblPlatform == "" {
-		return NewValidationError("eblPlatform is required")
+		return NewEnvelopeError("eblPlatform is required")
 	}
 	if len(r.IdentifyingCodes) == 0 {
-		return NewValidationError("at least one identifyingCode is required")
+		return NewEnvelopeError("at least one identifyingCode is required")
 	}
 	for i, code := range r.IdentifyingCodes {
 		if err := code.Validate(); err != nil {
-			return WrapValidationError(err, fmt.Sprintf("identifyingCodes[%d]", i))
+			return WrapEnvelopeError(err, fmt.Sprintf("identifyingCodes[%d]", i))
 		}
 	}
 	if r.RepresentedParty != nil {
 		if err := r.RepresentedParty.Validate(); err != nil {
-			return WrapValidationError(err, "representedParty")
+			return WrapEnvelopeError(err, "representedParty")
 		}
 	}
 	return nil
@@ -248,12 +250,12 @@ type RepresentedActorParty struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (r *RepresentedActorParty) Validate() error {
 	if r.PartyName == "" {
-		return NewValidationError("partyName is required")
+		return fmt.Errorf("partyName is required")
 	}
 	// IdentifyingCodes are optional for represented parties
 	for i, code := range r.IdentifyingCodes {
 		if err := code.Validate(); err != nil {
-			return WrapValidationError(err, fmt.Sprintf("identifyingCodes[%d]", i))
+			return fmt.Errorf("identifyingCodes[%d]: %w", i, err)
 		}
 	}
 	return nil
@@ -272,12 +274,12 @@ type RepresentedRecipientParty struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (r *RepresentedRecipientParty) Validate() error {
 	if r.PartyName == "" {
-		return NewValidationError("partyName is required")
+		return fmt.Errorf("partyName is required")
 	}
 	// IdentifyingCodes are optional for represented parties
 	for i, code := range r.IdentifyingCodes {
 		if err := code.Validate(); err != nil {
-			return WrapValidationError(err, fmt.Sprintf("identifyingCodes[%d]", i))
+			return fmt.Errorf("identifyingCodes[%d]: %w", i, err)
 		}
 	}
 	return nil
@@ -300,10 +302,10 @@ type IdentifyingCode struct {
 // Validate checks that all required fields are present per DCSA EBL_PINT specification
 func (i *IdentifyingCode) Validate() error {
 	if i.CodeListProvider == "" {
-		return NewValidationError("codeListProvider is required")
+		return fmt.Errorf("codeListProvider is required")
 	}
 	if i.PartyCode == "" {
-		return NewValidationError("partyCode is required")
+		return fmt.Errorf("partyCode is required")
 	}
 	return nil
 }
@@ -328,7 +330,7 @@ type TaxLegalReference struct {
 	Value string `json:"value"`
 }
 
-// SignWithEd25519AndX5C creates the envelopeTransferChainEntrySignedContent JWS string using Ed25519
+// SignWithEd25519AndX5C creates the EnvelopeTransferChainEntrySignedContent JWS string using Ed25519
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
 func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
@@ -337,8 +339,8 @@ func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.Pr
 		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithEd25519AndX5C)
-	jws, err := SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
+	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519AndX5C)
+	jws, err := crypto.SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
 	}
@@ -346,7 +348,7 @@ func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.Pr
 	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }
 
-// SignWithEd25519 creates the envelopeTransferChainEntrySignedContent JWS string using Ed25519 (no x5c header)
+// SignWithEd25519 creates the EnvelopeTransferChainEntrySignedContent JWS string using Ed25519 (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
 func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (EnvelopeTransferChainEntrySignedContent, error) {
@@ -355,8 +357,8 @@ func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateK
 		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithEd25519)
-	jws, err := SignJSONWithEd25519(jsonBytes, privateKey, keyID)
+	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519)
+	jws, err := crypto.SignJSONWithEd25519(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
 	}
@@ -364,7 +366,7 @@ func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateK
 	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }
 
-// SignWithRSAAndX5C creates the envelopeTransferChainEntrySignedContent JWS string using RSA
+// SignWithRSAAndX5C creates the EnvelopeTransferChainEntrySignedContent JWS string using RSA
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
 func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
@@ -373,8 +375,8 @@ func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKe
 		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithRSAAndX5C)
-	jws, err := SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
+	// Sign (Canonicalization happens in crypto.SignJSONWithRSAAndX5C)
+	jws, err := crypto.SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
 	}
@@ -382,7 +384,7 @@ func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKe
 	return EnvelopeTransferChainEntrySignedContent(jws), nil
 }
 
-// SignWithRSA creates the envelopeTransferChainEntrySignedContent JWS string using RSA (no x5c header)
+// SignWithRSA creates the EnvelopeTransferChainEntrySignedContent JWS string using RSA (no x5c header)
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
 func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (EnvelopeTransferChainEntrySignedContent, error) {
@@ -391,8 +393,8 @@ func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, key
 		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
 	}
 
-	// Sign (Canonicalization happens in SignJSONWithRSA)
-	jws, err := SignJSONWithRSA(jsonBytes, privateKey, keyID)
+	// Sign (Canonicalization happens in crypto.SignJSONWithRSA)
+	jws, err := crypto.SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
 	}
@@ -500,15 +502,15 @@ func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry
 
 	// check required builder fields
 	if b.transportDocumentChecksum == "" {
-		return nil, NewValidationError("transport document checksum is required - use WithTransportDocumentChecksum() or WithTransportDocument()")
+		return nil, NewInternalError("transport document checksum is required - use WithTransportDocumentChecksum() or WithTransportDocument()")
 	}
 
 	if b.eblPlatform == "" {
-		return nil, NewValidationError("eBL platform is required - use WithEBLPlatform()")
+		return nil, NewInternalError("eBL platform is required - use WithEBLPlatform()")
 	}
 
 	if len(b.transactions) == 0 {
-		return nil, NewValidationError("at least one transaction is required - use WithTransaction()")
+		return nil, NewInternalError("at least one transaction is required - use WithTransaction()")
 	}
 
 	// Build the entry using the pre-computed checksum
@@ -525,16 +527,16 @@ func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry
 	// Calculate and add previous entry checksum if provided
 	if b.previousEnvelopeTransferChainEntrySignedContent != "" {
 		// this is a checksum of the JWS string of the previous entry in the transfer chain.
-		prevChecksum, err := Hash([]byte(b.previousEnvelopeTransferChainEntrySignedContent))
+		prevChecksum, err := crypto.Hash([]byte(b.previousEnvelopeTransferChainEntrySignedContent))
 		if err != nil {
-			return nil, WrapInternalError(err, "failed to hash previous entry")
+			return nil, WrapInternalError(err, "failed to crypto.Hash previous entry")
 		}
 		entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum = &prevChecksum
 	}
 
 	// Validate the final entry (this will check first/subsequent entry rules)
 	if err := entry.Validate(); err != nil {
-		return nil, WrapValidationError(err, "invalid transfer chain entry")
+		return nil, WrapEnvelopeError(err, "invalid transfer chain entry")
 	}
 
 	return entry, nil

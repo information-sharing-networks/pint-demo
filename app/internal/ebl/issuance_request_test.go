@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
-
-	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // sanity check to confirm we can correctly recreate the manually computed signatures and
@@ -25,10 +23,10 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 	// unmarshal the sample issuance request - we will use the document and issueTo JSON as the basis for our new record
 	// the other fields are recreated and compared to ensure we got the same result.
 	var sampleIssuanceRequest struct {
-		Document                      json.RawMessage                   `json:"document"`
-		IssueTo                       json.RawMessage                   `json:"issueTo"`
-		EBLVisualisationByCarrier     *crypto.EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
-		IssuanceManifestSignedContent string                            `json:"issuanceManifestSignedContent"`
+		Document                      json.RawMessage            `json:"document"`
+		IssueTo                       json.RawMessage            `json:"issueTo"`
+		EBLVisualisationByCarrier     *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string                     `json:"issuanceManifestSignedContent"`
 	}
 
 	err = json.Unmarshal(data, &sampleIssuanceRequest)
@@ -94,10 +92,10 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	}
 
 	var sampleIssuanceRequest struct {
-		Document                      json.RawMessage                   `json:"document"`
-		IssueTo                       json.RawMessage                   `json:"issueTo"`
-		EBLVisualisationByCarrier     *crypto.EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
-		IssuanceManifestSignedContent string                            `json:"issuanceManifestSignedContent"`
+		Document                      json.RawMessage            `json:"document"`
+		IssueTo                       json.RawMessage            `json:"issueTo"`
+		EBLVisualisationByCarrier     *EBLVisualisationByCarrier `json:"eBLVisualisationByCarrier"`
+		IssuanceManifestSignedContent string                     `json:"issuanceManifestSignedContent"`
 	}
 
 	err = json.Unmarshal(data, &sampleIssuanceRequest)

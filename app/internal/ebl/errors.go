@@ -17,6 +17,15 @@ const (
 
 	// ErrCodeEnvelope indicates envelope integrity, validation, or processing failures.
 	ErrCodeEnvelope ErrorCode = "BENV" // bad envelope
+
+	// ErrCodeIssuanceBadRequest indicates that the issuance request is invalid.
+	ErrCodeIssuanceBadRequest ErrorCode = "BREQ"
+
+	// ErrCodeIssuanceRefused indicates that the issuance request is valid but the eBL platform cannot issue the eBL.
+	ErrCodeIssuanceRefused ErrorCode = "REFU"
+
+	// ErrCodeInternal indicates internal processing failures.
+	ErrCodeInternal ErrorCode = "INT" // internal error
 )
 
 // EblError represents a structured error from the ebl package.
@@ -81,4 +90,29 @@ func NewEnvelopeError(msg string) error {
 // Maps to DCSA "BENV" (Bad Envelope) response code.
 func WrapEnvelopeError(err error, msg string) error {
 	return &EblError{code: ErrCodeEnvelope, message: msg, wrapped: err}
+}
+
+// NewIssuanceBadRequestError creates an issuance bad request error.
+func NewIssuanceBadRequestError(msg string) error {
+	return &EblError{code: ErrCodeIssuanceBadRequest, message: msg}
+}
+
+// WrapIssuanceBadRequestError wraps an existing error as an issuance bad request error.
+func WrapIssuanceBadRequestError(err error, msg string) error {
+	return &EblError{code: ErrCodeIssuanceBadRequest, message: msg, wrapped: err}
+}
+
+// NewIssuanceRefusedError creates an issuance refused error.
+func NewIssuanceRefusedError(msg string) error {
+	return &EblError{code: ErrCodeIssuanceRefused, message: msg}
+}
+
+// NewInternalError creates an internal error for unexpected failures.
+func NewInternalError(msg string) error {
+	return &EblError{code: ErrCodeInternal, message: msg}
+}
+
+// WrapInternalError wraps an existing error as an internal error.
+func WrapInternalError(err error, msg string) error {
+	return &EblError{code: ErrCodeInternal, message: msg, wrapped: err}
 }

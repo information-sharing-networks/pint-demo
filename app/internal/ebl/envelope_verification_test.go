@@ -57,7 +57,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 				t.Fatalf("Failed to read test envelope: %v", err)
 			}
 
-			var envelope crypto.EblEnvelope
+			var envelope EblEnvelope
 			if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
 				t.Fatalf("Failed to parse envelope: %v", err)
 			}
@@ -164,7 +164,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		tamperEnvelope  func(*crypto.EblEnvelope) error
+		tamperEnvelope  func(*EblEnvelope) error
 		publicKeyPath   string
 		domain          string
 		useWrongCAPath  bool
@@ -182,14 +182,14 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "tampered envelope manifest - signature invalid",
-			tamperEnvelope: func(env *crypto.EblEnvelope) error {
+			tamperEnvelope: func(env *EblEnvelope) error {
 				// Modify the manifest JWS by replacing the payload
 				parts := strings.Split(string(env.EnvelopeManifestSignedContent), ".")
 				if len(parts) != 3 {
 					return fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
 				}
 				parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"tampered": "data"}`))
-				env.EnvelopeManifestSignedContent = crypto.EnvelopeManifestSignedContent(strings.Join(parts, "."))
+				env.EnvelopeManifestSignedContent = EnvelopeManifestSignedContent(strings.Join(parts, "."))
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
@@ -209,7 +209,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		// Envelope integrity errors
 		{
 			name: "tampered transfer chain entry signature",
-			tamperEnvelope: func(env *crypto.EblEnvelope) error {
+			tamperEnvelope: func(env *EblEnvelope) error {
 				if len(env.EnvelopeTransferChain) == 0 {
 					return fmt.Errorf("empty transfer chain")
 				}
@@ -221,7 +221,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
 				}
 				parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"tampered": "data"}`))
-				env.EnvelopeTransferChain[lastIdx] = crypto.EnvelopeTransferChainEntrySignedContent(strings.Join(parts, "."))
+				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(strings.Join(parts, "."))
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
@@ -232,7 +232,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "tampered transport document",
-			tamperEnvelope: func(env *crypto.EblEnvelope) error {
+			tamperEnvelope: func(env *EblEnvelope) error {
 				env.TransportDocument = json.RawMessage(`{"tampered": "data"}`)
 				return nil
 			},
@@ -244,8 +244,8 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "empty transfer chain",
-			tamperEnvelope: func(env *crypto.EblEnvelope) error {
-				env.EnvelopeTransferChain = []crypto.EnvelopeTransferChainEntrySignedContent{}
+			tamperEnvelope: func(env *EblEnvelope) error {
+				env.EnvelopeTransferChain = []EnvelopeTransferChainEntrySignedContent{}
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
@@ -264,7 +264,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				t.Fatalf("Failed to read test envelope: %v", err)
 			}
 
-			var envelope crypto.EblEnvelope
+			var envelope EblEnvelope
 			if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
 				t.Fatalf("Failed to parse envelope: %v", err)
 			}
@@ -387,7 +387,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	// Replace the second entry with the broken one
-	envelope.EnvelopeTransferChain[1] = crypto.EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+	envelope.EnvelopeTransferChain[1] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
 
 	// Update the manifest to point to the new (broken) second entry
 	// This ensures the manifest checksum matches, but the chain link is broken
@@ -396,7 +396,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		t.Fatalf("failed to marshal transport document: %v", err)
 	}
 
-	envelopeManifest, err := crypto.NewEnvelopeManifestBuilder().
+	envelopeManifest, err := NewEnvelopeManifestBuilder().
 		WithTransportDocument(transportDocJSON).
 		WithLastTransferChainEntry(envelope.EnvelopeTransferChain[1]).
 		Build()
@@ -479,7 +479,7 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("failed to marshal transport document: %v", err)
 	}
 
-	envelopeManifest, err := crypto.NewEnvelopeManifestBuilder().
+	envelopeManifest, err := NewEnvelopeManifestBuilder().
 		WithTransportDocument(transportDocJSON).
 		WithLastTransferChainEntry(envelope.EnvelopeTransferChain[0]). // should be [1]
 		Build()
@@ -528,13 +528,13 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 }
 
 // loadValidTestEnvelope loads the valid test envelope from the test data file
-func loadValidTestEnvelope() (*crypto.EblEnvelope, error) {
+func loadValidTestEnvelope() (*EblEnvelope, error) {
 	envelopeBytes, err := os.ReadFile(validEnvelopePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read envelope file: %w", err)
 	}
 
-	var envelope crypto.EblEnvelope
+	var envelope EblEnvelope
 	if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
 		return nil, fmt.Errorf("failed to parse envelope: %w", err)
 	}

@@ -1,10 +1,12 @@
-package crypto
+package ebl
 
 import (
 	"crypto/ed25519"
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // createTestEntry creates a minimal valid transfer chain entry for testing
@@ -34,12 +36,12 @@ func createTestEntry() *EnvelopeTransferChainEntry {
 // TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C tests the core signing functionality
 // This is the MAIN test - it verifies that transfer chain entries can be signed and verified
 func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../crypto/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-carrier.example.com-fullchain.crt")
+	certChain, err := crypto.ReadCertChainFromPEMFile("../crypto/testdata/certs/ed25519-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
@@ -60,21 +62,21 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 
 	// check the signature can be verified
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	payload, err := VerifyEd25519(string(jws), publicKey)
+	payload, err := crypto.VerifyEd25519(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
 
 	// Verify payload matches original entry (after canonicalization)
 	originalJSON, _ := json.Marshal(entry)
-	canonicalOriginal, _ := CanonicalizeJSON(originalJSON)
+	canonicalOriginal, _ := crypto.CanonicalizeJSON(originalJSON)
 
 	if string(payload) != string(canonicalOriginal) {
 		t.Error("Verified payload does not match original canonical entry")
 	}
 
 	// Verify x5c header is present
-	extractedCerts, err := ParseX5CFromJWS(string(jws))
+	extractedCerts, err := crypto.ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse x5c from JWS: %v", err)
 	}
@@ -93,7 +95,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithEd25519 tests signing without x5c
 func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../crypto/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -114,21 +116,21 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 
 	// Verify the signature
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	payload, err := VerifyEd25519(string(jws), publicKey)
+	payload, err := crypto.VerifyEd25519(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
 
 	// Verify payload matches original
 	originalJSON, _ := json.Marshal(entry)
-	canonicalOriginal, _ := CanonicalizeJSON(originalJSON)
+	canonicalOriginal, _ := crypto.CanonicalizeJSON(originalJSON)
 
 	if string(payload) != string(canonicalOriginal) {
 		t.Error("Verified payload does not match original canonical entry")
 	}
 
 	// Verify NO x5c header
-	extractedCerts, err := ParseX5CFromJWS(string(jws))
+	extractedCerts, err := crypto.ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse JWS: %v", err)
 	}
@@ -140,12 +142,12 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithRSAAndX5C tests signing with RSA and x5c
 func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys/rsa-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../crypto/testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-carrier.example.com-fullchain.crt")
+	certChain, err := crypto.ReadCertChainFromPEMFile("../crypto/testdata/certs/rsa-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
@@ -166,21 +168,21 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 
 	// Verify the signature
 	publicKey := &privateKey.PublicKey
-	payload, err := VerifyRSA(string(jws), publicKey)
+	payload, err := crypto.VerifyRSA(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
 
 	// Verify payload matches original entry (after canonicalization)
 	originalJSON, _ := json.Marshal(entry)
-	canonicalOriginal, _ := CanonicalizeJSON(originalJSON)
+	canonicalOriginal, _ := crypto.CanonicalizeJSON(originalJSON)
 
 	if string(payload) != string(canonicalOriginal) {
 		t.Error("Verified payload does not match original canonical entry")
 	}
 
 	// Verify x5c header is present
-	extractedCerts, err := ParseX5CFromJWS(string(jws))
+	extractedCerts, err := crypto.ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse x5c from JWS: %v", err)
 	}
@@ -199,7 +201,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 
 // TestEnvelopeTransferChainEntry_SignWithRSA tests signing without x5c
 func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
-	privateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys/rsa-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../crypto/testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -220,21 +222,21 @@ func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
 
 	// Verify the signature
 	publicKey := &privateKey.PublicKey
-	payload, err := VerifyRSA(string(jws), publicKey)
+	payload, err := crypto.VerifyRSA(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
 
 	// Verify payload matches original entry (after canonicalization)
 	originalJSON, _ := json.Marshal(entry)
-	canonicalOriginal, _ := CanonicalizeJSON(originalJSON)
+	canonicalOriginal, _ := crypto.CanonicalizeJSON(originalJSON)
 
 	if string(payload) != string(canonicalOriginal) {
 		t.Error("Verified payload does not match original canonical entry")
 	}
 
 	// Verify NO x5c header
-	extractedCerts, err := ParseX5CFromJWS(string(jws))
+	extractedCerts, err := crypto.ParseX5CFromJWS(string(jws))
 	if err != nil {
 		t.Fatalf("Failed to parse JWS: %v", err)
 	}
@@ -393,7 +395,7 @@ func TestTransaction_Validate(t *testing.T) {
 			}
 			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
 				// Check if error message contains the expected substring
-				if !contains(err.Error(), tt.errMsg) {
+				if !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Transaction.Validate() error = %v, want error containing %v", err, tt.errMsg)
 				}
 			}
@@ -556,7 +558,7 @@ func TestActorParty_Validate(t *testing.T) {
 				t.Errorf("ActorParty.Validate() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if err != nil && tt.errMsg != "" && !contains(err.Error(), tt.errMsg) {
+			if err != nil && tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 				t.Errorf("ActorParty.Validate() error = %v, want error containing %v", err, tt.errMsg)
 			}
 		})
@@ -688,7 +690,7 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() expected error but got none")
-				} else if !contains(err.Error(), tt.errMsg) {
+				} else if !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Validate() error = %q, want to contain %q", err.Error(), tt.errMsg)
 				}
 			} else {
@@ -729,13 +731,13 @@ var (
 
 // computeTestChecksum computes the SHA-256 checksum of canonical JSON for testing
 func computeTestChecksum(jsonData []byte) string {
-	canonical, err := CanonicalizeJSON(jsonData)
+	canonical, err := crypto.CanonicalizeJSON(jsonData)
 	if err != nil {
 		panic("failed to canonicalize test data: " + err.Error())
 	}
-	checksum, err := Hash(canonical)
+	checksum, err := crypto.Hash(canonical)
 	if err != nil {
-		panic("failed to hash test data: " + err.Error())
+		panic("failed to crypto.Hash test data: " + err.Error())
 	}
 	return checksum
 }
@@ -790,7 +792,7 @@ func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
 	}
 
 	// Verify previous entry checksum is correct
-	expectedChecksum, _ := Hash([]byte(testPreviousEntryJWS))
+	expectedChecksum, _ := crypto.Hash([]byte(testPreviousEntryJWS))
 	if *entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != expectedChecksum {
 		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum mismatch")
 	}

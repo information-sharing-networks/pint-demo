@@ -4,12 +4,12 @@ package handlers
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 
-	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
@@ -19,17 +19,27 @@ import (
 
 // StartTransferHandler handles POST /v3/envelopes requests
 type StartTransferHandler struct {
-	queries    *database.Queries
-	keyManager *pint.KeyManager
-	signingKey any // ed25519.PrivateKey or *rsa.PrivateKey
+	queries        *database.Queries
+	keyManager     *pint.KeyManager
+	signingKey     any                 // ed25519.PrivateKey or *rsa.PrivateKey
+	x5cCertChain   []*x509.Certificate // X.509 certificate chain for signing (optional)
+	x5cCustomRoots *x509.CertPool      // Custom root CAs for x5c verification (optional, nil = system roots)
 }
 
 // NewStartTransferHandler creates a new handler for starting envelope transfers
-func NewStartTransferHandler(queries *database.Queries, keyManager *pint.KeyManager, signingKey any) *StartTransferHandler {
+func NewStartTransferHandler(
+	queries *database.Queries,
+	keyManager *pint.KeyManager,
+	signingKey any,
+	x5cCertChain []*x509.Certificate,
+	x5cCustomRoots *x509.CertPool,
+) *StartTransferHandler {
 	return &StartTransferHandler{
-		queries:    queries,
-		keyManager: keyManager,
-		signingKey: signingKey,
+		queries:        queries,
+		keyManager:     keyManager,
+		signingKey:     signingKey,
+		x5cCertChain:   x5cCertChain,
+		x5cCustomRoots: x5cCustomRoots,
 	}
 }
 
@@ -48,7 +58,7 @@ func (h *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	reqLogger := logger.ContextRequestLogger(ctx)
 
 	// Step 1: Parse request body
-	var envelope crypto.EblEnvelope
+	var envelope ebl.EblEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
 		reqLogger.Warn("Failed to decode envelope",
 			slog.String("error", err.Error()),
@@ -76,7 +86,7 @@ func (h *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 //lint:ignore U1000 TODO
 func (h *StartTransferHandler) verifyEnvelope(
 	ctx context.Context,
-	envelope *crypto.EblEnvelope,
+	envelope *ebl.EblEnvelope,
 ) (*ebl.EnvelopeVerificationResult, error) {
 	// TODO: Implement
 	// 1. Get sender's public key (from JWKS endpoint or local store)
@@ -107,7 +117,7 @@ func (h *StartTransferHandler) checkDuplicate(
 //lint:ignore U1000 TODO
 func (h *StartTransferHandler) persistEnvelope(
 	ctx context.Context,
-	envelope *crypto.EblEnvelope,
+	envelope *ebl.EblEnvelope,
 	verificationResult *ebl.EnvelopeVerificationResult,
 ) (*database.Envelope, error) {
 	// TODO: Implement

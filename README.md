@@ -19,11 +19,39 @@ To run the app you need to install:
 
 #### 1. create a .env file in the root of the project:
 ```bash
-SIGNING_KEY_PATH="internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-MANUAL_KEYS_DIR="internal/crypto/testdata/keys"
+# Path to CSV file containing the registry of all approved eBL PINT participants
 REGISTRY_PATH="internal/crypto/testdata/platform-registry/eblsolutionproviders.csv"
+
+# Path to private key JWK file used for signing PINT messages
+SIGNING_KEY_PATH="internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+
+# Directory containing manually configured public keys from other PINT participants in JWK format
+# The keymanager will load any public key in the directory that has a matching kid in the registry
+# (other keys will be ignored).
+# Supported file extensions: .jwk, .jwks, .jwks.json
+# The keymanager expects one key per file.
+MANUAL_KEYS_DIR="internal/crypto/testdata/keys"
+
+# DCSA Code of the platform this instance represents (from the registry)
 PLATFORM_CODE="EBL1"
+
+# Path to X.509 certificate(s) in PEM format (optional)
+# When set, certificate(s) are included in the JWS x5c header for non-repudiation purposes
+# Can be a single leaf certificate or a full chain (leaf + intermediates)
+# The leaf certificate's public key must match the private key at SIGNING_KEY_PATH
+X5C_CERT_PATH="internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+
+# Path to custom root CA certificate(s) in PEM format (optional)
+# Use this when certificates are issued by a private PKI
+# Leave unset to validate against system root CAs
+# Note: if specifying a custom root, all participants in the PINT network must share the same root CA
+# x5c headers from other participants will be validated against this root CA
+X5C_CUSTOM_ROOTS_PATH="internal/crypto/testdata/certs/root-ca.crt"
+
+// docker db 
+DATABASE_URL=${DATABASE_URL:-postgres://pint-dev:@db:5432/pint_demo?sslmode=disable}
 ```
+
 
 #### 2. Start the development environment:
    ```bash
@@ -39,13 +67,13 @@ PLATFORM_CODE="EBL1"
    - Start the app container (pint-receiver service) on http://localhost:8080
   
 
-you can override defaults configs by setting environment variables when you start the server, e.g.
+you can override default configs by setting environment variables when you start the server, e.g.
 
 ```bash
-SKIP_JWK_CACHE=false make docker-up                 # Set true to disable JWK caching
-PORT=8081 make docker-up                            # server port (default is 8080)
-LOG_LEVEL=info make docker-up                       # debug, info, warn, error (default is debug)
-MIN_TRUST_LEVEL=2                                   # 1=EV/OV, 2=DV, 3=NoX5C (defaults to the 1, the highest trust level)
+SKIP_JWK_CACHE=true make docker-up    # Set true to disable JWK caching
+PORT=8081 make docker-up              # server port (default is 8080)
+LOG_LEVEL=info make docker-up         # debug, info, warn, error (default is debug)
+MIN_TRUST_LEVEL=2  make docker-up     # 1=EV/OV, 2=DV, 3=NoX5C (defaults to the 1)
 ```
 Other configs have sensible defaults (see `app/internal/server/config/config.go` for the full list).
 
@@ -113,6 +141,9 @@ DCSA do not specify which algorithms should be used for signing. This implementa
 ## Validation
 This app implements all the cryptographic validation steps recommended in the DCSA *Digital Signatures Implementation Guide*. It only does basic validation of the transport document JSON - schema validation is not implemented.
 
+# Signing keys
+DCSA does not specify which algorithms should be used for signing. This implementation supports both Ed25519 and RSA (Ed25519 is recommended for new implementations).
+
 ## Project Layout
 ```
 pint-demo/
@@ -154,10 +185,23 @@ the output files are:
 - `eblplatform.example.com.private.pem`  (for creating Certificate Signing Request to send to your Certificate Authority)
 - `eblplatform.example.com.public.pem`   (included for completeness and used in testing)
 
+Note the pub key files are provided for convenience - you just need the signing private key and the server will make the correspoding public key available via the JWKS endpoint.
+
+## x5c certificates
+As explained above including an x5c certificate chain in the eBL JWS signatures is optional, but recommended for non-repudiation purposes (EV or OV certs are recommended for production).
+
+If you want to include x5c, you will need to create a certificate for the PINT platform and have it signed by a Certificate Authority (CA).
+You must use your eBL platform signing private key to sign the certificate request, since the public key in the certificate must match the key pair used by platform to sign the JWS.
+
+this app does not support cert generation, but some certs are provided in `app/internal/crypto/testdata/certs` for testing purposes.
+
+all certs are expected to be X.509 in PEM format.
+
 # Usage
 the `ebl` package provides high-level functions that can be use to create *PINT Transfers* (EBL_PINT_v3.0.0). There is also a basic implemenation of DCSA *eBL Issuance Requests*  (EBL_ISS_v3.0.2) to help create end-2-end demos.
 
 These functions show the overall logic of creating and validating requsests. The low level functions used to do the actual cryptographic operations are in  `crypto`  (see below).
+
 
 ### Creating an Issuance Request 
 To create an initial issuance request that is sent from the carrier to the ebl platform (`PUT /v3/ebl-issuance-requests`), use the `CreateIssuanceRequest` function.

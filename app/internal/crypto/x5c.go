@@ -181,6 +181,25 @@ func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 	return ParseCertificateChain(pemData)
 }
 
+// LoadCustomRootCAs loads custom root CAs from a PEM file into a cert pool.
+func LoadCustomRootCAs(path string) (*x509.CertPool, error) {
+	if path == "" {
+		return nil, fmt.Errorf("nil custom roots path received")
+	}
+
+	certs, err := ReadCertChainFromPEMFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	pool := x509.NewCertPool()
+	for _, cert := range certs {
+		pool.AddCert(cert)
+	}
+
+	return pool, nil
+}
+
 // ValidateX5CMatchesKey validates that the x5c certificate chain's public
 // key matches the signing key received from the sending platform's JWKS
 // endpoint or stored certificate.

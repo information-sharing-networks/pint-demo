@@ -44,7 +44,7 @@ type EnvelopeTransferInput struct {
 
 	// EnvelopeTransferChain is the complete ordered list of signed transfer chain entries
 	// This must include at least one entry (the first entry with ISSUE transaction)
-	EnvelopeTransferChain []crypto.EnvelopeTransferChainEntrySignedContent
+	EnvelopeTransferChain []EnvelopeTransferChainEntrySignedContent
 
 	// EBLVisualizationFilePath is the optional path to the eBL visualization file (e.g., PDF)
 	// If provided, the file will be read, checksummed, and metadata included in the envelope manifest
@@ -74,7 +74,7 @@ func CreateEnvelopeTransfer(
 	input EnvelopeTransferInput,
 	privateKeyJWKPath string,
 	certChainFilePath string,
-) (*crypto.EblEnvelope, error) {
+) (*EblEnvelope, error) {
 
 	// Step 1: Validate input
 	if len(input.TransportDocument) == 0 {
@@ -91,7 +91,7 @@ func CreateEnvelopeTransfer(
 	}
 
 	// Step 3: Load optional eBL visualization file and create metadata
-	var eblVisualizationMetadata *crypto.DocumentMetadata
+	var eblVisualizationMetadata *DocumentMetadata
 	if input.EBLVisualizationFilePath != "" {
 		metadata, err := loadDocumentMetadata(input.EBLVisualizationFilePath)
 		if err != nil {
@@ -101,9 +101,9 @@ func CreateEnvelopeTransfer(
 	}
 
 	// Step 4: Load optional supporting documents and create metadata
-	var supportingDocumentsMetadata []crypto.DocumentMetadata
+	var supportingDocumentsMetadata []DocumentMetadata
 	if len(input.SupportingDocumentFilePaths) > 0 {
-		supportingDocumentsMetadata = make([]crypto.DocumentMetadata, 0, len(input.SupportingDocumentFilePaths))
+		supportingDocumentsMetadata = make([]DocumentMetadata, 0, len(input.SupportingDocumentFilePaths))
 		for i, filePath := range input.SupportingDocumentFilePaths {
 			metadata, err := loadDocumentMetadata(filePath)
 			if err != nil {
@@ -127,7 +127,7 @@ func CreateEnvelopeTransfer(
 	lastTransferChainEntry := input.EnvelopeTransferChain[len(input.EnvelopeTransferChain)-1]
 
 	// Step 7: Build the envelope manifest using the builder
-	manifestBuilder := crypto.NewEnvelopeManifestBuilder().
+	manifestBuilder := NewEnvelopeManifestBuilder().
 		WithTransportDocument(input.TransportDocument).
 		WithLastTransferChainEntry(lastTransferChainEntry)
 
@@ -145,7 +145,7 @@ func CreateEnvelopeTransfer(
 	}
 
 	// Step 8: Sign the envelope manifest with the platform's private key
-	var envelopeManifestSignedContent crypto.EnvelopeManifestSignedContent
+	var envelopeManifestSignedContent EnvelopeManifestSignedContent
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -183,7 +183,7 @@ func CreateEnvelopeTransfer(
 	}
 
 	// Step 9: Build the complete EblEnvelope using the builder
-	envelope, err := crypto.NewEblEnvelopeBuilder().
+	envelope, err := NewEblEnvelopeBuilder().
 		WithTransportDocument(input.TransportDocument).
 		WithEnvelopeManifestSignedContent(envelopeManifestSignedContent).
 		WithEnvelopeTransferChain(input.EnvelopeTransferChain).
@@ -198,7 +198,7 @@ func CreateEnvelopeTransfer(
 
 // loadDocumentMetadata reads a file and creates DocumentMetadata with checksum.
 // This is used for both eBL visualization and supporting documents.
-func loadDocumentMetadata(filePath string) (*crypto.DocumentMetadata, error) {
+func loadDocumentMetadata(filePath string) (*DocumentMetadata, error) {
 	dir := filepath.Dir(filePath)
 	filename := filepath.Base(filePath)
 
@@ -223,7 +223,7 @@ func loadDocumentMetadata(filePath string) (*crypto.DocumentMetadata, error) {
 		return nil, WrapEnvelopeError(err, "failed to calculate checksum")
 	}
 
-	return &crypto.DocumentMetadata{
+	return &DocumentMetadata{
 		Name:             filename,
 		Size:             int64(len(content)),
 		MediaType:        contentType,
@@ -276,17 +276,17 @@ type TransferChainEntryInput struct {
 	IsFirstEntry bool
 
 	// IssuanceManifestSignedContent is required for the first entry only
-	IssuanceManifestSignedContent *crypto.IssuanceManifestSignedContent
+	IssuanceManifestSignedContent *IssuanceManifestSignedContent
 
 	// ControlTrackingRegistry is optional and only for the first entry
 	// Example: "https://ctr.dcsa.org/v1"
 	ControlTrackingRegistry *string
 
 	// PreviousEnvelopeTransferChainEntrySignedContent is required for subsequent entries (not first entry)
-	PreviousEnvelopeTransferChainEntrySignedContent crypto.EnvelopeTransferChainEntrySignedContent
+	PreviousEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
 
 	// Transactions is the list of transactions for this entry (at least one required)
-	Transactions []crypto.Transaction
+	Transactions []Transaction
 }
 
 // CreateTransferChainEntry creates and signs a transfer chain entry.
@@ -303,7 +303,7 @@ func CreateTransferChainEntry(
 	input TransferChainEntryInput,
 	privateKeyJWKPath string,
 	certChainFilePath string,
-) (crypto.EnvelopeTransferChainEntrySignedContent, error) {
+) (EnvelopeTransferChainEntrySignedContent, error) {
 
 	// Step 1: Validate input
 	if input.TransportDocumentChecksum == "" {
@@ -353,16 +353,16 @@ func CreateTransferChainEntry(
 	}
 
 	// Step 4: Build the transfer chain entry using the builder
-	var builder *crypto.EnvelopeTransferChainEntryBuilder
+	var builder *EnvelopeTransferChainEntryBuilder
 
 	if input.IsFirstEntry {
-		builder = crypto.NewFirstEnvelopeTransferChainEntryBuilder(*input.IssuanceManifestSignedContent)
+		builder = NewFirstEnvelopeTransferChainEntryBuilder(*input.IssuanceManifestSignedContent)
 		// if provided, CTR is only included in the first entry.
 		if input.ControlTrackingRegistry != nil {
 			builder.WithControlTrackingRegistry(*input.ControlTrackingRegistry)
 		}
 	} else {
-		builder = crypto.NewSubsequentEnvelopeTransferChainEntryBuilder(input.PreviousEnvelopeTransferChainEntrySignedContent)
+		builder = NewSubsequentEnvelopeTransferChainEntryBuilder(input.PreviousEnvelopeTransferChainEntrySignedContent)
 	}
 
 	entry, err := builder.
@@ -376,7 +376,7 @@ func CreateTransferChainEntry(
 	}
 
 	// Step 5: Sign the transfer chain entry with the platform's private key
-	var signedContent crypto.EnvelopeTransferChainEntrySignedContent
+	var signedContent EnvelopeTransferChainEntrySignedContent
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -421,8 +421,8 @@ func CreateTransferChainEntry(
 // Parameters:
 //   - actor: The party performing the transfer (must be on the sending platform)
 //   - recipient: The party receiving the transfer (may be on a different platform)
-func CreateTransferTransaction(actor crypto.ActorParty, recipient crypto.RecipientParty) crypto.Transaction {
-	return crypto.Transaction{
+func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
 		ActionCode:     "TRANSFER",
 		Actor:          actor,
 		Recipient:      &recipient,
@@ -435,8 +435,8 @@ func CreateTransferTransaction(actor crypto.ActorParty, recipient crypto.Recipie
 // This is used in the first transfer chain entry when the carrier issues the eBL.
 //
 // Returns a Transaction ready to include in the first transfer chain entry.
-func CreateIssueTransaction(actor crypto.ActorParty, recipient crypto.RecipientParty) crypto.Transaction {
-	return crypto.Transaction{
+func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
 		ActionCode:     "ISSUE",
 		Actor:          actor,
 		Recipient:      &recipient,
@@ -449,8 +449,8 @@ func CreateIssueTransaction(actor crypto.ActorParty, recipient crypto.RecipientP
 // This is used when a party endorses the eBL to another party.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateEndorseTransaction(actor crypto.ActorParty, recipient crypto.RecipientParty) crypto.Transaction {
-	return crypto.Transaction{
+func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
 		ActionCode:     "ENDORSE",
 		Actor:          actor,
 		Recipient:      &recipient,
@@ -463,8 +463,8 @@ func CreateEndorseTransaction(actor crypto.ActorParty, recipient crypto.Recipien
 // This is used when a party signs the eBL while in their possession (no recipient).
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateSignTransaction(actor crypto.ActorParty) crypto.Transaction {
-	return crypto.Transaction{
+func CreateSignTransaction(actor ActorParty) Transaction {
+	return Transaction{
 		ActionCode:     "SIGN",
 		Actor:          actor,
 		Recipient:      nil, // SIGN transactions don't have a recipient

@@ -1,7 +1,9 @@
 // types.go defines the PINT API request and response types according to DCSA EBL_PINT 3.0.0 specification.
 package pint
 
-import "github.com/information-sharing-networks/pint-demo/app/internal/crypto"
+import (
+	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
+)
 
 // EnvelopeTransferStartedResponse is returned when an envelope transfer is initiated (201 Created).
 //
@@ -54,7 +56,7 @@ type EnvelopeTransferFinishedResponse struct {
 	// chain entry from the previously accepted envelope transfer.
 	// Only present when ResponseCode is DUPE.
 	// Optional
-	DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent *crypto.EnvelopeTransferChainEntrySignedContent `json:"duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent,omitempty"`
+	DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent *ebl.EnvelopeTransferChainEntrySignedContent `json:"duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent,omitempty"`
 
 	// Reason is a free-text comment clarifying the result or suggesting follow-up actions.
 	// Should be omitted when ResponseCode is RECE.

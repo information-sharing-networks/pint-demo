@@ -8,6 +8,9 @@ import (
 )
 
 // Environment variables with defaults
+//
+// NOTE: When adding new environment variables, you must also add them to docker-compose.yml
+// in the app service's environment section, otherwise they won't be passed to the container.
 type ServerEnvironment struct {
 
 	// http server settings
@@ -39,12 +42,35 @@ type ServerEnvironment struct {
 	JWKCacheMaxRefresh  time.Duration `env:"JWK_CACHE_MAX_REFRESH,default=12h"`
 	JWKCacheHTTPTimeout time.Duration `env:"JWK_CACHE_HTTP_TIMEOUT,default=30s"`
 
-	// Required PINT configuration - must be set by environment variables
-	RegistryPath   string `env:"REGISTRY_PATH,required=true"`
-	ManualKeysDir  string `env:"MANUAL_KEYS_DIR,required=true"`
+	// **Required configuration - the following environment variables and must be set at start up**
+
+	DatabaseURL string `env:"DATABASE_URL,required=true"`
+
+	// Path to CSV file containing the registry of all approved eBL PINT participants
+	RegistryPath string `env:"REGISTRY_PATH,required=true"`
+
+	// The keymanager will load any public key in this directory that has a matching kid in the registry
+	// other keys will be ignored.
+	// Supported file extensions: .jwk, .jwks, .jwks.json
+	// The keymanager expects one key per file.
+	ManualKeysDir string `env:"MANUAL_KEYS_DIR,required=true"`
+
+	// Path to the private JWK file used to sign eBL documents - Ed25519 or RSA keys are supported
 	SigningKeyPath string `env:"SIGNING_KEY_PATH,required=true"`
-	PlatformCode   string `env:"PLATFORM_CODE,required=true"`
-	DatabaseURL    string `env:"DATABASE_URL,required=true"`
+
+	// DCSA issued 4 char platform code
+	PlatformCode string `env:"PLATFORM_CODE,required=true"`
+
+	// Path to X.509 certificate(s) in PEM format (optional)
+	// When set, certificate(s) are included in the JWS x5c header for non-repudiation purposes
+	// Can be a single leaf certificate or a full chain (leaf + intermediates)
+	// The leaf certificate's public key must match the private key at SIGNING_KEY_PATH
+	X5CCertPath string `env:"X5C_CERT_PATH"`
+
+	// Path to custom root CA certificate(s) in PEM format (optional)
+	// Use this when x5c certificates are issued by a private PKI
+	// Leave unset to validate against system root CAs
+	X5CCustomRootsPath string `env:"X5C_CUSTOM_ROOTS_PATH"`
 }
 
 var validEnvs = map[string]bool{
@@ -93,6 +119,15 @@ func validateConfig(cfg *ServerEnvironment) error {
 
 	if cfg.MinTrustLevel < 1 || cfg.MinTrustLevel > 3 {
 		return fmt.Errorf("MIN_TRUST_LEVEL must be between 1 and 3, got %d", cfg.MinTrustLevel)
+	}
+
+	// TODO - this rule says participants using custom root CAs must also use x5c headers
+	// (ie it is assumed the particpants in a private PKI require reciprical trust and must operate at trust-level 1 or 2)
+	// .. but we don't have a similar rule for public CAs (allowing the particpants to select their trust level)
+	// is this correct?
+	if cfg.X5CCustomRootsPath != "" && cfg.X5CCertPath == "" {
+		return fmt.Errorf("X5C_CUSTOM_ROOTS_PATH requires X5C_CERT_PATH: " +
+			"platforms using custom root CAs must provide their own x5c certificate chain")
 	}
 
 	return nil

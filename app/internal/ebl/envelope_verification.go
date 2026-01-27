@@ -54,7 +54,7 @@ import (
 type EnvelopeVerificationInput struct {
 
 	// Envelope is the complete eBL Envelope received from POST /v3/envelopes
-	Envelope *crypto.EblEnvelope
+	Envelope *EblEnvelope
 
 	// RootCAs is the root CA pool for certificate validation
 	// nil = use system roots (typically used for production), custom pool = testing/private CA
@@ -87,20 +87,20 @@ type EnvelopeVerificationInput struct {
 type EnvelopeVerificationResult struct {
 
 	// Manifest is the verified EnvelopeManifest extracted from envelope.envelopeManifestSignedContent
-	Manifest *crypto.EnvelopeManifest
+	Manifest *EnvelopeManifest
 
 	// TransferChain contains all verified transfer chain entries in order (first to last)
 	// This provides the complete history of the eBL from issuance to current state.
 	// The caller needs this to build the next transfer (must include entire chain + new entry)
-	TransferChain []*crypto.EnvelopeTransferChainEntry
+	TransferChain []*EnvelopeTransferChainEntry
 
 	// FirstTransferChainEntry is a convenience pointer to the first entry in TransferChain
 	// This entry contains the IssuanceManifestSignedContent from the carrier
-	FirstTransferChainEntry *crypto.EnvelopeTransferChainEntry
+	FirstTransferChainEntry *EnvelopeTransferChainEntry
 
 	// LastTransferChainEntry is a convenience pointer to the last entry in TransferChain
 	// This entry contains the most recent transactions and current holder information
-	LastTransferChainEntry *crypto.EnvelopeTransferChainEntry
+	LastTransferChainEntry *EnvelopeTransferChainEntry
 
 	// TransportDocumentChecksum is the checksum of the transport document
 	TransportDocumentChecksum string
@@ -169,7 +169,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	result.TrustLevel = trustLevel
 
 	// Step 5: Parse and validate the manifest payload
-	manifest := &crypto.EnvelopeManifest{}
+	manifest := &EnvelopeManifest{}
 	if err := json.Unmarshal(manifestPayload, manifest); err != nil {
 		return nil, WrapSignatureError(err, "failed to parse manifest payload")
 	}
@@ -269,7 +269,7 @@ func verifyTransportDocumentChecksum(
 // The issueToChecksum is inlcuded in the issuance manifest as part of the carrier-signed audit trail.
 // Subsequent platforms can use the ISSUE transaction RecipientParty if they need to know the original issueTo.
 func verifyIssuanceManifest(
-	firstEntry *crypto.EnvelopeTransferChainEntry,
+	firstEntry *EnvelopeTransferChainEntry,
 	carrierPublicKey any,
 	rootCAs *x509.CertPool,
 ) error {
@@ -294,7 +294,7 @@ func verifyIssuanceManifest(
 	}
 
 	// Step 2: Parse the IssuanceManifest payload
-	issuanceManifest := &crypto.IssuanceManifest{}
+	issuanceManifest := &IssuanceManifest{}
 	if err := json.Unmarshal(issuanceManifestPayload, issuanceManifest); err != nil {
 		return WrapEnvelopeError(err, "failed to parse issuance manifest payload")
 	}
@@ -324,11 +324,11 @@ func verifyIssuanceManifest(
 //
 // Returns all verified transfer chain entries in order (first to last) and the checksum of the last entry
 func verifyEnvelopeTransferChain(
-	envelopeTransferChain []crypto.EnvelopeTransferChainEntrySignedContent,
-	manifest *crypto.EnvelopeManifest,
+	envelopeTransferChain []EnvelopeTransferChainEntrySignedContent,
+	manifest *EnvelopeManifest,
 	publicKey any,
 	rootCAs *x509.CertPool,
-) ([]*crypto.EnvelopeTransferChainEntry, string, error) {
+) ([]*EnvelopeTransferChainEntry, string, error) {
 
 	if len(envelopeTransferChain) == 0 {
 		return nil, "", NewEnvelopeError("transfer chain is empty")
@@ -348,7 +348,7 @@ func verifyEnvelopeTransferChain(
 
 	// Step 2: verify the chain and collect all entries
 	// We allocate the slice with the exact size needed
-	allEntries := make([]*crypto.EnvelopeTransferChainEntry, len(envelopeTransferChain))
+	allEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
 
 	// Start from the last entry and work backwards
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
@@ -365,7 +365,7 @@ func verifyEnvelopeTransferChain(
 		}
 
 		// Parse the entry payload
-		var currentEntry crypto.EnvelopeTransferChainEntry
+		var currentEntry EnvelopeTransferChainEntry
 		if err := json.Unmarshal(currentPayloadBytes, &currentEntry); err != nil {
 			return nil, "", WrapEnvelopeError(err, fmt.Sprintf("failed to parse entry %d payload", i))
 		}
