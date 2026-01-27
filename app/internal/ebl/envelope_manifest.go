@@ -215,81 +215,41 @@ func (b *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 	return manifest, nil
 }
 
-// SignWithEd25519AndX5C creates the envelopeManifestSignedContent JWS string with x5c headers using Ed25519
+// Sign creates the envelopeManifestSignedContent JWS string.
+//
+// The privateKey can be either ed25519.PrivateKey or *rsa.PrivateKey.
+// If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
+func (m *EnvelopeManifest) Sign(privateKey any, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
+	// Marshal to JSON
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		return "", WrapInternalError(err, "failed to marshal envelope manifest")
-
 	}
 
-	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519AndX5C)
-	jws, err := crypto.SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign manifest")
+	// Determine signing function based on key type and cert chain
+	var jws string
+
+	switch key := privateKey.(type) {
+	case ed25519.PrivateKey:
+		if len(certChain) > 0 {
+			jws, err = crypto.SignJSONWithEd25519AndX5C(jsonBytes, key, keyID, certChain)
+		} else {
+			jws, err = crypto.SignJSONWithEd25519(jsonBytes, key, keyID)
+		}
+
+	case *rsa.PrivateKey:
+		if len(certChain) > 0 {
+			jws, err = crypto.SignJSONWithRSAAndX5C(jsonBytes, key, keyID, certChain)
+		} else {
+			jws, err = crypto.SignJSONWithRSA(jsonBytes, key, keyID)
+		}
+
+	default:
+		return "", NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
-	return EnvelopeManifestSignedContent(jws), nil
-}
-
-// SignWithEd25519 creates the envelopeManifestSignedContent JWS string using Ed25519 (no x5c header)
-//
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (EnvelopeManifestSignedContent, error) {
-
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to marshal envelope manifest")
-
-	}
-
-	// canonicalize the JSON
-	canonicalJSON, err := crypto.CanonicalizeJSON(jsonBytes)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to canonicalize envelope manifest")
-	}
-
-	jws, err := crypto.SignJSONWithEd25519(canonicalJSON, privateKey, keyID)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign manifest")
-	}
-
-	return EnvelopeManifestSignedContent(jws), nil
-}
-
-// SignWithRSAAndX5C creates the envelopeManifestSignedContent JWS string with x5c headers using RSA
-//
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to marshal envelope manifest")
-
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithRSAAndX5C)
-	jws, err := crypto.SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign manifest")
-	}
-
-	return EnvelopeManifestSignedContent(jws), nil
-}
-
-// SignWithRSA creates the envelopeManifestSignedContent JWS string using RSA (no x5c header)
-//
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (m *EnvelopeManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (EnvelopeManifestSignedContent, error) {
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to marshal envelope manifest")
-
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithRSA)
-	jws, err := crypto.SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}

@@ -48,8 +48,8 @@ X5C_CERT_PATH="internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fu
 # x5c headers from other participants will be validated against this root CA
 X5C_CUSTOM_ROOTS_PATH="internal/crypto/testdata/certs/root-ca.crt"
 
-// docker db 
-DATABASE_URL=${DATABASE_URL:-postgres://pint-dev:@db:5432/pint_demo?sslmode=disable}
+# Database connection string (docker db container for dev)
+DATABASE_URL="postgres://pint-dev:@db:5432/pint_demo?sslmode=disable"
 ```
 
 
@@ -159,7 +159,8 @@ pint-demo/
    │   │   ├── crypto/                        # JWS signing/verification, key management
    │   │   │── database/                      # SQLC generated code
    │   │   │── ebl/                           # eBL creation/verification
-   │       ├── logger/                        # logging
+   │   │   │── issuance/                      # Issuance API handlers
+   │   │   ├── logger/                        # logging
    │   │   │── pint/                          # PINT API handlers
    │   │   └── server/                        # HTTP server
    │   ├── sql/
@@ -185,7 +186,7 @@ the output files are:
 - `eblplatform.example.com.private.pem`  (for creating Certificate Signing Request to send to your Certificate Authority)
 - `eblplatform.example.com.public.pem`   (included for completeness and used in testing)
 
-Note the pub key files are provided for convenience - you just need the signing private key and the server will make the correspoding public key available via the JWKS endpoint.
+Note the pub key files are provided for convenience - when starting the server, you just need to specify the private key used for signatures and the server will make the correspoding public key available via the JWKS endpoint.
 
 ## x5c certificates
 As explained above including an x5c certificate chain in the eBL JWS signatures is optional, but recommended for non-repudiation purposes (EV or OV certs are recommended for production).

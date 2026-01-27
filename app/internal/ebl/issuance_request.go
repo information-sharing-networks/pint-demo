@@ -117,38 +117,27 @@ func CreateIssuanceRequest(
 	}
 
 	// Step 5: Generate key ID (thumbprint of public key) and sign the issuance manifest
-	var issuanceManifestSignedContent IssuanceManifestSignedContent
 	var keyID string
 
 	switch key := privateKey.(type) {
 	case ed25519.PrivateKey:
-
 		publicKey := key.Public().(ed25519.PublicKey)
 		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
 		if err != nil {
 			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
-		if len(certChain) > 0 {
-			issuanceManifestSignedContent, err = issuanceManifest.SignWithEd25519AndX5C(key, keyID, certChain)
-		} else {
-			issuanceManifestSignedContent, err = issuanceManifest.SignWithEd25519(key, keyID)
-		}
 	case *rsa.PrivateKey:
-
 		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
 			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
-		if len(certChain) > 0 {
-			issuanceManifestSignedContent, err = issuanceManifest.SignWithRSAAndX5C(key, keyID, certChain)
-		} else {
-			issuanceManifestSignedContent, err = issuanceManifest.SignWithRSA(key, keyID)
-		}
 	default:
 		return nil, NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
+
+	issuanceManifestSignedContent, err := issuanceManifest.Sign(privateKey, keyID, certChain)
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to sign issuance manifest")
 	}

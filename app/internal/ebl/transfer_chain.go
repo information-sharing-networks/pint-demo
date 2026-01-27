@@ -330,73 +330,43 @@ type TaxLegalReference struct {
 	Value string `json:"value"`
 }
 
-// SignWithEd25519AndX5C creates the EnvelopeTransferChainEntrySignedContent JWS string using Ed25519
+// Sign creates the EnvelopeTransferChainEntrySignedContent JWS string.
+//
+// The privateKey can be either ed25519.PrivateKey or *rsa.PrivateKey.
+// If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
+func (e *EnvelopeTransferChainEntry) Sign(privateKey any, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
+	// Marshal to JSON
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
+		return "", WrapInternalError(err, "failed to marshal transfer chain entry")
 	}
 
-	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519AndX5C)
-	jws, err := crypto.SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
+	// Determine signing function based on key type and cert chain
+	var jws string
+
+	switch key := privateKey.(type) {
+	case ed25519.PrivateKey:
+		if len(certChain) > 0 {
+			jws, err = crypto.SignJSONWithEd25519AndX5C(jsonBytes, key, keyID, certChain)
+		} else {
+			jws, err = crypto.SignJSONWithEd25519(jsonBytes, key, keyID)
+		}
+
+	case *rsa.PrivateKey:
+		if len(certChain) > 0 {
+			jws, err = crypto.SignJSONWithRSAAndX5C(jsonBytes, key, keyID, certChain)
+		} else {
+			jws, err = crypto.SignJSONWithRSA(jsonBytes, key, keyID)
+		}
+
+	default:
+		return "", NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
-	return EnvelopeTransferChainEntrySignedContent(jws), nil
-}
-
-// SignWithEd25519 creates the EnvelopeTransferChainEntrySignedContent JWS string using Ed25519 (no x5c header)
-//
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (EnvelopeTransferChainEntrySignedContent, error) {
-	jsonBytes, err := json.Marshal(e)
 	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519)
-	jws, err := crypto.SignJSONWithEd25519(jsonBytes, privateKey, keyID)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
-	}
-
-	return EnvelopeTransferChainEntrySignedContent(jws), nil
-}
-
-// SignWithRSAAndX5C creates the EnvelopeTransferChainEntrySignedContent JWS string using RSA
-//
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
-	jsonBytes, err := json.Marshal(e)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithRSAAndX5C)
-	jws, err := crypto.SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
-	}
-
-	return EnvelopeTransferChainEntrySignedContent(jws), nil
-}
-
-// SignWithRSA creates the EnvelopeTransferChainEntrySignedContent JWS string using RSA (no x5c header)
-//
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (EnvelopeTransferChainEntrySignedContent, error) {
-	jsonBytes, err := json.Marshal(e)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize envelope transfer chain entry")
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithRSA)
-	jws, err := crypto.SignJSONWithRSA(jsonBytes, privateKey, keyID)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign envelope transfer chain entry")
+		return "", WrapSignatureError(err, "failed to sign transfer chain entry")
 	}
 
 	return EnvelopeTransferChainEntrySignedContent(jws), nil

@@ -144,8 +144,7 @@ func CreateEnvelopeTransfer(
 		return nil, WrapEnvelopeError(err, "failed to build envelope manifest")
 	}
 
-	// Step 8: Sign the envelope manifest with the platform's private key
-	var envelopeManifestSignedContent EnvelopeManifestSignedContent
+	// Step 8: Generate key ID and sign the envelope manifest with the platform's private key
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -156,28 +155,17 @@ func CreateEnvelopeTransfer(
 			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
-		if len(certChain) > 0 {
-			envelopeManifestSignedContent, err = envelopeManifest.SignWithEd25519AndX5C(key, keyID, certChain)
-		} else {
-			envelopeManifestSignedContent, err = envelopeManifest.SignWithEd25519(key, keyID)
-		}
-
 	case *rsa.PrivateKey:
 		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
 			return nil, WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
-		if len(certChain) > 0 {
-			envelopeManifestSignedContent, err = envelopeManifest.SignWithRSAAndX5C(key, keyID, certChain)
-		} else {
-			envelopeManifestSignedContent, err = envelopeManifest.SignWithRSA(key, keyID)
-		}
-
 	default:
 		return nil, NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
+	envelopeManifestSignedContent, err := envelopeManifest.Sign(privateKey, keyID, certChain)
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to sign envelope manifest")
 	}
@@ -375,8 +363,7 @@ func CreateTransferChainEntry(
 		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
 	}
 
-	// Step 5: Sign the transfer chain entry with the platform's private key
-	var signedContent EnvelopeTransferChainEntrySignedContent
+	// Step 5: Generate key ID and sign the transfer chain entry with the platform's private key
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -387,28 +374,17 @@ func CreateTransferChainEntry(
 			return "", WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
-		if len(certChain) > 0 {
-			signedContent, err = entry.SignWithEd25519AndX5C(key, keyID, certChain)
-		} else {
-			signedContent, err = entry.SignWithEd25519(key, keyID)
-		}
-
 	case *rsa.PrivateKey:
 		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
 		if err != nil {
 			return "", WrapEnvelopeError(err, "failed to generate key ID")
 		}
 
-		if len(certChain) > 0 {
-			signedContent, err = entry.SignWithRSAAndX5C(key, keyID, certChain)
-		} else {
-			signedContent, err = entry.SignWithRSA(key, keyID)
-		}
-
 	default:
 		return "", NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
+	signedContent, err := entry.Sign(privateKey, keyID, certChain)
 	if err != nil {
 		return "", WrapEnvelopeError(err, "failed to sign transfer chain entry")
 	}

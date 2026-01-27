@@ -33,9 +33,9 @@ func createTestEntry() *EnvelopeTransferChainEntry {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C tests the core signing functionality
+// TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C tests the core signing functionality
 // This is the MAIN test - it verifies that transfer chain entries can be signed and verified
-func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
+func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../crypto/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
@@ -49,7 +49,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 	entry := createTestEntry()
 
 	// Sign with x5c
-	jws, err := entry.SignWithEd25519AndX5C(privateKey, "testkid", certChain)
+	jws, err := entry.Sign(privateKey, "testkid", certChain)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}
@@ -93,8 +93,8 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519AndX5C(t *testing.T) {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_SignWithEd25519 tests signing without x5c
-func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
+// TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C tests signing without x5c
+func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../crypto/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
@@ -103,7 +103,7 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 	entry := createTestEntry()
 
 	// Sign without x5c
-	jws, err := entry.SignWithEd25519(privateKey, "testkid")
+	jws, err := entry.Sign(privateKey, "testkid", nil)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}
@@ -140,8 +140,8 @@ func TestEnvelopeTransferChainEntry_SignWithEd25519(t *testing.T) {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_SignWithRSAAndX5C tests signing with RSA and x5c
-func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
+// TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C tests signing with RSA and x5c
+func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../crypto/testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
@@ -155,7 +155,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 	entry := createTestEntry()
 
 	// Sign with x5c
-	jws, err := entry.SignWithRSAAndX5C(privateKey, "testkid", certChain)
+	jws, err := entry.Sign(privateKey, "testkid", certChain)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}
@@ -199,8 +199,8 @@ func TestEnvelopeTransferChainEntry_SignWithRSAAndX5C(t *testing.T) {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_SignWithRSA tests signing without x5c
-func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
+// TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C tests signing without x5c
+func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../crypto/testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
@@ -209,7 +209,7 @@ func TestEnvelopeTransferChainEntry_SignWithRSA(t *testing.T) {
 	entry := createTestEntry()
 
 	// Sign without x5c
-	jws, err := entry.SignWithRSA(privateKey, "testkid")
+	jws, err := entry.Sign(privateKey, "testkid", nil)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}

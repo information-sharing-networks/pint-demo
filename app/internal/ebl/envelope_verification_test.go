@@ -404,7 +404,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		t.Fatalf("failed to create envelope manifest: %v", err)
 	}
 
-	envelopeManifestJWS, err := envelopeManifest.SignWithEd25519AndX5C(privateKey, keyID, certChain)
+	envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, keyID, certChain)
 	if err != nil {
 		t.Fatalf("failed to sign envelope manifest: %v", err)
 	}
@@ -487,7 +487,7 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("failed to create envelope manifest: %v", err)
 	}
 
-	envelopeManifestJWS, err := envelopeManifest.SignWithEd25519AndX5C(privateKey, keyID, certChain)
+	envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, keyID, certChain)
 	if err != nil {
 		t.Fatalf("failed to sign envelope manifest: %v", err)
 	}

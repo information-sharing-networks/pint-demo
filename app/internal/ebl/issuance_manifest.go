@@ -26,6 +26,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
@@ -194,74 +195,41 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 	return issuanceManifest, nil
 }
 
-// SignWithEd25519AndX5C creates the issuanceManifestSignedContent JWS string using Ed25519
+// Sign creates the issuanceManifestSignedContent JWS string.
+//
+// The privateKey can be either ed25519.PrivateKey or *rsa.PrivateKey.
+// If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithEd25519AndX5C(privateKey ed25519.PrivateKey, keyID string, certChain []*x509.Certificate) (IssuanceManifestSignedContent, error) {
-
-	// serialize to JSON
+func (m *IssuanceManifest) Sign(privateKey any, keyID string, certChain []*x509.Certificate) (IssuanceManifestSignedContent, error) {
+	// Marshal to JSON
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize to JSON")
+		return "", WrapInternalError(err, "failed to marshal issuance manifest")
 	}
 
-	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519AndX5C)
-	jws, err := crypto.SignJSONWithEd25519AndX5C(jsonBytes, privateKey, keyID, certChain)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign manifest")
+	// Determine signing function based on key type and cert chain
+	var jws string
+
+	switch key := privateKey.(type) {
+	case ed25519.PrivateKey:
+		if len(certChain) > 0 {
+			jws, err = crypto.SignJSONWithEd25519AndX5C(jsonBytes, key, keyID, certChain)
+		} else {
+			jws, err = crypto.SignJSONWithEd25519(jsonBytes, key, keyID)
+		}
+
+	case *rsa.PrivateKey:
+		if len(certChain) > 0 {
+			jws, err = crypto.SignJSONWithRSAAndX5C(jsonBytes, key, keyID, certChain)
+		} else {
+			jws, err = crypto.SignJSONWithRSA(jsonBytes, key, keyID)
+		}
+
+	default:
+		return "", NewIssuanceBadRequestError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
 	}
 
-	return IssuanceManifestSignedContent(jws), nil
-}
-
-// SignWithEd25519 creates the issuanceManifestSignedContent JWS string using Ed25519 (no x5c header)
-//
-// Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithEd25519(privateKey ed25519.PrivateKey, keyID string) (IssuanceManifestSignedContent, error) {
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize to JSON")
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithEd25519)
-	jws, err := crypto.SignJSONWithEd25519(jsonBytes, privateKey, keyID)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign manifest")
-	}
-
-	return IssuanceManifestSignedContent(jws), nil
-}
-
-// SignWithRSAAndX5C creates the issuanceManifestSignedContent JWS string using RSA
-//
-// Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithRSAAndX5C(privateKey *rsa.PrivateKey, keyID string, certChain []*x509.Certificate) (IssuanceManifestSignedContent, error) {
-
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize to JSON")
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithRSAAndX5C)
-	jws, err := crypto.SignJSONWithRSAAndX5C(jsonBytes, privateKey, keyID, certChain)
-	if err != nil {
-		return "", WrapSignatureError(err, "failed to sign manifest")
-	}
-
-	return IssuanceManifestSignedContent(jws), nil
-}
-
-// SignWithRSA creates the issuanceManifestSignedContent JWS string using RSA (no x5c header)
-//
-// Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
-func (m *IssuanceManifest) SignWithRSA(privateKey *rsa.PrivateKey, keyID string) (IssuanceManifestSignedContent, error) {
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		return "", WrapInternalError(err, "failed to serialize to JSON")
-	}
-
-	// Sign (Canonicalization happens in crypto.SignJSONWithRSA)
-	jws, err := crypto.SignJSONWithRSA(jsonBytes, privateKey, keyID)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}
