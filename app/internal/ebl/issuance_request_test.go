@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // sanity check to confirm we can correctly recreate the manually computed signatures and
@@ -41,10 +43,21 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 		EBLVisualisationFilePath: eBLVisualisationPath,
 	}
 
+	// Load the private key and certificate chain
+	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("failed to load private key: %v", err)
+	}
+
+	certChain, err := crypto.ReadCertChainFromPEMFile(certPath)
+	if err != nil {
+		t.Fatalf("failed to load certificate chain: %v", err)
+	}
+
 	newIssuanceRequest, err := CreateIssuanceRequest(
 		newIssuanceRequestInput,
-		privateKeyPath,
-		certPath,
+		privateKey,
+		certChain,
 	)
 
 	if err != nil {
@@ -86,6 +99,16 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 	certPath := "../crypto/testdata/certs/rsa-carrier.example.com-fullchain.crt"
 	VisualisationPath := "../crypto/testdata/transport-documents/HHL71800000.pdf"
 
+	// Load the private key and certificate chain
+	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("failed to load private key: %v", err)
+	}
+
+	certChain, err := crypto.ReadCertChainFromPEMFile(certPath)
+	if err != nil {
+		t.Fatalf("failed to load certificate chain: %v", err)
+	}
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
 		t.Fatalf("could not open %s: %v", sampleRecordPath, err)
@@ -112,8 +135,8 @@ func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 
 	newIssuanceRequest, err := CreateIssuanceRequest(
 		newIssuanceRequestInput,
-		privateKeyPath,
-		certPath,
+		privateKey,
+		certChain,
 	)
 
 	if err != nil {

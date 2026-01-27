@@ -62,27 +62,21 @@ type IssuanceRequest struct {
 
 // CreateIssuanceRequest creates a complete DCSA IssuanceRequest ready to send to the API (PUT /v3/ebl-issuance-requests)
 //
-// The signing algorithm is automatically detected from the private key type in the JWK file.
+// The signing algorithm is automatically detected from the private key type (ed25519.PrivateKey or *rsa.PrivateKey).
 //
-// Parameters
+// Parameters:
 //   - input: The data for the issuance request (document, issueTo, [optional] path to Visualisation)
-//   - privateKeyJWKPath: Path to the carrier's private key JWK file (Ed25519 or RSA)
-//   - certChainFilePath: Optional path to the carrier's X.509 certificate chain file (PEM format). Pass empty string if not needed.
+//   - privateKey: The carrier's private key (ed25519.PrivateKey or *rsa.PrivateKey)
+//   - certChain: Optional X.509 certificate chain. Pass nil if not needed.
 //
-// using a cert chain file that contains an EV or OV certificate is recommended for production (used for non-repudiation)
+// Using a cert chain with an EV or OV certificate is recommended for production (used for non-repudiation)
 func CreateIssuanceRequest(
 	issuanceRequestInput IssuanceRequestInput,
-	privateKeyJWKPath string,
-	certChainFilePath string,
+	privateKey any,
+	certChain []*x509.Certificate,
 ) (*IssuanceRequest, error) {
 
-	// Step 1: Load the private key from JWK file (auto-detects Ed25519 or RSA)
-	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to load private key from %s", privateKeyJWKPath))
-	}
-
-	// Step 2: create metadata for the eBL Visualisation file if provided
+	// Step 1: Create metadata for the eBL Visualisation file if provided
 	var eBLVisualisationByCarrier *EBLVisualisationByCarrier
 	if issuanceRequestInput.EBLVisualisationFilePath != "" {
 		v, err := loadEblVisualisationFile(issuanceRequestInput.EBLVisualisationFilePath)
@@ -92,17 +86,7 @@ func CreateIssuanceRequest(
 		eBLVisualisationByCarrier = v
 	}
 
-	// Step 3: Load the certificate chain if provided
-	var certChain []*x509.Certificate
-	if certChainFilePath != "" {
-		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to load certificate chain")
-		}
-		certChain = chain
-	}
-
-	// Step 4: Build the issuanceManifest using the builder
+	// Step 2: Build the issuanceManifest using the builder
 	builder := NewIssuanceManifestBuilder().
 		WithDocument(issuanceRequestInput.Document).
 		WithIssueTo(issuanceRequestInput.IssueTo)
@@ -116,7 +100,7 @@ func CreateIssuanceRequest(
 		return nil, WrapEnvelopeError(err, "failed to build issuance manifest")
 	}
 
-	// Step 5: Generate key ID (thumbprint of public key) and sign the issuance manifest
+	// Step 3: Generate key ID (thumbprint of public key) and sign the issuance manifest
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -142,7 +126,7 @@ func CreateIssuanceRequest(
 		return nil, WrapEnvelopeError(err, "failed to sign issuance manifest")
 	}
 
-	// Step 6: Assemble the complete IssuanceRequest
+	// Step 4: Assemble the complete IssuanceRequest
 	return &IssuanceRequest{
 		Document:                      issuanceRequestInput.Document,
 		IssueTo:                       issuanceRequestInput.IssueTo,

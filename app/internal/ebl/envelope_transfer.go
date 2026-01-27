@@ -60,20 +60,20 @@ type EnvelopeTransferInput struct {
 
 // CreateEnvelopeTransfer creates a complete DCSA EblEnvelope ready to send to POST /v3/envelopes
 //
-// The signing algorithm is automatically detected from the private key type in the JWK file.
+// The signing algorithm is automatically detected from the private key type (ed25519.PrivateKey or *rsa.PrivateKey).
 //
 // Parameters:
 //   - input: The data for the envelope transfer (transport document, transfer chain, optional document metadata)
-//   - privateKeyJWKPath: Path to the sending platform's private key JWK file (Ed25519 or RSA)
-//   - certChainFilePath: Optional path to the platform's X.509 certificate chain file (PEM format). Pass empty string if not needed.
+//   - privateKey: The sending platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
+//   - certChain: Optional X.509 certificate chain. Pass nil if not needed.
 //
-// Using a cert chain file that contains an EV or OV certificate is recommended for production (used for non-repudiation)
+// Using a cert chain with an EV or OV certificate is recommended for production (used for non-repudiation)
 //
 // Returns the complete EblEnvelope ready to be JSON-marshaled and sent to POST /v3/envelopes
 func CreateEnvelopeTransfer(
 	input EnvelopeTransferInput,
-	privateKeyJWKPath string,
-	certChainFilePath string,
+	privateKey any,
+	certChain []*x509.Certificate,
 ) (*EblEnvelope, error) {
 
 	// Step 1: Validate input
@@ -84,13 +84,7 @@ func CreateEnvelopeTransfer(
 		return nil, NewEnvelopeError("envelope transfer chain must contain at least one entry")
 	}
 
-	// Step 2: Load the private key from JWK file (auto-detects Ed25519 or RSA)
-	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to load private key from %s", privateKeyJWKPath))
-	}
-
-	// Step 3: Load optional eBL visualization file and create metadata
+	// Step 2: Load optional eBL visualization file and create metadata
 	var eblVisualizationMetadata *DocumentMetadata
 	if input.EBLVisualizationFilePath != "" {
 		metadata, err := loadDocumentMetadata(input.EBLVisualizationFilePath)
@@ -100,7 +94,7 @@ func CreateEnvelopeTransfer(
 		eblVisualizationMetadata = metadata
 	}
 
-	// Step 4: Load optional supporting documents and create metadata
+	// Step 3: Load optional supporting documents and create metadata
 	var supportingDocumentsMetadata []DocumentMetadata
 	if len(input.SupportingDocumentFilePaths) > 0 {
 		supportingDocumentsMetadata = make([]DocumentMetadata, 0, len(input.SupportingDocumentFilePaths))
@@ -113,20 +107,10 @@ func CreateEnvelopeTransfer(
 		}
 	}
 
-	// Step 5: Load the certificate chain if provided
-	var certChain []*x509.Certificate
-	if certChainFilePath != "" {
-		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to load certificate chain")
-		}
-		certChain = chain
-	}
-
-	// Step 6: Get the last entry in the transfer chain (required for envelope manifest)
+	// Step 4: Get the last entry in the transfer chain (required for envelope manifest)
 	lastTransferChainEntry := input.EnvelopeTransferChain[len(input.EnvelopeTransferChain)-1]
 
-	// Step 7: Build the envelope manifest using the builder
+	// Step 5: Build the envelope manifest using the builder
 	manifestBuilder := NewEnvelopeManifestBuilder().
 		WithTransportDocument(input.TransportDocument).
 		WithLastTransferChainEntry(lastTransferChainEntry)
@@ -144,7 +128,7 @@ func CreateEnvelopeTransfer(
 		return nil, WrapEnvelopeError(err, "failed to build envelope manifest")
 	}
 
-	// Step 8: Generate key ID and sign the envelope manifest with the platform's private key
+	// Step 6: Generate key ID and sign the envelope manifest with the platform's private key
 	var keyID string
 
 	switch key := privateKey.(type) {
@@ -170,7 +154,7 @@ func CreateEnvelopeTransfer(
 		return nil, WrapEnvelopeError(err, "failed to sign envelope manifest")
 	}
 
-	// Step 9: Build the complete EblEnvelope using the builder
+	// Step 7: Build the complete EblEnvelope using the builder
 	envelope, err := NewEblEnvelopeBuilder().
 		WithTransportDocument(input.TransportDocument).
 		WithEnvelopeManifestSignedContent(envelopeManifestSignedContent).
@@ -281,16 +265,16 @@ type TransferChainEntryInput struct {
 //
 // Parameters:
 //   - input: The data for the transfer chain entry (transport document checksum, platform, transactions, etc.)
-//   - privateKeyJWKPath: Path to the platform's private key JWK file (Ed25519 or RSA)
-//   - certChainFilePath: Optional path to the platform's X.509 certificate chain file (PEM format). Pass empty string to omit x5c header.
+//   - privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
+//   - certChain: Optional X.509 certificate chain. Pass nil to omit x5c header.
 //
 // Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification)
 //
 // Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain
 func CreateTransferChainEntry(
 	input TransferChainEntryInput,
-	privateKeyJWKPath string,
-	certChainFilePath string,
+	privateKey any,
+	certChain []*x509.Certificate,
 ) (EnvelopeTransferChainEntrySignedContent, error) {
 
 	// Step 1: Validate input
@@ -324,23 +308,7 @@ func CreateTransferChainEntry(
 		}
 	}
 
-	// Step 2: Load the private key from JWK file
-	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyJWKPath)
-	if err != nil {
-		return "", WrapEnvelopeError(err, fmt.Sprintf("failed to load private key from %s", privateKeyJWKPath))
-	}
-
-	// Step 3: Load the certificate chain if provided
-	var certChain []*x509.Certificate
-	if certChainFilePath != "" {
-		chain, err := crypto.ReadCertChainFromPEMFile(certChainFilePath)
-		if err != nil {
-			return "", WrapEnvelopeError(err, "failed to load certificate chain")
-		}
-		certChain = chain
-	}
-
-	// Step 4: Build the transfer chain entry using the builder
+	// Step 2: Build the transfer chain entry using the builder
 	var builder *EnvelopeTransferChainEntryBuilder
 
 	if input.IsFirstEntry {
@@ -363,7 +331,7 @@ func CreateTransferChainEntry(
 		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
 	}
 
-	// Step 5: Generate key ID and sign the transfer chain entry with the platform's private key
+	// Step 3: Generate key ID and sign the transfer chain entry with the platform's private key
 	var keyID string
 
 	switch key := privateKey.(type) {

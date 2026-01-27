@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"testing"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // TestRecreateSampleEblEnvelope tests that we can recreate the sample ebl envelope in testdata/pint-transfers
@@ -75,8 +77,18 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 				Transactions:                  sampleIssueEntry.Transactions,
 			}
 
+			// Load the private key and certificate chain
+			privateKey, err := crypto.ReadPrivateKeyFromJWKFile(test.privateKeyJWKPath)
+			if err != nil {
+				t.Fatalf("failed to load private key: %v", err)
+			}
+
+			certChain, err := crypto.ReadCertChainFromPEMFile(test.certChainFilePath)
+			if err != nil {
+				t.Fatalf("failed to load certificate chain: %v", err)
+			}
 			// create the transfer chain entry
-			signedIssueEntry, err := CreateTransferChainEntry(issueTransferChainEntryInput, test.privateKeyJWKPath, test.certChainFilePath)
+			signedIssueEntry, err := CreateTransferChainEntry(issueTransferChainEntryInput, privateKey, certChain)
 			if err != nil {
 				t.Fatalf("failed to create transfer chain entry: %v", err)
 			}
@@ -91,7 +103,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 			}
 
 			// create the transfer chain entry
-			signedTransferEntry, err := CreateTransferChainEntry(transferTransferChainEntryInput, test.privateKeyJWKPath, test.certChainFilePath)
+			signedTransferEntry, err := CreateTransferChainEntry(transferTransferChainEntryInput, privateKey, certChain)
 			if err != nil {
 				t.Fatalf("failed to create transfer chain entry: %v", err)
 			}
@@ -119,7 +131,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 					"../crypto/testdata/pint-transfers/HHL71800000-invoice.pdf",
 					"../crypto/testdata/pint-transfers/HHL71800000-packing-list.pdf",
 				},
-			}, test.privateKeyJWKPath, test.certChainFilePath)
+			}, privateKey, certChain)
 			if err != nil {
 				t.Fatalf("failed to create ebl envelope: %v", err)
 			}
