@@ -74,6 +74,7 @@ services:
       - READ_TIMEOUT
       - WRITE_TIMEOUT
       - IDLE_TIMEOUT
+      - MAX_REQUEST_SIZE   
 
       # Database settings
       - DB_MAX_CONNECTIONS

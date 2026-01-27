@@ -77,6 +77,14 @@ const (
 	// ErrCodeRegistryError is used when there is a problem with the DCSA registry
 	ErrCodeRegistryError ErrorCode = 7008
 
+	// ErrCodeRateLimitExceeded is used when the rate limit is exceeded
+	// - this is only used in the middleware
+	ErrCodeRateLimitExceeded ErrorCode = 7009
+
+	// ErrCodeRequestTooLarge is used when the request body is too large
+	// - this is only used in the middleware
+	ErrCodeRequestTooLarge ErrorCode = 7010
+
 	// ErrCodeUnknownParty is used when a platform is not recognized or not registered
 	ErrCodeUnknownParty ErrorCode = 8001
 

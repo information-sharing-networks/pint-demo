@@ -47,18 +47,17 @@ func Hash(data []byte) (string, error) {
 //
 // Per DCSA spec: The checksum is calculated over the decoded binary content, not the base64 string.
 //
+// Note: Size limits are enforced at the HTTP layer via middleware.RequestSizeLimit.
+// This function assumes the content has already passed size validation.
+//
 // TODO: this function requires the entire base64-encoded string in memory
 // (unavoidable for eblVisualisationByCarrier.Content since JSON unmarshaling already loaded it)
 // The streaming decode avoids creating a second copy of the decoded bytes.
 // Revisit when handling associated docs - those could potentially be streamed from client...
-func HashFromBase64(encoded string, maxSize int64) (string, error) {
+func HashFromBase64(encoded string) (string, error) {
 
 	if len(encoded) == 0 {
 		return "", NewInternalError("data is empty")
-	}
-	// Check base64 input size
-	if int64(len(encoded)) > maxSize {
-		return "", NewValidationError("base64 content exceeds maximum size")
 	}
 
 	// decode before hashing - stream decode to reduce memory overhead

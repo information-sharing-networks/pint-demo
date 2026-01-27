@@ -21,6 +21,7 @@ type ServerEnvironment struct {
 	ServerShutdownTimeout time.Duration `env:"SERVER_SHUTDOWN_TIMEOUT,default=10s"`
 	MinTrustLevel         int           `env:"MIN_TRUST_LEVEL,default=1"`
 	RegistryFetchTimeout  time.Duration `env:"REGISTRY_FETCH_TIMEOUT,default=10s"`
+	MaxRequestSize        int64         `env:"MAX_REQUEST_SIZE,default=1048576"` // 1MB - limits request body size for all endpoints
 
 	// database settings
 	ReadTimeout         time.Duration `env:"READ_TIMEOUT,default=15s"`

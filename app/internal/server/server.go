@@ -8,12 +8,13 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
+	"github.com/information-sharing-networks/pint-demo/app/internal/server/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -146,9 +147,13 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 }
 
 func (s *Server) setupMiddleware() {
-	s.router.Use(middleware.RequestID)
-	s.router.Use(middleware.RealIP)
-	s.router.Use(middleware.Recoverer)
+	s.router.Use(chimiddleware.RequestID)
+	s.router.Use(chimiddleware.RealIP)
+	s.router.Use(chimiddleware.Recoverer)
+	s.router.Use(middleware.SecurityHeaders(s.config.Environment))
+	s.router.Use(middleware.RequestSizeLimit(s.config.MaxRequestSize)) // TODO - have separate limit for different routes?
+	s.router.Use(middleware.RateLimit(s.config.RateLimitRPS, s.config.RateLimitBurst))
+
 	// TODO: handle timeouts
 	//s.router.Use(middleware.Timeout(60 * time.Second))
 }

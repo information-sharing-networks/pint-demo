@@ -13,6 +13,7 @@ require (
 	github.com/lmittmann/tint v1.1.2
 	github.com/spf13/cobra v1.10.2
 	github.com/swaggo/swag v1.16.6
+	golang.org/x/time v0.14.0
 )
 
 require (

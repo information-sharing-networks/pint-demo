@@ -37,38 +37,26 @@ func TestHash(t *testing.T) {
 func TestHashFromBase64(t *testing.T) {
 	// check the function retuns a dcsa-compliant hash (lowercase hex, 64 characters)
 	// check that invalid base64 returns an error
-	// check that maxSize is enforced
 
 	tests := []struct {
 		name     string
 		input    string
-		maxSize  int64
 		expected string
 		wantErr  bool
 	}{
 		{
 			name:    "empty string",
 			input:   "",
-			maxSize: 1000,
 			wantErr: true,
 		},
 		{
 			name:    "valid base64",
 			input:   "aGVsbG8gd29ybGQ=",
-			maxSize: 1000,
 			wantErr: false,
 		},
 		{
 			name:     "invalid base64",
 			input:    "!invalid base64!",
-			maxSize:  1000,
-			expected: "",
-			wantErr:  true,
-		},
-		{
-			name:     "oversized base64",
-			input:    "aGVsbG8gd29ybGQ=",
-			maxSize:  1,
 			expected: "",
 			wantErr:  true,
 		},
@@ -76,7 +64,7 @@ func TestHashFromBase64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := HashFromBase64(tt.input, tt.maxSize)
+			result, err := HashFromBase64(tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("HashFromBase64() expected error, got nil")

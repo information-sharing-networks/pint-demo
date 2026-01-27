@@ -184,7 +184,6 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 		// the checksum is calculated from the decoded binary content
 		visualisationChecksum, err := crypto.HashFromBase64(
 			b.eBLVisualisationByCarrier.Content,
-			crypto.MaxDocumentSize,
 		)
 		if err != nil {
 			return nil, crypto.WrapValidationError(err, "failed to crypto.Hash eBL visualisation")
