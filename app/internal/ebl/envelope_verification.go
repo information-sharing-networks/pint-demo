@@ -48,6 +48,7 @@ import (
 	"fmt"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
+	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
 // EnvelopeVerificationInput contains the data needed to verify an envelope transfer.
@@ -60,24 +61,15 @@ type EnvelopeVerificationInput struct {
 	// nil = use system roots (typically used for production), custom pool = testing/private CA
 	RootCAs *x509.CertPool
 
-	// PublicKey is the public key to use for verification of the JWS signature
-	// In production this will typically be fetched from the sender's JWKS endpoint at
-	// https://{domain}/.well-known/jwks.json or
-	// via manually colleted information for parties that don't publish JWKS endpoints.
+	// KeyProvider is used to fetch public keys for JWS signature verification.
 	//
-	// The key type should be ed25519.PublicKey or *rsa.PublicKey.
-	PublicKey any
-
-	// CarrierPublicKey is the public key to verify the carrier's signature on issuanceManifestSignedContent.
-	// carrier signature verification is always performed to ensure the transport document
-	// is authentic and matches what the carrier originally issued.
+	// In production, this should be a KeyManager instance that fetches keys from:
+	// - JWKS endpoints (e.g., https://{domain}/.well-known/jwks.json)
+	// - Manually configured keys for parties that don't publish JWKS endpoints
 	//
-	// In production this will typically be fetched from the carrier's JWKS endpoint at
-	// https://{carrier-domain}/.well-known/jwks.json (looked up by kid from JWS header).
-	// Fallback: manually configured keys for carriers that don't publish JWKS endpoints.
-	//
-	// The key type should be ed25519.PublicKey or *rsa.PublicKey.
-	CarrierPublicKey any
+	// The KeyProvider must be able to provide keys for the sending platform
+	// that was used to sign envelopeManifestSignedContent and transfer chain entries.
+	KeyProvider jws.KeyProvider
 }
 
 // EnvelopeVerificationResult contains the results of envelope verification.
@@ -105,6 +97,11 @@ type EnvelopeVerificationResult struct {
 	// TransportDocumentChecksum is the checksum of the transport document
 	TransportDocumentChecksum string
 
+	// TransportDocumentReference is the unique number allocated by the shipping line to the transport document.
+	// This is a required field per DCSA spec (max 20 chars) and is extracted during verification.
+	// Used for tracking the shipment status and database storage.
+	TransportDocumentReference string
+
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
 	// This is required in API responses and for duplicate detection
 	LastEnvelopeTransferChainEntrySignedContentChecksum string
@@ -125,6 +122,9 @@ type EnvelopeVerificationResult struct {
 // VerifyEnvelopeTransfer performs technical verification (signatures, certificates, checksums, chain integrity)
 // on an incoming envelope transfer request.
 //
+// Typically you will supply the server's KeyManager as the KeyProvider (it will be used
+// to automatically fetch the public keys needed to verify the signatures, based on the JWS kid)
+//
 // Returns the EnvelopeVerificationResult with extracted data (including trust level) or an error if verification fails.
 func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
@@ -135,9 +135,9 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	}
 
 	// Step 2: Verify JWS signature and validate x5c certificate chain (if present)
-	manifestPayload, certChain, err := crypto.VerifyJWS(
+	manifestPayload, _, certChain, err := crypto.VerifyJWSWithKeyProvider(
 		string(input.Envelope.EnvelopeManifestSignedContent),
-		input.PublicKey,
+		input.KeyProvider,
 		input.RootCAs,
 	)
 	if err != nil {
@@ -180,21 +180,23 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 
 	// Step 6: Verify received transport document matches the envelope manifest checksum
 	// This proves the actual document hasn't been altered since the sending platform signed the manifest
-	transportDocChecksum, err := verifyTransportDocumentChecksum(
+	// Also extracts the required transportDocumentReference field
+	transportDocumentResult, err := verifyTransportDocumentChecksum(
 		input.Envelope.TransportDocument,
 		manifest.TransportDocumentChecksum,
 	)
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "transport document verification failed")
 	}
-	result.TransportDocumentChecksum = transportDocChecksum
+	result.TransportDocumentChecksum = string(input.Envelope.TransportDocument)
+	result.TransportDocumentReference = transportDocumentResult.TransportDocumentReference
 
 	// Step 7: Verify transfer chain integrity and store all entries
 	// this prevents replay attacks, where an attacker replaces the last entry with a valid one from a different transfer
 	transferChain, lastEntryChecksum, err := verifyEnvelopeTransferChain(
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
-		input.PublicKey,
+		input.KeyProvider,
 		input.RootCAs,
 	)
 	if err != nil {
@@ -210,7 +212,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	// Step 8: Verify carrier's issuance manifest and document checksum
 	if err := verifyIssuanceManifest(
 		result.FirstTransferChainEntry,
-		input.CarrierPublicKey,
+		input.KeyProvider,
 		input.RootCAs,
 	); err != nil {
 		return nil, WrapEnvelopeError(err, "issuance manifest verification failed")
@@ -228,31 +230,57 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	return result, nil
 }
 
-// verifyTransportDocumentChecksum verifies the transport document (eBL) JSON has not been tampered with.
+type TransportDocumentResult struct {
+	// TransportDocumentReference is the unique number allocated by the shipping line to the transport document.
+	// This is a required field and used for tracking the shipment status and database storage.
+	TransportDocumentReference string
+}
+
+// verifyTransportDocumentChecksum verifies the transport document (eBL) JSON has not been tampered with
+// and extracts the required transportDocumentReference field.
+//
+// Returns an error if the calculated checksum does not match the expected value
+// or if the transportDocumentReference is missing.
 func verifyTransportDocumentChecksum(
 	transportDocument json.RawMessage,
 	expectedChecksum string,
-) (string, error) {
+) (*TransportDocumentResult, error) {
 
 	// Canonicalize the transport document JSON
 	canonicalJSON, err := crypto.CanonicalizeJSON(transportDocument)
 	if err != nil {
-		return "", WrapEnvelopeError(err, "failed to canonicalize transport document")
+		return nil, WrapEnvelopeError(err, "failed to canonicalize transport document")
 	}
 
 	// Compute SHA-256 checksum
 	actualChecksum, err := crypto.Hash(canonicalJSON)
 	if err != nil {
-		return "", WrapEnvelopeError(err, "failed to compute transport document checksum")
+		return nil, WrapEnvelopeError(err, "failed to compute transport document checksum")
 	}
 
 	// Verify checksum matches
 	if actualChecksum != expectedChecksum {
-		return "", NewEnvelopeError(fmt.Sprintf("transport document checksum mismatch: expected %s, got %s",
+		return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum mismatch: expected %s, got %s",
 			expectedChecksum, actualChecksum))
 	}
 
-	return actualChecksum, nil
+	// Parse the transport document to extract required fields
+	var transportDoc map[string]any
+	if err := json.Unmarshal(transportDocument, &transportDoc); err != nil {
+		return nil, WrapEnvelopeError(err, "failed to parse transport document JSON")
+	}
+
+	// Extract transportDocumentReference (required field per DCSA spec)
+	TransportDocumentResult := &TransportDocumentResult{}
+
+	// Use type assertion with ok pattern to safely check if field exists and is a string
+	ref, ok := transportDoc["transportDocumentReference"].(string)
+	if !ok || ref == "" {
+		return nil, NewEnvelopeError("transportDocumentReference is required in transport document")
+	}
+	TransportDocumentResult.TransportDocumentReference = ref
+
+	return TransportDocumentResult, nil
 }
 
 // verifyIssuanceManifest verifies the carrier's signature on the issuance manifest and validates
@@ -270,7 +298,7 @@ func verifyTransportDocumentChecksum(
 // Subsequent platforms can use the ISSUE transaction RecipientParty if they need to know the original issueTo.
 func verifyIssuanceManifest(
 	firstEntry *EnvelopeTransferChainEntry,
-	carrierPublicKey any,
+	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,
 ) error {
 
@@ -284,9 +312,10 @@ func verifyIssuanceManifest(
 
 	// Step 1: Verify carrier's JWS signature on issuanceManifestSignedContent
 	// The carrier is treated as just another business entity in the PINT network and verified the same way as a platform.
-	issuanceManifestPayload, _, err := crypto.VerifyJWS(
+	// The KeyProvider will extract the carrier's KID from the JWS header and fetch the appropriate key.
+	issuanceManifestPayload, _, _, err := crypto.VerifyJWSWithKeyProvider(
 		string(*firstEntry.IssuanceManifestSignedContent),
-		carrierPublicKey,
+		keyProvider,
 		rootCAs,
 	)
 	if err != nil {
@@ -326,7 +355,7 @@ func verifyIssuanceManifest(
 func verifyEnvelopeTransferChain(
 	envelopeTransferChain []EnvelopeTransferChainEntrySignedContent,
 	manifest *EnvelopeManifest,
-	publicKey any,
+	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,
 ) ([]*EnvelopeTransferChainEntry, string, error) {
 
@@ -354,10 +383,11 @@ func verifyEnvelopeTransferChain(
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
 		currentEntryJWS := envelopeTransferChain[i]
 
-		// Verify current entry signature
-		currentPayloadBytes, _, err := crypto.VerifyJWS(
+		// Verify current entry signature using KeyProvider
+		// The KeyProvider will extract the KID from each entry's JWS header and fetch the appropriate key
+		currentPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
 			string(currentEntryJWS),
-			publicKey,
+			keyProvider,
 			rootCAs,
 		)
 		if err != nil {

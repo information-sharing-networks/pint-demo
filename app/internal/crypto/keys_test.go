@@ -64,9 +64,7 @@ func TestSaveAndReadEd25519JWK(t *testing.T) {
 	tmpDir := t.TempDir()
 	privateKeyPath := filepath.Join(tmpDir, "private.jwk")
 
-	keyID = "test_kid"
-
-	if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, privateKeyPath); err != nil {
+	if err := SaveEd25519PrivateKeyToJWKFile(privateKey, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
 
@@ -92,7 +90,7 @@ func TestSaveAndReadEd25519JWK(t *testing.T) {
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 	publicKeyPath := filepath.Join(tmpDir, "public.jwk")
 
-	if err := SaveEd25519PublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
+	if err := SaveEd25519PublicKeyToJWKFile(publicKey, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
@@ -169,15 +167,11 @@ func TestSaveAndReadRSAJWK(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	keyID, err := GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
-	if err != nil {
-		t.Fatalf("failed to generate key ID: %v", err)
-	}
 
 	privateKeyPath := filepath.Join(tmpDir, "private.jwk")
 
 	// Save to JWK format
-	if err := SaveRSAPrivateKeyToJWKFile(privateKey, keyID, privateKeyPath); err != nil {
+	if err := SaveRSAPrivateKeyToJWKFile(privateKey, privateKeyPath); err != nil {
 		t.Fatalf("failed to save private key: %v", err)
 	}
 
@@ -204,7 +198,7 @@ func TestSaveAndReadRSAJWK(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 	publicKeyPath := filepath.Join(tmpDir, "public.jwk")
 
-	if err := SaveRSAPublicKeyToJWKFile(publicKey, keyID, publicKeyPath); err != nil {
+	if err := SaveRSAPublicKeyToJWKFile(publicKey, publicKeyPath); err != nil {
 		t.Fatalf("failed to save public key: %v", err)
 	}
 
@@ -290,9 +284,7 @@ func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 		}
 
 		// Save as JWK
-		keyID := "test_kid"
-
-		if err := SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, jwkPath); err != nil {
+		if err := SaveEd25519PrivateKeyToJWKFile(privateKey, jwkPath); err != nil {
 			t.Fatalf("failed to save JWK: %v", err)
 		}
 
@@ -334,12 +326,7 @@ func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 		}
 
 		// Save as JWK
-		keyID, err := GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
-		if err != nil {
-			t.Fatalf("failed to generate key ID: %v", err)
-		}
-
-		if err := SaveRSAPrivateKeyToJWKFile(privateKey, keyID, jwkPath); err != nil {
+		if err := SaveRSAPrivateKeyToJWKFile(privateKey, jwkPath); err != nil {
 			t.Fatalf("failed to save JWK: %v", err)
 		}
 

@@ -18,7 +18,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:               "pint-sender",
+	Use:               "pint-client",
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	Short:             "PINT API sender platform CLI",
 	Long:              `PINT sender CLI for transferring eBL envelopes to receiving platforms`,

@@ -44,5 +44,5 @@ type TransferChainEntry struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	EnvelopeID    uuid.UUID          `json:"envelope_id"`
 	SignedContent string             `json:"signed_content"`
-	Sequence      int32              `json:"sequence"`
+	Sequence      int64              `json:"sequence"`
 }

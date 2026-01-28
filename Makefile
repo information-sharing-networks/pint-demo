@@ -74,12 +74,12 @@ migrate:
 # Run receiver locally (expects docker db to be running)
 run-receiver:
 	@echo "🚀 Running receiver locally..."
-	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-receiver/main.go
+	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-server/main.go
 
 # Run sender CLI locally (expects docker db to be running)
 run-sender:
 	@echo "🚀 Running sender CLI locally..."
-	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-sender/main.go
+	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-client/main.go
 
 # Format code
 fmt:
@@ -105,7 +105,7 @@ swag-fmt:
 # Generate swagger documentation
 docs:
 	@echo "🔄 Generating swagger documentation..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag init -g ./cmd/pint-receiver/main.go"
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag init -g ./cmd/pint-server/main.go"
 
 # Run security analysis
 security:

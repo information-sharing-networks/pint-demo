@@ -1,11 +1,20 @@
 
 ![ci](https://github.com/information-sharing-networks/pint-demo/actions/workflows/ci.yml/badge.svg)
 
+
 # PINT Demo
+
+[Quick Start](#quick-start) |
+[Concepts](#concepts) |
+[Project Layout](#project-layout) |
+[Key Generation](#generating-key-pairs) |
+[Client](#client) |
+[Server](#server)
+
 
 A demonstration implementation of the DCSA PINT (Platform Interoperability) API v3.0.0 for electronic Bill of Lading (eBL) envelope transfers.
 
-## Getting Started
+# Getting Started
 
 ### Prerequisites
 
@@ -64,7 +73,7 @@ DATABASE_URL="postgres://pint-dev:@db:5432/pint_demo?sslmode=disable"
    - Start the db contaienr (PostgreSQL 17)
    - Generate SQLC code and API docs
    - Run database migrations
-   - Start the app container (pint-receiver service) on http://localhost:8080
+   - Start the app container (pint-server service) on http://localhost:8080
   
 
 you can override default configs by setting environment variables when you start the server, e.g.
@@ -97,17 +106,21 @@ if there are updates to the go dependencies (go.mod), you will need to rebuild t
 docker compose up build app
 ```
 
+to reset the database and restart the containers:
+```bash
+make docker-reset
+```
 
-# Concepts
+## Concepts
 
-## Key distribution
+### Key distribution
 This app implements a hybrid approach to key distribution:
 - **Dynamic JWK endpoints**: Automatically fetches and caches public keys from configured JWKS endpoints. The list of endpoints is retrieved from the DCSA registry.
 - **Manual keys**: Supports manually configured keys for testing or private networks where keys are exchanged out of band.
 
-Keys are looked up by the KID retrieved from JWS headers. Per the DCSA recommendation, the KID is the thumbprint of the public key.
+Keys are looked up by the KID retrieved from JWS headers. The KID is derived from the public key thumbprint (the first 8 bytes of the SHA-256 hash in hex format).
 
-## Platform registry
+### Platform registry
 This implementation relies on a platform registry that contains the list of all approved eBL PINT participants (carriers, banks and ebl platforms). 
 
 The registry is used for two purposes:
@@ -119,7 +132,7 @@ This list is configured via the `DCSA_REGISTRY_PATH` environment variable.
 For the purpose of this demo the registry is based on a local file (`app/internal/crypto/testdata/platform-registry/eblsolutionproviders.csv`),
  but in a real deployment the registry would be served from a secure endpoint and cover all participants in the PINT network.
 
-## Trust model and non-repudiation
+### Trust model and non-repudiation
 This app implements an experimental approach to verifying the legal entities operating platforms in PINT exchanges. While DCSA does not mandate a specific verification method, this implementation extends their signature approach by enabling platforms to include x5c headers in the JWS.
 
 The x5c header contains a certificate chain that cryptographically binds the public key to a verified legal entity. The app validates this chain against trusted root certificates, which can be either system-provided roots or custom roots configured for the deployment.
@@ -135,13 +148,13 @@ Per DCSA, it is not clear how PINT networks operating at the 2nd and 3rd trust l
 
 Note: the public key in the x5c certificate must match the key pair used by platform to sign the JWS - see the *Generating Key Pairs* section below for more information.
 
-## Signatures
+### Signatures
 DCSA do not specify which algorithms should be used for signing. This implementation supports both Ed25519 and RSA (Ed25519 is recommended for new implementations).
 
-## Validation
+### Validation
 This app implements all the cryptographic validation steps recommended in the DCSA *Digital Signatures Implementation Guide*. It only does basic validation of the transport document JSON - schema validation is not implemented.
 
-# Signing keys
+### Signing keys
 DCSA does not specify which algorithms should be used for signing. This implementation supports both Ed25519 and RSA (Ed25519 is recommended for new implementations).
 
 ## Project Layout
@@ -150,8 +163,8 @@ pint-demo/
    ├── app/
    │   ├── cmd/
    │   │   ├── keygen/                        # Key generation CLI
-   │   │   ├── pint-receiver/                 # Receiver platform HTTP server
-   │   │   └── pint-sender/                   # Sender platform CLI
+   │   │   ├── pint-server/                 # Receiver platform HTTP server
+   │   │   └── pint-client/                   # Sender platform CLI
    │   ├── internal/
    │   │   ├── client/                        # PINT API client 
    │   │   ├── cli/                           # CLI commands
@@ -171,7 +184,7 @@ pint-demo/
    ├── docker-compose.yml
    └── Makefile
 ```
-## Creating key pairs for PINT platforms
+## Generating key pairs
 
 The `keygen` command is part of the app and can be used to create a new key pair for a PINT platform:
 
@@ -189,20 +202,28 @@ the output files are:
 Note the pub key files are provided for convenience - when starting the server, you just need to specify the private key used for signatures and the server will make the correspoding public key available via the JWKS endpoint.
 
 ## x5c certificates
-As explained above including an x5c certificate chain in the eBL JWS signatures is optional, but recommended for non-repudiation purposes (EV or OV certs are recommended for production).
+As explained in the *Concepts* section above, including an x5c certificate chain in the eBL JWS signatures is optional, but recommended for non-repudiation purposes (EV or OV certs are recommended for production).
+
 
 If you want to include x5c, you will need to create a certificate for the PINT platform and have it signed by a Certificate Authority (CA).
+
+
+By default the platform uses the system's default root CAs for x5c verification. You can also configure custom root CAs (see the *Environment Variables* section below). Custom roots are used in testing and can also be used in private networks or where you want to use a selected subset of the default root CAs.
+
 You must use your eBL platform signing private key to sign the certificate request, since the public key in the certificate must match the key pair used by platform to sign the JWS.
 
 this app does not support cert generation, but some certs are provided in `app/internal/crypto/testdata/certs` for testing purposes.
 
 all certs are expected to be X.509 in PEM format.
 
-# Usage
-the `ebl` package provides high-level functions that can be use to create *PINT Transfers* (EBL_PINT_v3.0.0). There is also a basic implemenation of DCSA *eBL Issuance Requests*  (EBL_ISS_v3.0.2) to help create end-2-end demos.
+## Client
+the `ebl` package provides high-level functions that can be use to create *PINT Transfers* (EBL_PINT_v3.0.0). 
 
-These functions show the overall logic of creating and validating requsests. The low level functions used to do the actual cryptographic operations are in  `crypto`  (see below).
+There is also a basic implemenation of DCSA *eBL Issuance Requests*  (EBL_ISS_v3.0.2) to help create end-2-end demos.
 
+These functions take care of all the required cryptographic steps needed to create and validate PINT and issuance requests. They hide the details of the cryptographic operations and focus on the business logic of the PINT and issuance workflows.  See the crypto package for the low level function that they use.
+
+a demo CLI client is provided in `app/cmd/pint-client/main.go` - this is work-in-progress
 
 ### Creating an Issuance Request 
 To create an initial issuance request that is sent from the carrier to the ebl platform (`PUT /v3/ebl-issuance-requests`), use the `CreateIssuanceRequest` function.
@@ -221,15 +242,7 @@ See `app/internal/ebl/envelope_verification_test.go` for example usage.
 
 the verification process follows the recommendations in the DCSA *Digital Signatures Implementation Guide*.
 
-## the crypto package
-The crypto package supports:
-- Signature creation and verification
-- Option to use Ed25519 or RSA algorithms
-- Option to include x5c certificate chain in JWS for non-repudiation
-- Trust levels - EV/OV, DV, NoX5C
-- Manual and dynamic (JWK endpoint) key distribution
-
-## Testing
+### Testing
 In addition to the unit tests, there is a set of reference data in `app/internal/crypto/testdata/` that is used in the automated tests. This includes:
 - Test certificates and keys (Ed25519 and RSA)
 - Test transport documents
@@ -239,13 +252,22 @@ The signatures in the test data were computed out of band using the test keys.
 
 See `app/internal/crypto/testdata/README.md` for details on how to regenerate the test keys and certificates if needed.
 
-## API Endpoints
+## Server
+There is a single server implementation in `app/cmd/pint-server/main.go` - this is work-in-progress
 
-The pint-receiver service exposes:
+see the http://localhost:8080/docs for the API docs
+
+The pint-server service exposes:
 - `GET /health` - Health check endpoint
+- `GET /.well-known/jwks.json` - JWK set endpoint (public key for this instance of the server)
+- `GET /docs` - API documentation (ReDoc)
+- `GET /swagger.json` - OpenAPI specification
+- `POST /v3/envelopes` - Receive PINT transfer envelopes 
 
 Support for the following endpoints is planned but not yet implemented:
 - `PUT /v3/ebl-issuance-requests` - Receive eBL issuance request
-- `POST /v3/envelopes` - Receive PINT transfer envelopes 
 - `PUT /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}` - Add additional documents to a PINT transfer envelope 
 - `PUT /v3/envelopes/{envelopeReference}/finish-transfer` - Finish a PINT transfer envelope
+
+## Testing
+end-2-end testing for the http server is planned but not yet implemented.

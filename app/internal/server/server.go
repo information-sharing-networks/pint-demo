@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
@@ -13,9 +15,12 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
-	"github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
+	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
+	commonhandlers "github.com/information-sharing-networks/pint-demo/app/internal/server/handlers"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server/middleware"
+	"github.com/information-sharing-networks/pint-demo/app/internal/version"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 type Server struct {
@@ -42,6 +47,10 @@ type Server struct {
 	// must be either ed25519.PrivateKey or *rsa.PrivateKey
 	signingKey any
 
+	// signingJWKSet is the JWK set containing the public key for this server's signing key
+	// served at /.well-known/jwks.json (for public key discovery)
+	signingJWKSet jwk.Set
+
 	// x5cCertChain is the X.509 certificate chain included in JWS signatures sent to
 	// other platforms (optional).
 	x5cCertChain []*x509.Certificate // X.509 certificate chain for signing (optional)
@@ -63,10 +72,11 @@ func NewServer(
 	ctx context.Context,
 ) (*Server, error) {
 	server := &Server{
-		pool:   pool,
-		config: cfg,
-		logger: logger,
-		router: chi.NewRouter(),
+		pool:    pool,
+		queries: queries,
+		config:  cfg,
+		logger:  logger,
+		router:  chi.NewRouter(),
 	}
 
 	// load signing key
@@ -93,7 +103,7 @@ func NewServer(
 			slog.Int("certs", len(certChain)))
 	}
 
-	// configure root CAs for validating JWS signatures
+	// configure root CAs
 	if cfg.X5CCustomRootsPath == "" {
 		logger.Info("using system root CAs for x5c validation")
 	} else {
@@ -110,9 +120,20 @@ func NewServer(
 		return nil, fmt.Errorf("failed to initialize KeyManager: %w", err)
 	}
 
-	// setup middleware and routes
+	// create JWK set for JWKS endpoint
+	jwkSet, err := server.createJWKSet()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWK set: %w", err)
+	}
+	server.signingJWKSet = jwkSet
+
+	// setup middleware
 	server.setupMiddleware()
-	server.registerRoutes()
+
+	// register routes
+	server.registerCommonRoutes()
+	server.registerApiDocoRoutes()
+	server.registerPintRoutes()
 
 	return server, nil
 }
@@ -158,12 +179,16 @@ func (s *Server) setupMiddleware() {
 	//s.router.Use(middleware.Timeout(60 * time.Second))
 }
 
-func (s *Server) registerRoutes() {
+// registerCommonRoutes registers infrastructure routes (health, jwks, version, docs)
+func (s *Server) registerCommonRoutes() {
+	s.router.Get("/health/live", commonhandlers.HandleHealth)
+	s.router.Get("/ready", commonhandlers.HandleReadiness(s.queries))
+	s.router.Get("/.well-known/jwks.json", commonhandlers.HandleJWKS(s.signingJWKSet))
+	s.router.Get("/version", commonhandlers.HandleVersion(version.Get().Version, version.Get().BuildDate))
+}
 
-	s.router.Get("/health", s.handleHealth)
-
-	// Create handlers with dependencies
-	startTransferHandler := handlers.NewStartTransferHandler(
+func (s *Server) registerPintRoutes() {
+	startTransfer := pinthandlers.NewStartTransferHandler(
 		s.queries,
 		s.keyManager,
 		s.signingKey,
@@ -173,12 +198,27 @@ func (s *Server) registerRoutes() {
 
 	s.router.Route("/v3", func(r chi.Router) {
 		r.Post("/receiver-validation", s.handleReceiverValidation)
-		r.Post("/envelopes", startTransferHandler.HandleStartTransfer)
+		r.Post("/envelopes", startTransfer.HandleStartTransfer)
 		r.Put("/envelopes/{envelopeReference}/additional-documents/{documentChecksum}", s.handleTransferAdditionalDocument)
 		r.Put("/envelopes/{envelopeReference}/finish-transfer", s.handleFinishEnvelopeTransfer)
 	})
+}
 
-	s.router.Get("/.well-known/jwks.json", s.handleJWKS)
+// registerApiDocoRoutes serves public static assets and API documentation
+func (s *Server) registerApiDocoRoutes() {
+	// API documentation routes
+	s.router.Route("/", func(r chi.Router) {
+
+		// API documentation
+		r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "./docs/redoc.html")
+		})
+
+		// OpenAPI specification for API clients and tools
+		r.Get("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "./docs/swagger.json")
+		})
+	})
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -235,11 +275,37 @@ func (s *Server) DatabaseShutdown() {
 	}
 }
 
-// TODO - c.f signalsd
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"healthy"}`))
+// CreateJWKSet creates a JWK set from the server's signing key's PUBLIC key.
+// The JWKS endpoint must only expose public keys, never private keys.
+func (s *Server) createJWKSet() (jwk.Set, error) {
+	var jwkKey jwk.Key
+	var err error
+
+	switch key := s.signingKey.(type) {
+	case ed25519.PrivateKey:
+		// Extract public key from private key
+		publicKey := key.Public().(ed25519.PublicKey)
+		jwkKey, err = crypto.Ed25519PublicKeyToJWK(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Ed25519 public JWK: %w", err)
+		}
+	case *rsa.PrivateKey:
+		// Extract public key from private key
+		publicKey := &key.PublicKey
+		jwkKey, err = crypto.RSAPublicKeyToJWK(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create RSA public JWK: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported key type: %T", key)
+	}
+
+	jwkSet := jwk.NewSet()
+	if err := jwkSet.AddKey(jwkKey); err != nil {
+		return nil, fmt.Errorf("failed to add key to JWK set: %w", err)
+	}
+
+	return jwkSet, nil
 }
 
 func (s *Server) handleReceiverValidation(w http.ResponseWriter, r *http.Request) {
@@ -251,10 +317,5 @@ func (s *Server) handleTransferAdditionalDocument(w http.ResponseWriter, r *http
 }
 
 func (s *Server) handleFinishEnvelopeTransfer(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
-}
-
-// handleJWKS serves the JSON Web Key Set at /.well-known/jwks.json
-func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }

@@ -1,7 +1,362 @@
 {
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
+    ],
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "description": "pint-demo is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers\n\n## Common Error Responses\nAll endpoints may return:\n- `413` Request body exceeds size limit\n- `429` Rate limit exceeded\n- `500` Internal server error\n\nIndividual endpoints document their specific business logic errors.\n\n## Request Limits\nAll endpoints are protected by:\n- **Rate limiting**: Configurable requests per second (see env vars) - default 100 rps (set to 0 to disable)\n- **Request size limits**: Configurable (see env vars) - default 1MB\n\nCheck the X-Max-Request-Body response header for the configured limit on signals payload.\n\nThe rate limit is set globaly and prevents abuse of the service.\nIn production there will be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.\n\n## Authentication \u0026 Authorization\n\nThe pint-demo PINT APIs do not require credentials to be sent with the request.\nParticipating platforms are authenticated via JWS signatures -\nrequests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.\n\nIn a real production system, OAuth 2.0 service accounts would provide additional authentication and authorization capabilities,\ne.g where external clients need to initiate a transfer on behalf of a user.\n",
+        "title": "DCSA API",
+        "contact": {},
+        "license": {
+            "name": "MIT"
+        }
     },
-    "paths": {}
+    "paths": {
+        "/.well-known/jwks.json": {
+            "get": {
+                "description": "Returns the JWK set for the platform\nUse this endpoint to retrieve the public keys used to verify signatures from this platform.\n\nThe JWK set in the response conforms to the [JWK specification](https://datatracker.ietf.org/doc/html/rfc7517).\n\nNote: this service supports Ed25519 and RSA public keys so you should expect to see either of these key types in the JWK set.",
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Get JWK set",
+                "responses": {
+                    "200": {
+                        "description": "JWK set",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.JWKSResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health/live": {
+            "get": {
+                "description": "Check if the signalsd http service is alive and responding.",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Health (liveness) Check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/ready": {
+            "get": {
+                "description": "Checks if the service is ready to accept traffic (includes database connectivity)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Readiness Check",
+                "responses": {
+                    "200": {
+                        "description": "status ready",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "status not ready",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v3/envelopes": {
+            "post": {
+                "description": "Use this endpoint to initiate an eBL envelope transfer on the server.\n\nThe sending platform must supply a request containing the transport document (eBL),\na signed envelope manifest, and the complete transfer chain.\n\nThe receiving platform will check that the signatures are verified, checksums validated,\nand the transfer chain integrity.\n\nThe response includes an `envelopeReference` that must be used in subsequent API calls\nto upload additional documents and finish the transfer.",
+                "tags": [
+                    "PINT"
+                ],
+                "summary": "Start envelope transfer",
+                "parameters": [
+                    {
+                        "description": "eBL envelope containing transport document, signed manifest, and transfer chain",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ebl.EblEnvelope"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Transfer accepted or duplicate detected",
+                        "schema": {
+                            "$ref": "#/definitions/pint.EnvelopeTransferStartedResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Transfer started, additional documents required",
+                        "schema": {
+                            "$ref": "#/definitions/pint.EnvelopeTransferStartedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Malformed request",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Disputed envelope",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Signature or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/version": {
+            "get": {
+                "description": "Returns the version and build information for the service",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Get version information",
+                "responses": {
+                    "200": {
+                        "description": "Version information",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.VersionResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "commonhandlers.JWKSResponse": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "commonhandlers.VersionResponse": {
+            "type": "object",
+            "properties": {
+                "build_time": {
+                    "type": "string",
+                    "example": "2024-01-28T10:00:00Z"
+                },
+                "service": {
+                    "type": "string",
+                    "example": "pint-server"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.0.0"
+                }
+            }
+        },
+        "ebl.EblEnvelope": {
+            "type": "object",
+            "properties": {
+                "envelopeManifestSignedContent": {
+                    "description": "EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest\n(signed by the sending platform).\n\nThe EnvelopeManifest payload is used by the receiver to verify that the transport\ndocument and the transfer chain have not been tampered with and to provide\ndetails of any supporting documents transferred via PINT.",
+                    "type": "string"
+                },
+                "envelopeTransferChain": {
+                    "description": "EnvelopeTransferChain: Ordered list of JWS strings representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transportDocument": {
+                    "description": "TransportDocument: The transport document (Bill of Lading) as a JSON object.",
+                    "type": "object"
+                }
+            }
+        },
+        "pint.DetailedError": {
+            "type": "object",
+            "properties": {
+                "errorCode": {
+                    "description": "A standard error code see https://developer.dcsa.org/standard-error-codes",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/pint.ErrorCode"
+                        }
+                    ]
+                },
+                "errorCodeMessage": {
+                    "type": "string"
+                },
+                "errorCodeText": {
+                    "type": "string"
+                },
+                "jsonPath": {
+                    "type": "string"
+                },
+                "property": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "pint.EnvelopeTransferStartedResponse": {
+            "type": "object",
+            "properties": {
+                "envelopeReference": {
+                    "description": "EnvelopeReference is the receiver-generated opaque identifier for this envelope transfer.\nUsed in subsequent API calls (PUT additional-documents, PUT finish-transfer).\nMax length: 100 characters",
+                    "type": "string"
+                },
+                "lastEnvelopeTransferChainEntrySignedContentChecksum": {
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last\ntransfer chain entry received.\nLength: exactly 64 hex characters",
+                    "type": "string"
+                },
+                "missingAdditionalDocumentChecksums": {
+                    "description": "MissingAdditionalDocumentChecksums lists the checksums of additional documents that\nthe receiving platform expects to receive before accepting the envelope transfer.\nEmpty array if no additional documents are required.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transportDocumentChecksum": {
+                    "description": "TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).\nComputed on the canonical form of the JSON.\nLength: exactly 64 hex characters",
+                    "type": "string"
+                }
+            }
+        },
+        "pint.ErrorCode": {
+            "type": "integer",
+            "enum": [
+                7001,
+                7002,
+                7003,
+                7004,
+                7005,
+                7006,
+                7007,
+                7008,
+                7009,
+                7010,
+                8001,
+                8002
+            ],
+            "x-enum-comments": {
+                "ErrCodeInsufficientTrust": "Trust level below minimum required",
+                "ErrCodeMalformedJSON": "JSON parsing or encoding failed"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "JSON parsing or encoding failed",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "Trust level below minimum required"
+            ],
+            "x-enum-varnames": [
+                "ErrCodeBadSignature",
+                "ErrCodeBadCertificate",
+                "ErrCodeBadChecksum",
+                "ErrCodeInvalidEnvelope",
+                "ErrCodeInternalError",
+                "ErrCodeMalformedJSON",
+                "ErrCodeKeyError",
+                "ErrCodeRegistryError",
+                "ErrCodeRateLimitExceeded",
+                "ErrCodeRequestTooLarge",
+                "ErrCodeUnknownParty",
+                "ErrCodeInsufficientTrust"
+            ]
+        },
+        "pint.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "errorDateTime": {
+                    "description": "The DateTime corresponding to the error occurring",
+                    "type": "string"
+                },
+                "errors": {
+                    "description": "An array of errors providing more detail about the root cause",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pint.DetailedError"
+                    }
+                },
+                "httpMethod": {
+                    "description": "The HTTP method used to make the request e.g. GET, POST, etc",
+                    "type": "string"
+                },
+                "providerCorrelationReference": {
+                    "description": "A unique identifier to the HTTP request within the scope of the API provider",
+                    "type": "string"
+                },
+                "requestUri": {
+                    "description": "The URI that was requested",
+                    "type": "string"
+                },
+                "statusCode": {
+                    "description": "The HTTP status code returned",
+                    "type": "integer"
+                },
+                "statusCodeMessage": {
+                    "description": "A long description corresponding to the HTTP status code with additional information",
+                    "type": "string"
+                },
+                "statusCodeText": {
+                    "description": "A standard short description corresponding to the HTTP status code",
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "PINT API endpoints",
+            "name": "PINT"
+        },
+        {
+            "description": "Server API endpoints (jwks, health, readiness, version, etc.)",
+            "name": "Common"
+        }
+    ]
 }

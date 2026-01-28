@@ -66,7 +66,7 @@ CREATE TABLE transfer_chain_entries (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     envelope_id UUID NOT NULL,
     signed_content TEXT NOT NULL,
-    sequence INT NOT NULL,
+    sequence BIGINT NOT NULL,
     CONSTRAINT transfer_chain_entries_unique_sequence_per_envelope UNIQUE(envelope_id, sequence),
     CONSTRAINT fk_transfer_chain_entries_envelope FOREIGN KEY (envelope_id)
         REFERENCES envelopes(id)

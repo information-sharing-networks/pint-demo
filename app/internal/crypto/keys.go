@@ -39,16 +39,16 @@ func GenerateEd25519KeyPair() (ed25519.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// SaveEd25519PrivateKeyToJWKFile saves an ED25519 private key to a JWK file
-// note the key is not encrypted
+// SaveEd25519PrivateKeyToJWKFile saves an ED25519 private key to a JWK file with auto-generated kid.
+// Note: the key is not encrypted
 //
 // Parameters:
 //   - path: The file path (e.g., "./keys/private.jwk")
-func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, path string) error {
+func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
 
-	jwkKey, err := Ed25519PrivateKeyToJWK(privateKey, keyID)
+	jwkKey, err := Ed25519PrivateKeyToJWK(privateKey)
 	if err != nil {
 		return WrapKeyManagementError(err, "failed to create JWK")
 	}
@@ -76,15 +76,15 @@ func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, keyID, path s
 	return nil
 }
 
-// SaveEd25519PublicKeyToJWKFile saves an ED25519 public key to a JWK file
+// SaveEd25519PublicKeyToJWKFile saves an ED25519 public key to a JWK file with auto-generated kid.
 //
 // Parameters:
 //   - path: The file path (e.g., "./keys/public.jwk")
-func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, keyID, path string) error {
+func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
 
-	jwkKey, err := Ed25519PublicKeyToJWK(publicKey, keyID)
+	jwkKey, err := Ed25519PublicKeyToJWK(publicKey)
 	if err != nil {
 		return WrapKeyManagementError(err, "failed to create JWK")
 	}
@@ -487,15 +487,15 @@ func GenerateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// SaveRSAPrivateKeyToJWKFile saves an RSA private key to a JWK file
+// SaveRSAPrivateKeyToJWKFile saves an RSA private key to a JWK file with auto-generated kid.
 //
 // Parameters:
 //   - path: The file path (e.g., "./keys/private.jwk")
-func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, path string) error {
+func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
 
-	jwkKey, err := RSAPrivateKeyToJWK(privateKey, keyID)
+	jwkKey, err := RSAPrivateKeyToJWK(privateKey)
 	if err != nil {
 		return WrapKeyManagementError(err, "failed to create JWK")
 	}
@@ -523,15 +523,15 @@ func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, keyID, path string) 
 	return nil
 }
 
-// SaveRSAPublicKeyToJWKFile saves an RSA public key to a JWK file
+// SaveRSAPublicKeyToJWKFile saves an RSA public key to a JWK file with auto-generated kid.
 //
 // Parameters:
 //   - path: The file path (e.g., "./keys/public.jwk")
-func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, keyID, path string) error {
+func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
 
-	jwkKey, err := RSAPublicKeyToJWK(publicKey, keyID)
+	jwkKey, err := RSAPublicKeyToJWK(publicKey)
 	if err != nil {
 		return WrapKeyManagementError(err, "failed to create JWK")
 	}

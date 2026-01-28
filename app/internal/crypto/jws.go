@@ -53,7 +53,87 @@ func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 	return payload, nil
 }
 
+// VerifyJWSWithKeyProvider performs verification for JWS signatures using a KeyProvider.
+//
+// The function verifies the JWS signature and - if the JWS contains an x5c header -
+// the x5c certificate chain.
+//
+// Use this function, rather than VerifyJWS, when you need to verify a JWS and
+// have not already established which of the keymanager keys to use for verification.
+//
+// To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
+// separately after verification.
+//
+// Parameters:
+//   - jwsString: JWS compact serialization (header.payload.signature)
+//   - keyProvider: KeyProvider that fetches keys based on KID from JWS header
+//     (c.f pint.KeyManager which implements this interface)
+//   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
+//
+// Returns:
+//   - payload: Verified payload bytes
+//   - publicKey: The public key that was used for verification (extracted from keyProvider)
+//   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
+//   - error: Any validation errors
+func VerifyJWSWithKeyProvider(
+	jwsString string,
+	keyProvider jws.KeyProvider,
+	rootCAs *x509.CertPool,
+) (payload []byte, publicKey any, certChain []*x509.Certificate, err error) {
+
+	if keyProvider == nil {
+		return nil, nil, nil, NewInternalError("keyProvider is required")
+	}
+
+	if jwsString == "" {
+		return nil, nil, nil, NewInternalError("jwsString is required")
+	}
+
+	// Step 1: Verify the JWS signature using the KeyProvider
+	//
+	// Note this step eliminates manual KID extraction by automatically
+	// selecting the right key during verification:
+	//
+	// By passing the KeyProvider to jws.Verify, the function will call
+	// our KeyProvider.FetchKeys() method, passing a KeySink, signature and
+	// message objects. We extract the KID from the signature headers,
+	// look up the corresponding key, and add it to the sink using sink.Key().
+	// Verify() then uses the key to verify the JWS signature.
+	payload, err = jws.Verify([]byte(jwsString), jws.WithKeyProvider(keyProvider))
+	if err != nil {
+		return nil, nil, nil, WrapSignatureError(err, "failed to verify JWS")
+	}
+
+	// Step 2: Extract x5c certificate chain (if present)
+	certChain, err = ParseX5CFromJWS(jwsString)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// If x5c is present, extract the public key from it and validate
+	if certChain != nil {
+		// Extract public key from the first certificate in the chain
+		// This is the key that signed the JWS (already verified by jws.Verify above)
+		publicKey = certChain[0].PublicKey
+
+		// Step 3: Validate certificate chain (CA trust, expiry, domain)
+		// This checks:
+		// - Certificate chain is valid and trusted by root CAs
+		// - Certificates are not expired
+		if err := ValidateCertificateChain(certChain, rootCAs); err != nil {
+			return nil, nil, nil, err
+		}
+
+		// TODO: Certificate revocation status (OCSP/CRL)
+	}
+
+	return payload, publicKey, certChain, nil
+}
+
 // VerifyJWS performs verification for JWS signatures received over PINT.
+//
+// If you have not already established which public key to use for verification,
+// use VerifyJWSWithKeyProvider instead.
 //
 // The function verifies the JWS signature and, if the JWS contains an x5c
 // header, it also verifies the x5c certificate chain.

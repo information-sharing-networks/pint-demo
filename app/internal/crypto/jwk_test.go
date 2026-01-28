@@ -9,13 +9,11 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-var keyID = "test_kid"
-
 func TestRSAPublicKeyToJWK(t *testing.T) {
 
 	// nil public key
 	var publicKey *rsa.PublicKey
-	_, err := RSAPublicKeyToJWK(publicKey, keyID)
+	_, err := RSAPublicKeyToJWK(publicKey)
 	if err == nil {
 		t.Fatalf("expected an error when passing nil public key, but got no error")
 	}
@@ -25,24 +23,18 @@ func TestRSAPublicKeyToJWK(t *testing.T) {
 		t.Fatalf("Could not generate a RSA private Key %v", err)
 	}
 
-	// null key id
-	_, err = RSAPublicKeyToJWK(&privateKey.PublicKey, "")
-	if err == nil {
-		t.Fatalf("expected an error when passing empty key id, but got no error")
-	}
-
-	key, err := RSAPublicKeyToJWK(&privateKey.PublicKey, keyID)
+	key, err := RSAPublicKeyToJWK(&privateKey.PublicKey)
 	if err != nil {
 		t.Fatalf("error converting RSA public key to JWK: %v", err)
 	}
 
-	// Test meta data is set correctly (keyID, alg, usage)
+	// Test meta data is set correctly (keyID auto-generated, alg, usage)
 	gotKeyID, ok := key.KeyID()
 	if !ok {
 		t.Fatalf("KeyID not set in JWK")
 	}
-	if gotKeyID != keyID {
-		t.Errorf("KeyID mismatch: got %q, want %q", gotKeyID, keyID)
+	if gotKeyID == "" {
+		t.Errorf("KeyID should be auto-generated, but got empty string")
 	}
 
 	alg, ok := key.Algorithm()
@@ -67,7 +59,7 @@ func TestRSAPublicKeyToJWK(t *testing.T) {
 func TestEd25519PublicKeyToJWK(t *testing.T) {
 	// nil public key
 	var publicKey ed25519.PublicKey
-	_, err := Ed25519PublicKeyToJWK(publicKey, keyID)
+	_, err := Ed25519PublicKeyToJWK(publicKey)
 	if err == nil {
 		t.Fatalf("expected an error when passing nil public key, but got no error")
 	}
@@ -79,25 +71,19 @@ func TestEd25519PublicKeyToJWK(t *testing.T) {
 	}
 	publicKeyEd25519 := privateKey.Public().(ed25519.PublicKey)
 
-	// empty key id
-	_, err = Ed25519PublicKeyToJWK(publicKeyEd25519, "")
-	if err == nil {
-		t.Fatalf("expected an error when passing empty key id, but got no error")
-	}
-
 	// Valid key
-	key, err := Ed25519PublicKeyToJWK(publicKeyEd25519, keyID)
+	key, err := Ed25519PublicKeyToJWK(publicKeyEd25519)
 	if err != nil {
 		t.Fatalf("error converting Ed25519 public key to JWK: %v", err)
 	}
 
-	// Test meta data is set correctly (keyID, alg, usage)
+	// Test meta data is set correctly (keyID auto-generated, alg, usage)
 	gotKeyID, ok := key.KeyID()
 	if !ok {
 		t.Fatalf("KeyID not set in JWK")
 	}
-	if gotKeyID != keyID {
-		t.Errorf("KeyID mismatch: got %q, want %q", gotKeyID, keyID)
+	if gotKeyID == "" {
+		t.Errorf("KeyID should be auto-generated, but got empty string")
 	}
 
 	// Test algorithm is set correctly
@@ -137,7 +123,7 @@ func TestJWKToRSAPublicKey(t *testing.T) {
 	originalPublicKey := &privateKey.PublicKey
 
 	// Convert to JWK
-	jwkKey, err := RSAPublicKeyToJWK(originalPublicKey, keyID)
+	jwkKey, err := RSAPublicKeyToJWK(originalPublicKey)
 	if err != nil {
 		t.Fatalf("error converting RSA public key to JWK: %v", err)
 	}
@@ -160,7 +146,7 @@ func TestJWKToRSAPublicKey(t *testing.T) {
 	}
 	ed25519PublicKey := ed25519PrivateKey.Public().(ed25519.PublicKey)
 
-	ed25519JWK, err := Ed25519PublicKeyToJWK(ed25519PublicKey, keyID)
+	ed25519JWK, err := Ed25519PublicKeyToJWK(ed25519PublicKey)
 	if err != nil {
 		t.Fatalf("error converting Ed25519 public key to JWK: %v", err)
 	}
@@ -187,7 +173,7 @@ func TestEd25519JWKToPublicKey(t *testing.T) {
 	originalPublicKey := privateKey.Public().(ed25519.PublicKey)
 
 	// Convert to JWK
-	jwkKey, err := Ed25519PublicKeyToJWK(originalPublicKey, keyID)
+	jwkKey, err := Ed25519PublicKeyToJWK(originalPublicKey)
 	if err != nil {
 		t.Fatalf("error converting Ed25519 public key to JWK: %v", err)
 	}
@@ -210,7 +196,7 @@ func TestEd25519JWKToPublicKey(t *testing.T) {
 	}
 	rsaPublicKey := &rsaPrivateKey.PublicKey
 
-	rsaJWK, err := RSAPublicKeyToJWK(rsaPublicKey, keyID)
+	rsaJWK, err := RSAPublicKeyToJWK(rsaPublicKey)
 	if err != nil {
 		t.Fatalf("error converting RSA public key to JWK: %v", err)
 	}

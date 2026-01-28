@@ -3,13 +3,13 @@ package handlers
 // start_transfer.go implements the POST /v3/envelopes endpoint for starting envelope transfers.
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
@@ -19,11 +19,19 @@ import (
 
 // StartTransferHandler handles POST /v3/envelopes requests
 type StartTransferHandler struct {
-	queries        *database.Queries
-	keyManager     *pint.KeyManager
-	signingKey     any                 // ed25519.PrivateKey or *rsa.PrivateKey
-	x5cCertChain   []*x509.Certificate // X.509 certificate chain for signing (optional)
-	x5cCustomRoots *x509.CertPool      // Custom root CAs for x5c verification (optional, nil = system roots)
+	queries *database.Queries
+
+	// keyManager contains the public keys used to verify JWS signatures received from other platforms
+	keyManager *pint.KeyManager
+
+	// ed25519.PrivateKey or *rsa.PrivateKey used for signing responses to the sender
+	signingKey any
+
+	// X.509 certificate chain for signing (optional)
+	x5cCertChain []*x509.Certificate
+
+	// Custom root CAs for x5c verification (optional, nil = system roots)
+	x5cCustomRoots *x509.CertPool
 }
 
 // NewStartTransferHandler creates a new handler for starting envelope transfers
@@ -43,103 +51,154 @@ func NewStartTransferHandler(
 	}
 }
 
-// HandleStartTransfer processes POST /v3/envelopes requests
+// HandleStartTransfer godoc
 //
-// Request: EblEnvelope JSON
-// Responses:
-//   - 201 Created: Transfer started, additional documents needed
-//   - 200 OK: Transfer accepted immediately or duplicate detected
-//   - 422 Unprocessable Content: Signature or envelope validation failed
-//   - 409 Conflict: Disputed envelope
-//   - 400 Bad Request: Malformed JSON
-//   - 500 Internal Server Error: Server error
-func (h *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *http.Request) {
+//	@Summary		Start envelope transfer
+//	@Description	Use this endpoint to initiate an eBL envelope transfer on the server.
+//	@Description
+//	@Description	The sending platform must supply a request containing the transport document (eBL),
+//	@Description	a signed envelope manifest, and the complete transfer chain.
+//	@Description
+//	@Description	The receiving platform will check that the signatures are verified, checksums validated,
+//	@Description	and the transfer chain integrity.
+//	@Description
+//	@Description	The response includes an `envelopeReference` that must be used in subsequent API calls
+//	@Description	to upload additional documents and finish the transfer.
+//
+//	@Tags			PINT
+//
+//	@Param			request	body		ebl.EblEnvelope							true	"eBL envelope containing transport document, signed manifest, and transfer chain"
+//
+//	@Success		201		{object}	pint.EnvelopeTransferStartedResponse	"Transfer started, additional documents required"
+//	@Success		200		{object}	pint.EnvelopeTransferStartedResponse	"Transfer accepted or duplicate detected"
+//	@Failure		400		{object}	pint.ErrorResponse						"Malformed request"
+//	@Failure		409		{object}	pint.ErrorResponse						"Disputed envelope"
+//	@Failure		422		{object}	pint.ErrorResponse						"Signature or validation failed"
+//
+//	@Router			/v3/envelopes [post]
+func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	reqLogger := logger.ContextRequestLogger(ctx)
 
-	// Step 1: Parse request body
 	var envelope ebl.EblEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
-		reqLogger.Warn("Failed to decode envelope",
-			slog.String("error", err.Error()),
-		)
+		reqLogger.Warn("Failed to decode envelope", slog.String("error", err.Error()))
 		pint.RespondWithError(w, r, ebl.WrapEnvelopeError(err, "failed to decode envelope JSON"))
 		return
 	}
 	defer r.Body.Close()
 
-	// Step 2: Verify envelope (signatures, checksums, chain integrity)
-	// TODO: Get public keys from key manager
-	// For now, we'll skip verification and return not implemented
-	reqLogger.Info("Envelope received",
-		slog.String("transport_document_checksum", "TODO"),
-	)
-
-	// TODO: Implement verification
-	_ = envelope
-
-	pint.RespondWithError(w, r, ebl.NewEnvelopeError("endpoint not yet implemented"))
-}
-
-// verifyEnvelope performs complete envelope verification
-//
-//lint:ignore U1000 TODO
-func (h *StartTransferHandler) verifyEnvelope(
-	ctx context.Context,
-	envelope *ebl.EblEnvelope,
-) (*ebl.EnvelopeVerificationResult, error) {
-	// TODO: Implement
-	// 1. Get sender's public key (from JWKS endpoint or local store)
-	// 2. Get carrier's public key
-	// 3. Call ebl.VerifyEnvelopeTransfer()
-	return nil, errors.New("not implemented")
-}
-
-// checkDuplicate checks if this envelope has already been received
-//
-//lint:ignore U1000 TODO
-func (h *StartTransferHandler) checkDuplicate(
-	ctx context.Context,
-	lastChainChecksum string,
-) (*database.Envelope, error) {
-	envelope, err := h.queries.GetEnvelopeByLastChainChecksum(ctx, lastChainChecksum)
+	// Verify envelope signatures, checksums, and chain integrity
+	verificationResult, err := ebl.VerifyEnvelopeTransfer(ebl.EnvelopeVerificationInput{
+		Envelope:    &envelope,
+		RootCAs:     s.x5cCustomRoots,
+		KeyProvider: s.keyManager,
+	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil // Not a duplicate
-		}
-		return nil, err
+		reqLogger.Warn("Envelope verification failed", slog.String("error", err.Error()))
+		pint.RespondWithError(w, r, err)
+		return
 	}
-	return &envelope, nil
-}
 
-// persistEnvelope stores the envelope in the database
-//
-//lint:ignore U1000 TODO
-func (h *StartTransferHandler) persistEnvelope(
-	ctx context.Context,
-	envelope *ebl.EblEnvelope,
-	verificationResult *ebl.EnvelopeVerificationResult,
-) (*database.Envelope, error) {
-	// TODO: Implement
-	// 1. Extract transport document reference from transportDocument JSON
-	// 2. Determine sender platform from last chain entry
-	// 3. Create envelope record
-	// 4. Create transfer chain entries
-	// 5. Create additional document records
-	return nil, errors.New("not implemented")
-}
+	// Check for duplicate by last chain checksum
+	lastChainChecksum := verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum
 
-// generateResponse creates the appropriate response based on envelope state
-//
-//lint:ignore U1000 TODO
-func (h *StartTransferHandler) generateResponse(
-	ctx context.Context,
-	envelope *database.Envelope,
-	verificationResult *ebl.EnvelopeVerificationResult,
-) (*pint.EnvelopeTransferStartedResponse, int, error) {
-	// TODO: Implement
-	// 1. Determine missing additional documents
-	// 2. Create response
-	// 3. Determine HTTP status code (201 or 200)
-	return nil, 0, errors.New("not implemented")
+	existingEnvelope, err := s.queries.GetEnvelopeByLastChainChecksum(ctx, lastChainChecksum)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		reqLogger.Error("Database error checking for duplicate", slog.String("error", err.Error()))
+		pint.RespondWithError(w, r, pint.NewInternalError("database error"))
+		return
+	}
+
+	if existingEnvelope.ID != uuid.Nil {
+		reqLogger.Info("Duplicate envelope detected",
+			slog.String("envelope_reference", existingEnvelope.EnvelopeReference.String()),
+			slog.String("last_chain_checksum", lastChainChecksum))
+
+		response := &pint.EnvelopeTransferStartedResponse{
+			EnvelopeReference:                                   existingEnvelope.EnvelopeReference.String(),
+			TransportDocumentChecksum:                           existingEnvelope.TransportDocumentChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: existingEnvelope.LastTransferChainEntryChecksum,
+			MissingAdditionalDocumentChecksums:                  []string{},
+		}
+		pint.RespondWithJSON(w, http.StatusOK, response)
+		return
+	}
+
+	// TODO: complete DUPE handling
+	// TODO: enforce trust levels
+
+	reqLogger.Info("Envelope verified successfully",
+		slog.String("transport_document_reference", verificationResult.TransportDocumentReference),
+		slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
+		slog.String("trust_level", verificationResult.TrustLevel.String()),
+		slog.String("verified_domain", verificationResult.VerifiedDomain),
+		slog.String("verified_organisation", verificationResult.VerifiedOrganisation))
+
+	// Determine sender platform from last chain entry
+	senderPlatform := verificationResult.LastTransferChainEntry.EblPlatform
+
+	// Store envelope in database
+	storedEnvelope, err := s.queries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
+		TransportDocumentReference:          verificationResult.TransportDocumentReference,
+		TransportDocumentChecksum:           verificationResult.TransportDocumentChecksum,
+		TransportDocument:                   envelope.TransportDocument,
+		EnvelopeManifestSignedContent:       string(envelope.EnvelopeManifestSignedContent),
+		LastTransferChainEntrySignedContent: string(envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]),
+		LastTransferChainEntryChecksum:      verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
+		SenderPlatform:                      senderPlatform,
+		SenderEblPlatform:                   &verificationResult.VerifiedDomain,
+		TrustLevel:                          verificationResult.TrustLevel.String(),
+		State:                               "pending",
+		ResponseCode:                        nil,
+	})
+	if err != nil {
+		reqLogger.Error("Failed to create envelope", slog.String("error", err.Error()))
+		pint.RespondWithError(w, r, pint.NewInternalError("failed to store envelope"))
+		return
+	}
+
+	// Store transfer chain entries
+	for i := range verificationResult.TransferChain {
+		_, err := s.queries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
+			EnvelopeID:    storedEnvelope.ID,
+			SignedContent: string(envelope.EnvelopeTransferChain[i]),
+			Sequence:      int64(i),
+		})
+		if err != nil {
+			reqLogger.Error("Failed to create transfer chain entry",
+				slog.Int("sequence", i),
+				slog.String("error", err.Error()))
+			pint.RespondWithError(w, r, pint.NewInternalError("failed to store transfer chain"))
+			return
+		}
+	}
+
+	reqLogger.Info("Envelope stored successfully",
+		slog.String("envelope_reference", storedEnvelope.EnvelopeReference.String()),
+		slog.String("transport_document_reference", verificationResult.TransportDocumentReference),
+		slog.Int("transfer_chain_entries", len(verificationResult.TransferChain)))
+
+	// Determine missing additional documents
+	missingDocs := []string{}
+	if verificationResult.Manifest.EBLVisualisationByCarrier != nil {
+		missingDocs = append(missingDocs, verificationResult.Manifest.EBLVisualisationByCarrier.DocumentChecksum)
+	}
+	for _, doc := range verificationResult.Manifest.SupportingDocuments {
+		missingDocs = append(missingDocs, doc.DocumentChecksum)
+	}
+
+	response := &pint.EnvelopeTransferStartedResponse{
+		EnvelopeReference:                                   storedEnvelope.EnvelopeReference.String(),
+		TransportDocumentChecksum:                           verificationResult.TransportDocumentChecksum,
+		LastEnvelopeTransferChainEntrySignedContentChecksum: verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
+		MissingAdditionalDocumentChecksums:                  missingDocs,
+	}
+
+	statusCode := http.StatusCreated
+	if len(missingDocs) == 0 {
+		statusCode = http.StatusOK
+	}
+
+	pint.RespondWithJSON(w, statusCode, response)
 }

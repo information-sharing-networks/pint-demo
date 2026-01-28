@@ -7,6 +7,8 @@ package crypto
 // ... and by keygen CLI to generate JWKs for distribution via /.well-known/jwks.json
 // keygen also uses the PEM functions below to create a PEM file that can be used to create a CA CSR (certificate signing request)).
 //
+// Note the JWK kid is generated using the first 16 characters (8 bytes) of the SHA-256 thumbprint of the public key.
+//
 // these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
 
 import (
@@ -19,32 +21,30 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-// RSAPublicKeyToJWK converts a RSA public key to JWK format
-func RSAPublicKeyToJWK(publicKey *rsa.PublicKey, keyID string) (jwk.Key, error) {
+// RSAPublicKeyToJWK converts a RSA public key to JWK format with auto-generated kid.
+func RSAPublicKeyToJWK(publicKey *rsa.PublicKey) (jwk.Key, error) {
 	if publicKey == nil {
 		return nil, NewInternalError("public key is nil")
 	}
-	if keyID == "" {
-		return nil, NewInternalError("keyID is required")
+
+	keyID, err := GenerateKeyIDFromRSAKey(publicKey)
+	if err != nil {
+		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
 
-	// create the jwk key
 	key, err := jwk.Import(publicKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to create JWK from RSA public key")
 	}
 
-	// Set key ID
 	if err := key.Set(jwk.KeyIDKey, keyID); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key ID")
 	}
 
-	// Set algorithm
 	if err := key.Set(jwk.AlgorithmKey, jwa.RS256()); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set algorithm")
 	}
 
-	// Set key usage
 	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key usage")
 	}
@@ -52,13 +52,15 @@ func RSAPublicKeyToJWK(publicKey *rsa.PublicKey, keyID string) (jwk.Key, error) 
 	return key, nil
 }
 
-// RSAPrivateKeyToJWK converts an RSA private key to JWK format
-func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey, keyID string) (jwk.Key, error) {
+// RSAPrivateKeyToJWK converts an RSA private key to JWK format with auto-generated kid.
+func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey) (jwk.Key, error) {
 	if privateKey == nil {
 		return nil, NewInternalError("private key is nil")
 	}
-	if keyID == "" {
-		return nil, NewInternalError("keyID is required")
+
+	keyID, err := GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
+	if err != nil {
+		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
 
 	key, err := jwk.Import(privateKey)
@@ -66,17 +68,14 @@ func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey, keyID string) (jwk.Key, erro
 		return nil, WrapKeyManagementError(err, "failed to create JWK from RSA private key")
 	}
 
-	// Set key ID
 	if err := key.Set(jwk.KeyIDKey, keyID); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key ID")
 	}
 
-	// Set algorithm
 	if err := key.Set(jwk.AlgorithmKey, jwa.RS256()); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set algorithm")
 	}
 
-	// Set key usage
 	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key usage")
 	}
@@ -84,32 +83,30 @@ func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey, keyID string) (jwk.Key, erro
 	return key, nil
 }
 
-// Ed25519PublicKeyToJWK converts an Ed25519 public key to JWK format
-func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey, keyID string) (jwk.Key, error) {
+// Ed25519PublicKeyToJWK converts an Ed25519 public key to JWK format with auto-generated kid.
+func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey) (jwk.Key, error) {
 	if publicKey == nil {
 		return nil, NewInternalError("public key is nil")
 	}
-	if keyID == "" {
-		return nil, NewInternalError("keyID is required")
+
+	keyID, err := GenerateKeyIDFromEd25519Key(publicKey)
+	if err != nil {
+		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
 
-	// Create JWK
 	key, err := jwk.Import(publicKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to create JWK from Ed25519 public key")
 	}
 
-	// Set key ID
 	if err := key.Set(jwk.KeyIDKey, keyID); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key ID")
 	}
 
-	// Set algorithm
 	if err := key.Set(jwk.AlgorithmKey, jwa.EdDSA()); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set algorithm")
 	}
 
-	// Set key usage
 	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key usage")
 	}
@@ -117,32 +114,31 @@ func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey, keyID string) (jwk.Key, 
 	return key, nil
 }
 
-// Ed25519PrivateKeyToJWK converts an Ed25519 private key to JWK format
-func Ed25519PrivateKeyToJWK(privateKey ed25519.PrivateKey, keyID string) (jwk.Key, error) {
+// Ed25519PrivateKeyToJWK converts an Ed25519 private key to JWK format with auto-generated kid.
+func Ed25519PrivateKeyToJWK(privateKey ed25519.PrivateKey) (jwk.Key, error) {
 	if privateKey == nil {
 		return nil, NewInternalError("private key is nil")
 	}
-	if keyID == "" {
-		return nil, NewInternalError("keyID is required")
+
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+	keyID, err := GenerateKeyIDFromEd25519Key(publicKey)
+	if err != nil {
+		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
 
-	// Import the private key
 	key, err := jwk.Import(privateKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to create JWK from Ed25519 private key")
 	}
 
-	// Set key ID
 	if err := key.Set(jwk.KeyIDKey, keyID); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key ID")
 	}
 
-	// Set algorithm
 	if err := key.Set(jwk.AlgorithmKey, jwa.EdDSA()); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set algorithm")
 	}
 
-	// Set key usage
 	if err := key.Set(jwk.KeyUsageKey, jwk.ForSignature); err != nil {
 		return nil, WrapKeyManagementError(err, "failed to set key usage")
 	}

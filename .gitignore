@@ -8,10 +8,10 @@
 **/tmp/
 
 # binaries
-pint-receiver
-pint-sender
-/app/pint-receiver
-/app/pint-sender
+pint-server
+pint-client
+/app/pint-server
+/app/pint-client
 /keygen
 /app/keygen
 /app/bin/

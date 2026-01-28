@@ -44,7 +44,7 @@ services:
         COPY app/go.mod app/go.sum* ./
         RUN go mod download
         WORKDIR /pint-demo
-    container_name: pint-receiver
+    container_name: pint-server
     volumes:
       - ./:/pint-demo # project dir
       - go-modules:/go/pkg/mod # persist downloaded modules
@@ -112,7 +112,7 @@ services:
         sqlc generate &&
         echo 'Running database migrations...' &&
         goose -dir sql/schema postgres $$DATABASE_URL -env=none up &&
-        echo 'Starting pint-receiver service...' &&
+        echo 'Starting pint-server service...' &&
         air
       "
     networks:

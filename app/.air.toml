@@ -2,8 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  bin = "./bin/pint-receiver"
-  cmd = "swag init -g ./cmd/pint-receiver/main.go && sqlc generate && go build -o ./bin/pint-receiver ./cmd/pint-receiver/main.go"
+  bin = "./bin/pint-server"
+  cmd = "swag init -g ./cmd/pint-server/main.go && sqlc generate && go build -o ./bin/pint-server ./cmd/pint-server/main.go"
   delay = 1000
   exclude_dir = ["tmp", "internal/database", "docs"]
   exclude_file = []

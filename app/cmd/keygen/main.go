@@ -124,27 +124,24 @@ func generateRSAKeys() error {
 		return fmt.Errorf("failed to generate RSA key: %w", err)
 	}
 
-	// Generate key ID from thumbprint if not provided
-	keyID := kid
-	if keyID == "" {
-		keyID, err = pintcrypto.GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
-		if err != nil {
-			return fmt.Errorf("failed to generate key ID: %w", err)
-		}
-	}
-
-	// Save public JWK
+	// Save public JWK (kid is auto-generated from thumbprint)
 	publicFilename := fmt.Sprintf(publicKeyFileNameFormat, hostname)
 	publicPath := filepath.Join(outputDir, publicFilename)
-	if err := pintcrypto.SaveRSAPublicKeyToJWKFile(&privateKey.PublicKey, keyID, publicPath); err != nil {
+	if err := pintcrypto.SaveRSAPublicKeyToJWKFile(&privateKey.PublicKey, publicPath); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)
+	}
+
+	// Get the auto-generated kid for display
+	keyID, err := pintcrypto.GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to generate key ID: %w", err)
 	}
 	fmt.Printf("✓ Public JWK:  %s (kid: %s)\n", publicPath, keyID)
 
-	// Save private JWK
+	// Save private JWK (kid is auto-generated from thumbprint)
 	privateFilename := fmt.Sprintf(privateKeyFileNameFormat, hostname)
 	privatePath := filepath.Join(outputDir, privateFilename)
-	if err := pintcrypto.SaveRSAPrivateKeyToJWKFile(privateKey, keyID, privatePath); err != nil {
+	if err := pintcrypto.SaveRSAPrivateKeyToJWKFile(privateKey, privatePath); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 	fmt.Printf("✓ Private JWK: %s (kid: %s)\n", privatePath, keyID)
@@ -179,27 +176,24 @@ func generateEd25519Keys() error {
 
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
-	// Generate key ID from thumbprint if not provided
-	keyID := kid
-	if keyID == "" {
-		keyID, err = pintcrypto.GenerateKeyIDFromEd25519Key(publicKey)
-		if err != nil {
-			return fmt.Errorf("failed to generate key ID: %w", err)
-		}
-	}
-
-	// Save public JWK
+	// Save public JWK (kid is auto-generated from thumbprint)
 	publicFilename := fmt.Sprintf(publicKeyFileNameFormat, hostname)
 	publicPath := filepath.Join(outputDir, publicFilename)
-	if err := pintcrypto.SaveEd25519PublicKeyToJWKFile(publicKey, keyID, publicPath); err != nil {
+	if err := pintcrypto.SaveEd25519PublicKeyToJWKFile(publicKey, publicPath); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)
+	}
+
+	// Get the auto-generated kid for display
+	keyID, err := pintcrypto.GenerateKeyIDFromEd25519Key(publicKey)
+	if err != nil {
+		return fmt.Errorf("failed to generate key ID: %w", err)
 	}
 	fmt.Printf("✓ Public JWK:  %s (kid: %s)\n", publicPath, keyID)
 
-	// Save private JWK
+	// Save private JWK (kid is auto-generated from thumbprint)
 	privateFilename := fmt.Sprintf(privateKeyFileNameFormat, hostname)
 	privatePath := filepath.Join(outputDir, privateFilename)
-	if err := pintcrypto.SaveEd25519PrivateKeyToJWKFile(privateKey, keyID, privatePath); err != nil {
+	if err := pintcrypto.SaveEd25519PrivateKeyToJWKFile(privateKey, privatePath); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 	fmt.Printf("✓ Private JWK: %s (kid: %s)\n", privatePath, keyID)

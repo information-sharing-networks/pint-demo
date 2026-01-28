@@ -452,7 +452,7 @@ func (km *KeyManager) loadManualKeys() error {
 
 			// if no registry entry found, skip the key
 			if eblSolutionProvider == nil {
-				km.logger.Warn("the ebl platform with this key id is not configured in the registry - skipping",
+				km.logger.Warn("No ebl platform with this kid found in the registry - skipping",
 					slog.String("kid", keyID),
 					slog.String("file", filename))
 				continue
@@ -528,11 +528,16 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 	return nil
 }
 
-// FetchKeys is used during JWS verification to retrieve the public key
-// based on the kid (key ID) in the JWS header.
+// FetchKeys implements the jws.KeyProvider interface for automatic key lookup during JWS verification.
 //
-// it implements the jws.KeyProvider interface which is used by the jws.Verify() function
-// The function checks both manual keys and remote keys from the jwkCache
+// It works like this:
+//  1. The caller invokes jws.Verify() with jws.WithKeyProvider(keyManager)
+//  2. The jws library passes the signature and message to this FetchKeys() method
+//  3. We look up the key based on the KID and add it to the key sink
+//  4. The key sink is used by the jws library to verify the signature.
+//
+// This eliminates the need for manual KID extraction as a separate step
+// and allows us to check both the manual keys and the remote keys in a single location.
 func (km *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, msg *jws.Message) error {
 	kid, ok := sig.ProtectedHeaders().KeyID()
 	if !ok || kid == "" {
