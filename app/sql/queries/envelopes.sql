@@ -35,7 +35,13 @@ WHERE transport_document_checksum = $1
 ORDER BY created_at DESC
 LIMIT 1;
 
--- name: GetEnvelopeByLastChainChecksum :one
+-- name: ExistsEnvelopeByLastChainEntryChecksum :one
+SELECT EXISTS 
+    (SELECT 1 
+     FROM envelopes 
+     WHERE last_transfer_chain_entry_checksum = $1) AS EXISTS;
+
+-- name: GetEnvelopeByLastChainEntryChecksum :one
 SELECT * FROM envelopes
 WHERE last_transfer_chain_entry_checksum = $1
 ORDER BY created_at DESC

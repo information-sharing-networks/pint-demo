@@ -89,6 +89,20 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 	return i, err
 }
 
+const ExistsEnvelopeByLastChainEntryChecksum = `-- name: ExistsEnvelopeByLastChainEntryChecksum :one
+SELECT EXISTS 
+    (SELECT 1 
+     FROM envelopes 
+     WHERE last_transfer_chain_entry_checksum = $1) AS EXISTS
+`
+
+func (q *Queries) ExistsEnvelopeByLastChainEntryChecksum(ctx context.Context, lastTransferChainEntryChecksum string) (bool, error) {
+	row := q.db.QueryRow(ctx, ExistsEnvelopeByLastChainEntryChecksum, lastTransferChainEntryChecksum)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const GetEnvelopeByID = `-- name: GetEnvelopeByID :one
 SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
 WHERE id = $1
@@ -117,15 +131,15 @@ func (q *Queries) GetEnvelopeByID(ctx context.Context, id uuid.UUID) (Envelope, 
 	return i, err
 }
 
-const GetEnvelopeByLastChainChecksum = `-- name: GetEnvelopeByLastChainChecksum :one
+const GetEnvelopeByLastChainEntryChecksum = `-- name: GetEnvelopeByLastChainEntryChecksum :one
 SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
 WHERE last_transfer_chain_entry_checksum = $1
 ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetEnvelopeByLastChainChecksum(ctx context.Context, lastTransferChainEntryChecksum string) (Envelope, error) {
-	row := q.db.QueryRow(ctx, GetEnvelopeByLastChainChecksum, lastTransferChainEntryChecksum)
+func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastTransferChainEntryChecksum string) (Envelope, error) {
+	row := q.db.QueryRow(ctx, GetEnvelopeByLastChainEntryChecksum, lastTransferChainEntryChecksum)
 	var i Envelope
 	err := row.Scan(
 		&i.ID,

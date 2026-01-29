@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
@@ -103,29 +102,23 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// Check for duplicate by last chain checksum
 	lastChainChecksum := verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum
 
-	existingEnvelope, err := s.queries.GetEnvelopeByLastChainChecksum(ctx, lastChainChecksum)
+	exists, err := s.queries.ExistsEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		reqLogger.Error("Database error checking for duplicate", slog.String("error", err.Error()))
 		pint.RespondWithError(w, r, pint.NewInternalError("database error"))
 		return
 	}
 
-	if existingEnvelope.ID != uuid.Nil {
+	if exists {
+		// TODO: complete DUPE handling
 		reqLogger.Info("Duplicate envelope detected",
-			slog.String("envelope_reference", existingEnvelope.EnvelopeReference.String()),
 			slog.String("last_chain_checksum", lastChainChecksum))
 
-		response := &pint.EnvelopeTransferStartedResponse{
-			EnvelopeReference:                                   existingEnvelope.EnvelopeReference.String(),
-			TransportDocumentChecksum:                           existingEnvelope.TransportDocumentChecksum,
-			LastEnvelopeTransferChainEntrySignedContentChecksum: existingEnvelope.LastTransferChainEntryChecksum,
-			MissingAdditionalDocumentChecksums:                  []string{},
-		}
-		pint.RespondWithJSON(w, http.StatusOK, response)
+		pint.RespondWithError(w, r, pint.NewInternalError("duplicate handling not implemented"))
 		return
+
 	}
 
-	// TODO: complete DUPE handling
 	// TODO: enforce trust levels
 
 	reqLogger.Info("Envelope verified successfully",

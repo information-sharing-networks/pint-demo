@@ -6,6 +6,7 @@
 # temp files
 /notes
 **/tmp/
+/specs
 
 # binaries
 pint-server

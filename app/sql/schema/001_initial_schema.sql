@@ -30,7 +30,8 @@ CREATE TABLE envelopes (
         'BSIG',  -- Bad signature
         'MDOC',  -- Missing documents
         'DISE',  -- Disagreement on envelope state
-        'INCD'   -- Inconsistent document
+        'INCD',  -- Inconsistent document
+        'INT2'    -- Internal error
     )),
     CONSTRAINT envelopes_trust_level_check CHECK (trust_level IN ('EV', 'OV', 'DV'))
 );
@@ -38,7 +39,7 @@ CREATE TABLE envelopes (
 CREATE INDEX idx_envelopes_reference ON envelopes(envelope_reference);
 CREATE INDEX idx_envelopes_transport_document_reference ON envelopes(transport_document_reference);
 CREATE INDEX idx_envelopes_transport_document_checksum ON envelopes(transport_document_checksum);
-CREATE INDEX idx_envelopes_last_chain_checksum ON envelopes(last_transfer_chain_entry_checksum);
+CREATE INDEX idx_envelopes_last_chain_entry_checksum ON envelopes(last_transfer_chain_entry_checksum);
 CREATE INDEX idx_envelopes_state ON envelopes(state);
 CREATE INDEX idx_envelopes_created_at ON envelopes(created_at DESC);
 
