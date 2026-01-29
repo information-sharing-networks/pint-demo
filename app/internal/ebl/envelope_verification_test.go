@@ -365,19 +365,13 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				if err != nil {
 					return err
 				}
+
 				certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
 				if err != nil {
 					return err
 				}
 
-				// Generate keyID from public key
-				publicKey := privateKey.Public().(ed25519.PublicKey)
-				keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
-				if err != nil {
-					return err
-				}
-
-				newManifestJWS, err := newManifest.Sign(privateKey, keyID, certChain)
+				newManifestJWS, err := newManifest.Sign(privateKey, certChain)
 				if err != nil {
 					return err
 				}
@@ -576,7 +570,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		t.Fatalf("failed to create envelope manifest: %v", err)
 	}
 
-	envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, keyID, certChain)
+	envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, certChain)
 	if err != nil {
 		t.Fatalf("failed to sign envelope manifest: %v", err)
 	}
@@ -654,12 +648,6 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("Failed to read cert chain: %v", err)
 	}
 
-	publicKey := privateKey.Public().(ed25519.PublicKey)
-	keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
-	if err != nil {
-		t.Fatalf("Failed to compute key ID: %v", err)
-	}
-
 	envelope, err := loadValidTestEnvelope()
 	if err != nil {
 		t.Fatalf("failed to load valid envelope: %v", err)
@@ -683,7 +671,7 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("failed to create envelope manifest: %v", err)
 	}
 
-	envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, keyID, certChain)
+	envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, certChain)
 	if err != nil {
 		t.Fatalf("failed to sign envelope manifest: %v", err)
 	}

@@ -48,8 +48,8 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 
 	entry := createTestEntry()
 
-	// Sign with x5c
-	jws, err := entry.Sign(privateKey, "testkid", certChain)
+	// Sign with x5c (keyID is auto-computed from privateKey)
+	jws, err := entry.Sign(privateKey, certChain)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}
@@ -102,8 +102,8 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 
 	entry := createTestEntry()
 
-	// Sign without x5c
-	jws, err := entry.Sign(privateKey, "testkid", nil)
+	// Sign without x5c (keyID is auto-computed from privateKey)
+	jws, err := entry.Sign(privateKey, nil)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}
@@ -154,8 +154,8 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 
 	entry := createTestEntry()
 
-	// Sign with x5c
-	jws, err := entry.Sign(privateKey, "testkid", certChain)
+	// Sign with x5c (keyID is auto-computed from privateKey)
+	jws, err := entry.Sign(privateKey, certChain)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}
@@ -208,8 +208,8 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 
 	entry := createTestEntry()
 
-	// Sign without x5c
-	jws, err := entry.Sign(privateKey, "testkid", nil)
+	// Sign without x5c (keyID is auto-computed from privateKey)
+	jws, err := entry.Sign(privateKey, nil)
 	if err != nil {
 		t.Fatalf("Failed to sign EnvelopeTransferChainEntry: %v", err)
 	}

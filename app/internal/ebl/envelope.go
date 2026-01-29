@@ -319,18 +319,25 @@ func (e *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 // If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeManifestSignedContent
-func (e *EnvelopeManifest) Sign(privateKey any, keyID string, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
+func (e *EnvelopeManifest) Sign(privateKey any, certChain []*x509.Certificate) (EnvelopeManifestSignedContent, error) {
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
 		return "", WrapInternalError(err, "failed to marshal envelope manifest")
 	}
 
-	// Determine signing function based on key type and cert chain
+	// Generate keyID from public key (thumbprint) and sign
 	var jws string
+	var keyID string
 
 	switch key := privateKey.(type) {
 	case ed25519.PrivateKey:
+		publicKey := key.Public().(ed25519.PublicKey)
+		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
+		if err != nil {
+			return "", WrapInternalError(err, "failed to generate keyID from public key")
+		}
+
 		if len(certChain) > 0 {
 			jws, err = crypto.SignJSONWithEd25519AndX5C(jsonBytes, key, keyID, certChain)
 		} else {
@@ -338,6 +345,11 @@ func (e *EnvelopeManifest) Sign(privateKey any, keyID string, certChain []*x509.
 		}
 
 	case *rsa.PrivateKey:
+		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
+		if err != nil {
+			return "", WrapInternalError(err, "failed to generate keyID from public key")
+		}
+
 		if len(certChain) > 0 {
 			jws, err = crypto.SignJSONWithRSAAndX5C(jsonBytes, key, keyID, certChain)
 		} else {

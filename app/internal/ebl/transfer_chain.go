@@ -336,18 +336,25 @@ type TaxLegalReference struct {
 // If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
-func (e *EnvelopeTransferChainEntry) Sign(privateKey any, keyID string, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
+func (e *EnvelopeTransferChainEntry) Sign(privateKey any, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(e)
 	if err != nil {
 		return "", WrapInternalError(err, "failed to marshal transfer chain entry")
 	}
 
-	// Determine signing function based on key type and cert chain
+	// Generate keyID from public key (thumbprint) and sign
 	var jws string
+	var keyID string
 
 	switch key := privateKey.(type) {
 	case ed25519.PrivateKey:
+		publicKey := key.Public().(ed25519.PublicKey)
+		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
+		if err != nil {
+			return "", WrapInternalError(err, "failed to generate keyID from public key")
+		}
+
 		if len(certChain) > 0 {
 			jws, err = crypto.SignJSONWithEd25519AndX5C(jsonBytes, key, keyID, certChain)
 		} else {
@@ -355,6 +362,11 @@ func (e *EnvelopeTransferChainEntry) Sign(privateKey any, keyID string, certChai
 		}
 
 	case *rsa.PrivateKey:
+		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
+		if err != nil {
+			return "", WrapInternalError(err, "failed to generate keyID from public key")
+		}
+
 		if len(certChain) > 0 {
 			jws, err = crypto.SignJSONWithRSAAndX5C(jsonBytes, key, keyID, certChain)
 		} else {

@@ -13,8 +13,6 @@ package ebl
 // the CreateIssuanceRequest function shows how to use the low level functions to perform these steps.
 
 import (
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -22,8 +20,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-
-	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // IssuanceRequestInput contains the business data needed to create a DCSA IssuanceRequest.
@@ -100,28 +96,8 @@ func CreateIssuanceRequest(
 		return nil, WrapEnvelopeError(err, "failed to build issuance manifest")
 	}
 
-	// Step 3: Generate key ID (thumbprint of public key) and sign the issuance manifest
-	var keyID string
-
-	switch key := privateKey.(type) {
-	case ed25519.PrivateKey:
-		publicKey := key.Public().(ed25519.PublicKey)
-		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to generate key ID")
-		}
-
-	case *rsa.PrivateKey:
-		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to generate key ID")
-		}
-
-	default:
-		return nil, NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
-	}
-
-	issuanceManifestSignedContent, err := issuanceManifest.Sign(privateKey, keyID, certChain)
+	// Step 3: Sign the issuance manifest
+	issuanceManifestSignedContent, err := issuanceManifest.Sign(privateKey, certChain)
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to sign issuance manifest")
 	}

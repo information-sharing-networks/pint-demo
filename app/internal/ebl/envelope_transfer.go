@@ -20,8 +20,6 @@ package ebl
 // the functions below include wrappers to help construct and sign transfer chain entries
 
 import (
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -128,28 +126,8 @@ func CreateEnvelopeTransfer(
 		return nil, WrapEnvelopeError(err, "failed to build envelope manifest")
 	}
 
-	// Step 6: Generate key ID and sign the envelope manifest with the platform's private key
-	var keyID string
-
-	switch key := privateKey.(type) {
-	case ed25519.PrivateKey:
-		publicKey := key.Public().(ed25519.PublicKey)
-		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to generate key ID")
-		}
-
-	case *rsa.PrivateKey:
-		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to generate key ID")
-		}
-
-	default:
-		return nil, NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
-	}
-
-	envelopeManifestSignedContent, err := envelopeManifest.Sign(privateKey, keyID, certChain)
+	// Step 6: Sign the envelope manifest with the platform's private key
+	envelopeManifestSignedContent, err := envelopeManifest.Sign(privateKey, certChain)
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to sign envelope manifest")
 	}
@@ -331,28 +309,9 @@ func CreateTransferChainEntry(
 		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
 	}
 
-	// Step 3: Generate key ID and sign the transfer chain entry with the platform's private key
-	var keyID string
-
-	switch key := privateKey.(type) {
-	case ed25519.PrivateKey:
-		publicKey := key.Public().(ed25519.PublicKey)
-		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
-		if err != nil {
-			return "", WrapEnvelopeError(err, "failed to generate key ID")
-		}
-
-	case *rsa.PrivateKey:
-		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
-		if err != nil {
-			return "", WrapEnvelopeError(err, "failed to generate key ID")
-		}
-
-	default:
-		return "", NewEnvelopeError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
-	}
-
-	signedContent, err := entry.Sign(privateKey, keyID, certChain)
+	// Step 3: Sign the transfer chain entry with the platform's private key
+	// The keyID is automatically computed inside the Sign method
+	signedContent, err := entry.Sign(privateKey, certChain)
 	if err != nil {
 		return "", WrapEnvelopeError(err, "failed to sign transfer chain entry")
 	}

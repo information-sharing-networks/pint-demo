@@ -191,7 +191,8 @@ func Ed25519JWKToPublicKey(key jwk.Key) (ed25519.PublicKey, error) {
 
 // GenerateKeyIDFromRSAKey generates a key ID from an RSA private key using SHA-256 thumbprint.
 // Returns the first 16 characters of the hex-encoded thumbprint.
-// This is the recommended approach for generating key IDs for PINT per DCSA guidance.
+//
+// This is the recommended approach for generating key IDs for PINT
 func GenerateKeyIDFromRSAKey(publickey *rsa.PublicKey) (string, error) {
 	if publickey == nil {
 		return "", NewInternalError("private key is nil")
@@ -212,8 +213,9 @@ func GenerateKeyIDFromRSAKey(publickey *rsa.PublicKey) (string, error) {
 }
 
 // GenerateKeyIDFromEd25519Key generates a key ID from an Ed25519 private key using SHA-256 thumbprint.
-// Returns the first 16 characters of the hex-encoded thumbprint (RFC 7638)
-// This is the recommended approach for generating key IDs for PINT per DCSA guidance.
+// Returns the first 16 characters of the hex-encoded thumbprint (RFC 7638).
+//
+// This is the recommended approach for generating key IDs for PINT
 func GenerateKeyIDFromEd25519Key(publicKey ed25519.PublicKey) (string, error) {
 	if len(publicKey) != ed25519.PublicKeySize {
 		return "", NewInternalError("invalid Ed25519 private key length")
