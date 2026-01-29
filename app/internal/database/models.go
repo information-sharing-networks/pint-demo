@@ -34,7 +34,7 @@ type Envelope struct {
 	LastTransferChainEntryChecksum      string             `json:"last_transfer_chain_entry_checksum"`
 	SenderPlatform                      string             `json:"sender_platform"`
 	SenderEblPlatform                   *string            `json:"sender_ebl_platform"`
-	TrustLevel                          string             `json:"trust_level"`
+	TrustLevel                          int32              `json:"trust_level"`
 	State                               string             `json:"state"`
 	ResponseCode                        *string            `json:"response_code"`
 }
@@ -44,5 +44,5 @@ type TransferChainEntry struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	EnvelopeID    uuid.UUID          `json:"envelope_id"`
 	SignedContent string             `json:"signed_content"`
-	Sequence      int64              `json:"sequence"`
+	Sequence      int32              `json:"sequence"`
 }

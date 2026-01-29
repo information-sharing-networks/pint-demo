@@ -19,7 +19,7 @@ import (
 // TrustLevel represents the trust level of a signature and is determined by the x5c (X.509 certificate chain) in the JWS header.
 //
 // this implementation uses x5c headers to support the DCSA non-repudiation requirements.
-type TrustLevel int
+type TrustLevel int32
 
 const (
 	// TrustLevelEVOV represents signatures with x5c certs that use Extended Validation (EV) or Organization Validation (OV) certificates.

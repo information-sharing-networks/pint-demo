@@ -21,7 +21,7 @@ A demonstration implementation of the DCSA PINT (Platform Interoperability) API 
 To run the app you need to install:
 - [Docker Desktop](https://docs.docker.com/get-docker)
 
-... and if you plan to make changes to the code:
+... and if you plan to make changes to the code (or want to run the go tests):
 - [Go 1.25.4 or above](https://go.dev/doc/install)
 
 ### Quick Start

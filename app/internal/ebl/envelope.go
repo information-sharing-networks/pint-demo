@@ -34,8 +34,8 @@ type EblEnvelope struct {
 	// (signed by the sending platform).
 	//
 	// The EnvelopeManifest payload is used by the receiver to verify that the transport
-	// document and the transfer chain have not been tampered with and to provide
-	// details of any supporting documents transferred via PINT.
+	// document and the transfer chain have not been tampered with and to establish details
+	// of any supporting documents that will be subsequently transferred by the sender.
 	EnvelopeManifestSignedContent EnvelopeManifestSignedContent `json:"envelopeManifestSignedContent"`
 
 	// EnvelopeTransferChain: Ordered list of JWS strings representing the complete

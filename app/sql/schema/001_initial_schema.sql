@@ -11,10 +11,10 @@ CREATE TABLE envelopes (
     transport_document JSONB NOT NULL,  -- The eBL document
     envelope_manifest_signed_content TEXT NOT NULL,  -- JWS-signed EnvelopeManifest
     last_transfer_chain_entry_signed_content TEXT NOT NULL,  -- JWS-signed last transfer chain entry
-    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content 
-    sender_platform TEXT NOT NULL,  -- eBL platform that sent this envelope 
+    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content
+    sender_platform TEXT NOT NULL,  -- eBL platform that sent this envelope
     sender_ebl_platform TEXT,  -- Optional: eBL platform identifier from JWS kid
-    trust_level TEXT NOT NULL,  -- Certificate trust level: EV, OV, or DV
+    trust_level INTEGER NOT NULL,  -- Certificate trust level: 1=EV/OV, 2=DV, 3=NoX5C
     state TEXT NOT NULL,
     response_code TEXT,
     CONSTRAINT envelopes_state_check CHECK (state IN (
@@ -33,7 +33,7 @@ CREATE TABLE envelopes (
         'INCD',  -- Inconsistent document
         'INT2'    -- Internal error
     )),
-    CONSTRAINT envelopes_trust_level_check CHECK (trust_level IN ('EV', 'OV', 'DV'))
+    CONSTRAINT envelopes_trust_level_check CHECK (trust_level IN (1, 2, 3))
 );
 
 CREATE INDEX idx_envelopes_reference ON envelopes(envelope_reference);
@@ -67,7 +67,7 @@ CREATE TABLE transfer_chain_entries (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     envelope_id UUID NOT NULL,
     signed_content TEXT NOT NULL,
-    sequence BIGINT NOT NULL,
+    sequence INT NOT NULL,
     CONSTRAINT transfer_chain_entries_unique_sequence_per_envelope UNIQUE(envelope_id, sequence),
     CONSTRAINT fk_transfer_chain_entries_envelope FOREIGN KEY (envelope_id)
         REFERENCES envelopes(id)

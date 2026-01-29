@@ -114,8 +114,11 @@ security:
 
 # Run tests
 test:
-	@echo "🧪 Running tests..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go test -v ./..."
+	@echo "🧪 Running tests (note tests require a local installation of go)..."
+	@sh -c "cd app && go test ./..."
+
+	@echo "🧪 Running integration tests"
+	@sh -c "cd app && go test -v -count=1 -tags=integration ./test/integration/"
 
 
 # Run all checks

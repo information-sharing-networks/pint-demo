@@ -40,7 +40,7 @@ INSERT INTO transfer_chain_entries (
 type CreateTransferChainEntryParams struct {
 	EnvelopeID    uuid.UUID `json:"envelope_id"`
 	SignedContent string    `json:"signed_content"`
-	Sequence      int64     `json:"sequence"`
+	Sequence      int32     `json:"sequence"`
 }
 
 func (q *Queries) CreateTransferChainEntry(ctx context.Context, arg CreateTransferChainEntryParams) (TransferChainEntry, error) {

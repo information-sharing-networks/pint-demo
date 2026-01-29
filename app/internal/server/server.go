@@ -14,6 +14,7 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
+	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
 	commonhandlers "github.com/information-sharing-networks/pint-demo/app/internal/server/handlers"
@@ -171,6 +172,7 @@ func (s *Server) setupMiddleware() {
 	s.router.Use(chimiddleware.RequestID)
 	s.router.Use(chimiddleware.RealIP)
 	s.router.Use(chimiddleware.Recoverer)
+	s.router.Use(logger.RequestLogging(s.logger))
 	s.router.Use(middleware.SecurityHeaders(s.config.Environment))
 	s.router.Use(middleware.RequestSizeLimit(s.config.MaxRequestSize)) // TODO - have separate limit for different routes?
 	s.router.Use(middleware.RateLimit(s.config.RateLimitRPS, s.config.RateLimitBurst))

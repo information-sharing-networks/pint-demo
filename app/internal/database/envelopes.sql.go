@@ -48,7 +48,7 @@ type CreateEnvelopeParams struct {
 	LastTransferChainEntryChecksum      string          `json:"last_transfer_chain_entry_checksum"`
 	SenderPlatform                      string          `json:"sender_platform"`
 	SenderEblPlatform                   *string         `json:"sender_ebl_platform"`
-	TrustLevel                          string          `json:"trust_level"`
+	TrustLevel                          int32           `json:"trust_level"`
 	State                               string          `json:"state"`
 	ResponseCode                        *string         `json:"response_code"`
 }

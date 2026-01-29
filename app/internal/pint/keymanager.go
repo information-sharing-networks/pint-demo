@@ -346,32 +346,34 @@ func (km *KeyManager) loadManualKeys() error {
 			strings.HasSuffix(filename, ".jwks.json")
 
 		if !isJWKFile {
-			km.logger.Debug("skipping non-JWK file", slog.String("file", filename))
+			km.logger.Debug("skipping: file non-JWK file", slog.String("file", filename))
 			continue
 		}
 
 		// Read file
 		root, err := os.OpenRoot(km.config.ManualKeysDir)
 		if err != nil {
-			km.logger.Warn("failed to open manual keys directory",
-				slog.String("dir", km.config.ManualKeysDir),
-				slog.String("error", err.Error()))
-			continue
+			return WrapKeyError(err, "failed to open manual keys directory")
 		}
 		defer root.Close()
 
 		data, err := root.ReadFile(filename)
 		if err != nil {
-			km.logger.Warn("failed to read manual key file",
-				slog.String("file", filename),
-				slog.String("error", err.Error()))
+			if os.IsPermission(err) {
+				km.logger.Debug("skipping: file permission denied",
+					slog.String("file", filename))
+			} else {
+				km.logger.Error("skipping: file failed to read manual key file",
+					slog.String("file", filename),
+					slog.String("error", err.Error()))
+			}
 			continue
 		}
 
 		// Parse as JWK Set
 		keySet, err := jwk.Parse(data)
 		if err != nil {
-			km.logger.Warn("failed to parse manual key file",
+			km.logger.Error("skipping: file failed to parse manual key data",
 				slog.String("file", filename),
 				slog.String("error", err.Error()))
 			continue
@@ -379,100 +381,91 @@ func (km *KeyManager) loadManualKeys() error {
 
 		// Manual keys must be single JWK files, not JWKS with multiple keys
 		if keySet.Len() == 0 {
-			km.logger.Warn("manual key file contains no keys - skipping",
+			km.logger.Error("skipping: file manual key file contains no keys",
 				slog.String("file", filename))
 			continue
 		}
 		if keySet.Len() > 1 {
-			km.logger.Warn("manual key file contains multiple keys - only single key files are supported for manual configuration",
+			km.logger.Error("skipping: file manual key file contains multiple keys",
 				slog.String("file", filename),
 				slog.Int("key_count", keySet.Len()),
-				slog.String("hint", "use a JWKS endpoint for key rotation"))
+				slog.String("hint", "only single key files are supported for manual configuration - use a JWKS endpoint for key rotation"))
 			continue
 		}
 
-		// Process the single key in the set
-		for i := 0; i < keySet.Len(); i++ {
-			key, ok := keySet.Key(i)
-			if !ok {
-				continue
-			}
+		key, _ := keySet.Key(0)
 
-			keyID, ok := key.KeyID()
-			if !ok || keyID == "" {
-				km.logger.Warn("manual key missing kid",
-					slog.Int("key_index", i))
-				continue
-			}
-
-			// get the key material
-			var raw any
-			if err := jwk.Export(key, &raw); err != nil {
-				km.logger.Warn("failed to export manual key",
-					slog.String("kid", keyID),
-					slog.String("error", err.Error()))
-				continue
-			}
-
-			// Only allow RSA public keys or Ed25519 public keys
-			isValidPublicKey := false
-			var keyType string
-
-			switch v := raw.(type) {
-			case *rsa.PublicKey:
-				isValidPublicKey = true
-				keyType = "RSA public key"
-			case ed25519.PublicKey:
-				isValidPublicKey = true
-				keyType = "Ed25519 public key"
-			case *rsa.PrivateKey:
-				keyType = "RSA private key"
-			case ed25519.PrivateKey:
-				keyType = "Ed25519 private key"
-			default:
-				keyType = fmt.Sprintf("unknown type: %T", v)
-			}
-
-			if !isValidPublicKey {
-				km.logger.Warn("file does not contain a RSA or ED25519 public key - skipping",
-					slog.String("kid", keyID),
-					slog.String("file", filename),
-					slog.String("key_type", keyType))
-				continue
-			}
-
-			// Find registry entry with matching manual key id
-			var eblSolutionProvider *eblSolutionProvider
-			for _, provider := range km.eblSolutionProviders {
-				if provider.ManualKeyID == keyID {
-					eblSolutionProvider = provider
-					break
-				}
-			}
-
-			// if no registry entry found, skip the key
-			if eblSolutionProvider == nil {
-				km.logger.Warn("No ebl platform with this kid found in the registry - skipping",
-					slog.String("kid", keyID),
-					slog.String("file", filename))
-				continue
-			}
-
-			km.logger.Debug("validated public key",
-				slog.String("kid", keyID),
-				slog.String("key_type", keyType))
-
-			// Store key indexed by kid
-			km.manualKeys[keyID] = &PublicKeyInfo{
-				Provider: eblSolutionProvider,
-				Key:      key,
-				KeyID:    keyID,
-			}
-
-			km.logger.Debug("loaded manual key",
-				slog.String("code", eblSolutionProvider.Code),
-				slog.String("kid", keyID))
+		// get key ID
+		keyID, ok := key.KeyID()
+		if !ok || keyID == "" {
+			km.logger.Error("skipping: file manual key missing kid",
+				slog.String("file", filename))
+			continue
 		}
+
+		// get the key material
+		var raw any
+		if err := jwk.Export(key, &raw); err != nil {
+			km.logger.Error("skipping: file failed to export manual key from file",
+				slog.String("file:", filename),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		// Only allow RSA public keys or Ed25519 public keys
+		isValidPublicKey := false
+		var keyType string
+
+		switch v := raw.(type) {
+		case *rsa.PublicKey:
+			isValidPublicKey = true
+			keyType = "RSA public key"
+		case ed25519.PublicKey:
+			isValidPublicKey = true
+			keyType = "Ed25519 public key"
+		default:
+			keyType = fmt.Sprintf("%T", v)
+		}
+
+		if !isValidPublicKey {
+			km.logger.Warn("skipping: file does not contain a RSA or ED25519 public key - skipping",
+				slog.String("file", filename),
+				slog.String("key_type", keyType))
+			continue
+		}
+
+		// Find registry entry with matching manual key id
+		var eblSolutionProvider *eblSolutionProvider
+		for _, provider := range km.eblSolutionProviders {
+			if provider.ManualKeyID == keyID {
+				eblSolutionProvider = provider
+				break
+			}
+		}
+
+		// if no registry entry found, skip the key
+		if eblSolutionProvider == nil {
+			km.logger.Warn("skipping: kid not found in the platform registry - skipping",
+				slog.String("file", filename),
+				slog.String("kid", keyID))
+			continue
+		}
+
+		km.logger.Info("public key loaded to keymanager ",
+			slog.String("file", filename),
+			slog.String("kid", keyID),
+			slog.String("key_type", keyType))
+
+		// Store key indexed by kid
+		km.manualKeys[keyID] = &PublicKeyInfo{
+			Provider: eblSolutionProvider,
+			Key:      key,
+			KeyID:    keyID,
+		}
+
+		km.logger.Debug("loaded manual key",
+			slog.String("code", eblSolutionProvider.Code),
+			slog.String("kid", keyID))
 	}
 
 	return nil
@@ -516,14 +509,13 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 		}
 
 		successCount++
-		km.logger.Debug("registered JWK endpoint for background fetch",
+		km.logger.Info("registered JWK endpoint for background fetch",
 			slog.String("code", provider.Code),
 			slog.String("jwk_url", provider.JWKSEndpoint))
 	}
 
 	km.logger.Info("JWK cache initialization complete - keys will be fetched in background",
-		slog.Int("endpoints_registered", successCount),
-		slog.Int("total_providers", len(km.eblSolutionProviders)))
+		slog.Int("endpoints_registered", successCount))
 
 	return nil
 }

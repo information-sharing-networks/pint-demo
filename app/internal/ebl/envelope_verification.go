@@ -188,7 +188,7 @@ func VerifyEnvelopeTransfer(input EnvelopeVerificationInput) (*EnvelopeVerificat
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "transport document verification failed")
 	}
-	result.TransportDocumentChecksum = string(input.Envelope.TransportDocument)
+	result.TransportDocumentChecksum = manifest.TransportDocumentChecksum
 	result.TransportDocumentReference = transportDocumentResult.TransportDocumentReference
 
 	// Step 7: Verify transfer chain integrity and store all entries

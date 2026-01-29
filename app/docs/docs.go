@@ -95,7 +95,7 @@ const docTemplate = `{
         },
         "/v3/envelopes": {
             "post": {
-                "description": "Use this endpoint to initiate an eBL envelope transfer on the server.\n\nThe sending platform must supply a request containing the transport document (eBL),\na signed envelope manifest, and the complete transfer chain.\n\nThe receiving platform will check that the signatures are verified, checksums validated,\nand the transfer chain integrity.\n\nThe response includes an ` + "`" + `envelopeReference` + "`" + ` that must be used in subsequent API calls\nto upload additional documents and finish the transfer.",
+                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started (not yet accepted)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected (signed response)\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted immediately (with signed response)\n- No additional documents required, OR receiver already has all documents\n- the signed response includes ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted) or ` + "`" + `DUPE` + "`" + ` (duplicate)\n\n` + "`" + `DUPE` + "`" + ` means this transfer was previously accepted - in this case the response\nalso includes the last accepted transfer chain entry\n` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` which the sender can use\nto verify which transfer was accepted.",
                 "tags": [
                     "PINT"
                 ],
@@ -113,13 +113,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Transfer accepted or duplicate detected",
+                        "description": "Transfer accepted immediately (RECE or DUPE)",
                         "schema": {
-                            "$ref": "#/definitions/pint.EnvelopeTransferStartedResponse"
+                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
                         }
                     },
                     "201": {
-                        "description": "Transfer started, additional documents required",
+                        "description": "Transfer started (active), additional documents required",
                         "schema": {
                             "$ref": "#/definitions/pint.EnvelopeTransferStartedResponse"
                         }
@@ -131,13 +131,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Disputed envelope",
+                        "description": "Disputed envelope (DISE)",
                         "schema": {
                             "$ref": "#/definitions/pint.ErrorResponse"
                         }
                     },
                     "422": {
-                        "description": "Signature or validation failed",
+                        "description": "Signature or validation failed (BSIG/BENV)",
                         "schema": {
                             "$ref": "#/definitions/pint.ErrorResponse"
                         }
@@ -200,7 +200,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "envelopeManifestSignedContent": {
-                    "description": "EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest\n(signed by the sending platform).\n\nThe EnvelopeManifest payload is used by the receiver to verify that the transport\ndocument and the transfer chain have not been tampered with and to provide\ndetails of any supporting documents transferred via PINT.",
+                    "description": "EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest\n(signed by the sending platform).\n\nThe EnvelopeManifest payload is used by the receiver to verify that the transport\ndocument and the transfer chain have not been tampered with and to establish details\nof any supporting documents that will be subsequently transferred by the sender.",
                     "type": "string"
                 },
                 "envelopeTransferChain": {
@@ -248,23 +248,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "envelopeReference": {
-                    "description": "EnvelopeReference is the receiver-generated opaque identifier for this envelope transfer.\nUsed in subsequent API calls (PUT additional-documents, PUT finish-transfer).\nMax length: 100 characters",
-                    "type": "string"
+                    "description": "EnvelopeReference is the receiver-generated identifier for this envelope transfer.\nUsed in subsequent API calls (PUT additional-documents, PUT finish-transfer).\nMax length: 100 characters",
+                    "type": "string",
+                    "example": "4TkP5nvgTly0MwFrDxfIkR2rvOjkUIgzibBoKABU"
                 },
                 "lastEnvelopeTransferChainEntrySignedContentChecksum": {
-                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last\ntransfer chain entry received.\nLength: exactly 64 hex characters",
-                    "type": "string"
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last\ntransfer chain entry received.",
+                    "type": "string",
+                    "example": "20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"
                 },
                 "missingAdditionalDocumentChecksums": {
                     "description": "MissingAdditionalDocumentChecksums lists the checksums of additional documents that\nthe receiving platform expects to receive before accepting the envelope transfer.\nEmpty array if no additional documents are required.",
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "76a7d14c83d7268d643ae7345c448de60701f955d264a743e6928a0b8268b24f"
+                    ]
                 },
                 "transportDocumentChecksum": {
-                    "description": "TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).\nComputed on the canonical form of the JSON.\nLength: exactly 64 hex characters",
-                    "type": "string"
+                    "description": "TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).\nComputed on the canonical form of the JSON.",
+                    "type": "string",
+                    "example": "583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"
                 }
             }
         },
@@ -354,6 +360,16 @@ const docTemplate = `{
                 "statusCodeText": {
                     "description": "A standard short description corresponding to the HTTP status code",
                     "type": "string"
+                }
+            }
+        },
+        "pint.SignedEnvelopeTransferFinishedResponse": {
+            "type": "object",
+            "properties": {
+                "envelopeTransferFinishedResponseSignedContent": {
+                    "description": "EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response (200 OK) returned when\nan envelope transfer is accepted or rejected.",
+                    "type": "string",
+                    "example": "eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"
                 }
             }
         }

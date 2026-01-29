@@ -4,28 +4,99 @@ package pint
 
 // EnvelopeTransferStartedResponse is returned when an envelope transfer is initiated (201 Created).
 //
-// This response is UNSIGNED. The sending platform must call PUT /v3/envelopes/{ref}/finish-transfer
-// to get a signed EnvelopeTransferFinishedResponseSignedContent.
-//
-// Spec: DCSA EBL_PINT 3.0.0 - EnvelopeTransferStartedResponse schema
+// This response is used when the receiver has additional documents to be transferred.
+// The sending platform must call PUT /v3/envelopes/{ref}/finish-transfer
+// to get a signed response once all the additional documents have been uploaded.
 type EnvelopeTransferStartedResponse struct {
-	// EnvelopeReference is the receiver-generated opaque identifier for this envelope transfer.
+
+	// EnvelopeReference is the receiver-generated identifier for this envelope transfer.
 	// Used in subsequent API calls (PUT additional-documents, PUT finish-transfer).
 	// Max length: 100 characters
-	EnvelopeReference string `json:"envelopeReference"`
+	EnvelopeReference string `json:"envelopeReference" example:"4TkP5nvgTly0MwFrDxfIkR2rvOjkUIgzibBoKABU"`
 
 	// TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).
 	// Computed on the canonical form of the JSON.
-	// Length: exactly 64 hex characters
-	TransportDocumentChecksum string `json:"transportDocumentChecksum"`
+	TransportDocumentChecksum string `json:"transportDocumentChecksum" example:"583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
 
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
 	// transfer chain entry received.
-	// Length: exactly 64 hex characters
-	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum"`
+	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
 
 	// MissingAdditionalDocumentChecksums lists the checksums of additional documents that
 	// the receiving platform expects to receive before accepting the envelope transfer.
 	// Empty array if no additional documents are required.
-	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums"`
+	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums" example:"76a7d14c83d7268d643ae7345c448de60701f955d264a743e6928a0b8268b24f"`
 }
+
+// SignedEnvelopeTransferFinishedResponse is returned when an envelope transfer is accepted or rejected immediately (200 OK).
+// This response contains a JWS compact serialization signature (header.payload.signature)
+// The payload when decoded contains an EnvelopeTransferFinishedResponse object that summarizes the result of the transfer.
+type SignedEnvelopeTransferFinishedResponse struct {
+
+	// EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response (200 OK) returned when
+	// an envelope transfer is accepted or rejected.
+	SignedContent string `json:"envelopeTransferFinishedResponseSignedContent"  example:"eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"`
+}
+
+// EnvelopeTransferFinishedResponse is the decoded payload of EnvelopeTransferFinishedResponseSignedContent.
+//
+// This is what gets JWS-signed and included when the transfer is accepted or rejected.
+type EnvelopeTransferFinishedResponse struct {
+
+	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
+	// transfer chain entry received.
+	// Required
+	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
+
+	// ResponseCode indicates the result of the envelope transfer.
+	// Required
+	ResponseCode ResponseCode `json:"responseCode"`
+
+	// DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent is the last transfer chain entry
+	// from the previously accepted envelope transfer.
+	// Only included when ResponseCode is DUPE.
+	// This is a JWS compact serialization string.
+	DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent *string `json:"duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent,omitempty"`
+
+	// Reason is a free text comment clarifying the result or suggesting follow-up actions.
+	// Should be omitted when ResponseCode is RECE (no additional information needed).
+	Reason *string `json:"reason,omitempty"`
+
+	// MissingAdditionalDocumentChecksums lists the checksums of additional documents that
+	// the receiving platform believes have not been transferred.
+	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums,omitempty"`
+
+	// ReceivedAdditionalDocumentChecksums confirms all additional documents received during
+	// the envelope transfer.
+	// Included with RECE or DUPE ResponseCode to provide a signed receipt.
+	// Must include all additional documents (including ones receiver already had).
+	ReceivedAdditionalDocumentChecksums []string `json:"receivedAdditionalDocumentChecksums,omitempty"`
+}
+
+// ResponseCode represents the result of an envelope transfer operation.
+//
+//	@enum	RECE,DUPE,BSIG,BENV,INCD,MDOC,DISE
+type ResponseCode string
+
+const (
+	// ResponseCodeRECE indicates the envelope transfer was accepted
+	ResponseCodeRECE ResponseCode = "RECE"
+
+	// ResponseCodeDUPE indicates this is a duplicate of a previously accepted transfer
+	ResponseCodeDUPE ResponseCode = "DUPE"
+
+	// ResponseCodeBSIG indicates rejection due to signature issues
+	ResponseCodeBSIG ResponseCode = "BSIG"
+
+	// ResponseCodeBENV indicates rejection due to envelope issues
+	ResponseCodeBENV ResponseCode = "BENV"
+
+	// ResponseCodeINCD indicates inconclusive document (checksum/size mismatch, not rejected)
+	ResponseCodeINCD ResponseCode = "INCD"
+
+	// ResponseCodeMDOC indicates missing additional documents (not rejected)
+	ResponseCodeMDOC ResponseCode = "MDOC"
+
+	// ResponseCodeDISE indicates disputed envelope (contradicts transfer chain knowledge)
+	ResponseCodeDISE ResponseCode = "DISE"
+)

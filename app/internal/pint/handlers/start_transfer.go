@@ -53,26 +53,42 @@ func NewStartTransferHandler(
 // HandleStartTransfer godoc
 //
 //	@Summary		Start envelope transfer
-//	@Description	Use this endpoint to initiate an eBL envelope transfer on the server.
+//	@Description	Initiates an eBL envelope transfer. The sender provides the transport document (eBL),
+//	@Description	signed envelope manifest, and complete transfer chain.
 //	@Description
-//	@Description	The sending platform must supply a request containing the transport document (eBL),
-//	@Description	a signed envelope manifest, and the complete transfer chain.
+//	@Description	The receiving platform validates signatures, checksums, and transfer chain integrity.
 //	@Description
-//	@Description	The receiving platform will check that the signatures are verified, checksums validated,
-//	@Description	and the transfer chain integrity.
+//	@Description	**Success Responses:**
 //	@Description
-//	@Description	The response includes an `envelopeReference` that must be used in subsequent API calls
-//	@Description	to upload additional documents and finish the transfer.
+//	@Description	`201 Created` - Transfer started (not yet accepted)
+//	@Description	- The envelope transfer is now active
+//	@Description	- Additional documents listed in the EnvelopeManifest are required
+//	@Description	- Sender must transfer documents, then call "Finish envelope transfer" endpoint
+//	@Description	- Only at finish will the transfer be accepted or rejected (signed response)
+//	@Description
+//	@Description	Retry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,
+//	@Description	the receiver assumes the sender has lost track of the state of the transer.
+//	@Description	In this case, the request is treated as a retry and the existing envelope
+//	@Description	reference and current missing documents are returned with HTTP 201.
+//	@Description
+//	@Description	`200 OK` - Transfer accepted immediately (with signed response)
+//	@Description	- No additional documents required, OR receiver already has all documents
+//	@Description	- the signed response includes `responseCode`: `RECE` (accepted) or `DUPE` (duplicate)
+//	@Description
+//	@Description	`DUPE` means this transfer was previously accepted - in this case the response
+//	@Description	also includes the last accepted transfer chain entry
+//	@Description	`duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
+//	@Description	to verify which transfer was accepted.
 //
 //	@Tags			PINT
 //
-//	@Param			request	body		ebl.EblEnvelope							true	"eBL envelope containing transport document, signed manifest, and transfer chain"
+//	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain"
 //
-//	@Success		201		{object}	pint.EnvelopeTransferStartedResponse	"Transfer started, additional documents required"
-//	@Success		200		{object}	pint.EnvelopeTransferStartedResponse	"Transfer accepted or duplicate detected"
-//	@Failure		400		{object}	pint.ErrorResponse						"Malformed request"
-//	@Failure		409		{object}	pint.ErrorResponse						"Disputed envelope"
-//	@Failure		422		{object}	pint.ErrorResponse						"Signature or validation failed"
+//	@Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Transfer accepted immediately (RECE or DUPE)"
+//	@Success		201		{object}	pint.EnvelopeTransferStartedResponse		"Transfer started (active), additional documents required"
+//	@Failure		400		{object}	pint.ErrorResponse							"Malformed request"
+//	@Failure		409		{object}	pint.ErrorResponse							"Disputed envelope (DISE)"
+//	@Failure		422		{object}	pint.ErrorResponse							"Signature or validation failed (BSIG/BENV)"
 //
 //	@Router			/v3/envelopes [post]
 func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +97,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	var envelope ebl.EblEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
-		reqLogger.Warn("Failed to decode envelope", slog.String("error", err.Error()))
 		pint.RespondWithError(w, r, ebl.WrapEnvelopeError(err, "failed to decode envelope JSON"))
 		return
 	}
@@ -94,21 +109,22 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		KeyProvider: s.keyManager,
 	})
 	if err != nil {
-		reqLogger.Warn("Envelope verification failed", slog.String("error", err.Error()))
-		pint.RespondWithError(w, r, err)
+		pint.RespondWithError(w, r, ebl.WrapEnvelopeError(err, "envelope verification failed"))
 		return
 	}
 
 	// Check for duplicate by last chain checksum
 	lastChainChecksum := verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum
 
+	// The receiving platform either
+	//  - Accepts the envelope transfer (if there are no additional documents to be transferred,
+	//  or if it concludes that it is already in the possession of all the additional documents mentioned in the EnvelopeManifest),
+	//  - Or indicates that it is a duplicate (it already accepted the envelope tranfer with the same contents)
 	exists, err := s.queries.ExistsEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		reqLogger.Error("Database error checking for duplicate", slog.String("error", err.Error()))
-		pint.RespondWithError(w, r, pint.NewInternalError("database error"))
+		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to check for duplicate envelope"))
 		return
 	}
-
 	if exists {
 		// TODO: complete DUPE handling
 		reqLogger.Info("Duplicate envelope detected",
@@ -121,6 +137,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// TODO: enforce trust levels
 
+	// TODO: transaction handling
+
 	reqLogger.Info("Envelope verified successfully",
 		slog.String("transport_document_reference", verificationResult.TransportDocumentReference),
 		slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
@@ -130,6 +148,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Determine sender platform from last chain entry
 	senderPlatform := verificationResult.LastTransferChainEntry.EblPlatform
+
+	// TODO state depends on the presence of additional documents
 
 	// Store envelope in database
 	storedEnvelope, err := s.queries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
@@ -141,32 +161,27 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		LastTransferChainEntryChecksum:      verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
 		SenderPlatform:                      senderPlatform,
 		SenderEblPlatform:                   &verificationResult.VerifiedDomain,
-		TrustLevel:                          verificationResult.TrustLevel.String(),
-		State:                               "pending",
+		TrustLevel:                          int32(verificationResult.TrustLevel),
+		State:                               "PENDING",
 		ResponseCode:                        nil,
 	})
 	if err != nil {
-		reqLogger.Error("Failed to create envelope", slog.String("error", err.Error()))
-		pint.RespondWithError(w, r, pint.NewInternalError("failed to store envelope"))
+		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store envelope"))
 		return
 	}
 
-	// Store transfer chain entries
-	for i := range verificationResult.TransferChain {
-		_, err := s.queries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
+	for i, entry := range envelope.EnvelopeTransferChain {
+		_, err = s.queries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
 			EnvelopeID:    storedEnvelope.ID,
-			SignedContent: string(envelope.EnvelopeTransferChain[i]),
-			Sequence:      int64(i),
+			SignedContent: string(entry),
+			// #nosec G115 -- transfer chains never exceed int32 max
+			Sequence: int32(i),
 		})
 		if err != nil {
-			reqLogger.Error("Failed to create transfer chain entry",
-				slog.Int("sequence", i),
-				slog.String("error", err.Error()))
-			pint.RespondWithError(w, r, pint.NewInternalError("failed to store transfer chain"))
+			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store transfer chain entry"))
 			return
 		}
 	}
-
 	reqLogger.Info("Envelope stored successfully",
 		slog.String("envelope_reference", storedEnvelope.EnvelopeReference.String()),
 		slog.String("transport_document_reference", verificationResult.TransportDocumentReference),
