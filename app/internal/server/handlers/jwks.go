@@ -10,12 +10,13 @@ import (
 // HandleJWKS godoc
 //
 //	@Summary		Get JWK set
-//	@Description	Returns the JWK set for the platform
-//	@Description	Use this endpoint to retrieve the public keys used to verify signatures from this platform.
+//	@Description	Returns the JWK set for the platform.
+//	@Description
+//	@Description	Use this endpoint to retrieve the public key needed to verify signatures from this platform.
 //	@Description
 //	@Description	The JWK set in the response conforms to the [JWK specification](https://datatracker.ietf.org/doc/html/rfc7517).
 //	@Description
-//	@Description	Note: this service supports Ed25519 and RSA public keys so you should expect to see either of these key types in the JWK set.
+//	@Description	Note: this service supports Ed25519 and RSA public keys so you should expect to see either of these key types in the returned JWK set.
 //	@Tags			Common
 //
 //	@Success		200	{object}	JWKSResponse	"JWK set"

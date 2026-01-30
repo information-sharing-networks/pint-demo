@@ -110,38 +110,6 @@ definitions:
           ResponseCode indicates the result of the envelope transfer.
           Required
     type: object
-  pint.EnvelopeTransferStartedResponse:
-    properties:
-      envelopeReference:
-        description: |-
-          EnvelopeReference is the receiver-generated identifier for this envelope transfer.
-          Used in subsequent API calls (PUT additional-documents, PUT finish-transfer).
-          Max length: 100 characters
-        example: 4TkP5nvgTly0MwFrDxfIkR2rvOjkUIgzibBoKABU
-        type: string
-      lastEnvelopeTransferChainEntrySignedContentChecksum:
-        description: |-
-          LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
-          transfer chain entry received.
-        example: 20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9
-        type: string
-      missingAdditionalDocumentChecksums:
-        description: |-
-          MissingAdditionalDocumentChecksums lists the checksums of additional documents that
-          the receiving platform expects to receive before accepting the envelope transfer.
-          Empty array if no additional documents are required.
-        example:
-        - 76a7d14c83d7268d643ae7345c448de60701f955d264a743e6928a0b8268b24f
-        items:
-          type: string
-        type: array
-      transportDocumentChecksum:
-        description: |-
-          TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).
-          Computed on the canonical form of the JSON.
-        example: 583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006
-        type: string
-    type: object
   pint.ErrorCode:
     enum:
     - 7001
@@ -283,12 +251,13 @@ paths:
   /.well-known/jwks.json:
     get:
       description: |-
-        Returns the JWK set for the platform
-        Use this endpoint to retrieve the public keys used to verify signatures from this platform.
+        Returns the JWK set for the platform.
+
+        Use this endpoint to retrieve the public key needed to verify signatures from this platform.
 
         The JWK set in the response conforms to the [JWK specification](https://datatracker.ietf.org/doc/html/rfc7517).
 
-        Note: this service supports Ed25519 and RSA public keys so you should expect to see either of these key types in the JWK set.
+        Note: this service supports Ed25519 and RSA public keys so you should expect to see either of these key types in the returned JWK set.
       responses:
         "200":
           description: JWK set
@@ -383,7 +352,7 @@ paths:
         **Notes**
 
         The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
-        When there is a mismatch between the HTTP response status code and the signed response,
+        When there is a mismatch between the HTTP response status code and the status in signed response,
         the signed response `responseCode` takes precedence.
       parameters:
       - description: eBL envelope containing transport document, signed manifest,
@@ -396,17 +365,9 @@ paths:
       responses:
         "200":
           description: Signed response - Transfer accepted immediately (RECE or DUPE)
+            - see the 'default' response for details of the response payload
           schema:
             $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
-        "201":
-          description: Transfer started (active), additional documents required
-          schema:
-            $ref: '#/definitions/pint.EnvelopeTransferStartedResponse'
-        "299":
-          description: documentation only - decoded payload of the signed response
-            (not returned directly)
-          schema:
-            $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
         "400":
           description: Malformed request
           schema:
@@ -417,17 +378,18 @@ paths:
             $ref: '#/definitions/pint.ErrorResponse'
         "422":
           description: Signed response - Signature or validation failed (BSIG/BENV)
+            - see the 'default' response for details of the response payload
           schema:
             $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
-        "499":
-          description: documentation only - decoded payload of the signed response
-            (not returned directly)
-          schema:
-            $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
         "500":
           description: Internal error processing request
           schema:
             $ref: '#/definitions/pint.ErrorResponse'
+        default:
+          description: documentation only - decoded payload of the signed response
+            (not returned directly)
+          schema:
+            $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
       summary: Start envelope transfer
       tags:
       - PINT

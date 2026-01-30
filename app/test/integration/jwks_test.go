@@ -6,8 +6,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -23,6 +25,35 @@ func TestJWKSEndpoint(t *testing.T) {
 	testEnv := setupTestEnvironment(testDB)
 	testDatabaseURL := getTestDatabaseURL()
 	baseURL, stopServer := startInProcessServer(t, ctx, testEnv.dbConn, testDatabaseURL)
+	testDomain := "ed25519-eblplatform.example.com"
+
+	// the jwk returned by the endpoint should match with the manually configured key for the testDomain
+	testKeyPath := fmt.Sprintf("../../internal/crypto/testdata/keys/%s.public.jwk", testDomain)
+
+	// Note: this will need updating when the app is updated to support key rotation (currently only one key is supported)
+	// get the first (only) key from the test key file
+	expectedKeySetBytes, err := os.ReadFile(testKeyPath)
+	if err != nil {
+		t.Fatalf("failed to read test public key file: %v", err)
+	}
+
+	expectedKeySet, err := jwk.Parse([]byte(expectedKeySetBytes))
+	if err != nil {
+		t.Fatalf("failed to parse test public key file: %v", err)
+	}
+
+	if expectedKeySet.Len() != 1 {
+		t.Fatalf("expected 1 key in test public key file, got %d", expectedKeySet.Len())
+	}
+
+	expectedKey, ok := expectedKeySet.Key(0)
+	if !ok {
+		t.Fatalf("failed to get key from public key file: %v", err)
+	}
+	expectedKeyID, ok := expectedKey.KeyID()
+	if !ok || expectedKeyID == "" {
+		t.Fatalf("failed to get key id from public key file: %v", err)
+	}
 
 	defer stopServer()
 
@@ -73,8 +104,10 @@ func TestJWKSEndpoint(t *testing.T) {
 			t.Errorf("key %d: kid is empty", i)
 		}
 
-		if keyID != "ea8904dc74e9395a" { // from ed25519-eblplatform.example.com.public.jwk
-			t.Errorf("key %d: expected key id for ed25519-eblplatform.example.com to be ea8904dc74e9395a, got %s", i, keyID)
+		// get the expected key id from the public key file
+
+		if keyID != expectedKeyID {
+			t.Errorf("key %d: expected key id for %s to be %v, got %s", i, testDomain, expectedKeyID, keyID)
 		}
 
 		if keyUsage, ok := key.KeyUsage(); !ok || keyUsage == "" {

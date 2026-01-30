@@ -218,7 +218,7 @@ func (s *Server) registerApiDocoRoutes() {
 
 		// API documentation (rapidocs)
 		r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, "./docs/rapiddoc.html")
+			http.ServeFile(w, r, "./docs/rapidoc.html")
 		})
 		// OpenAPI specification for API clients and tools
 		r.Get("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
