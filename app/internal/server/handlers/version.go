@@ -9,6 +9,8 @@ import (
 //
 //	@Summary		Get version information
 //	@Description	Returns the version and build information for the service
+//	@Description	Note: version information is embeded at build time using ldflags. see build.sh for details.
+//	@Description	Returns placeholders when running from source.
 //	@Tags			Common
 //	@Produce		json
 //	@Success		200	{object}	VersionResponse	"Version information"

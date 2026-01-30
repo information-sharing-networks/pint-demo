@@ -101,7 +101,7 @@ func NewStartTransferHandler(
 //	@Description	**Notes**
 //	@Description
 //	@Description	The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
-//	@Description 	When there is a mismatch between the HTTP response status code and the signed response,
+//	@Description	When there is a mismatch between the HTTP response status code and the signed response,
 //	@Description	the signed response `responseCode` takes precedence.
 //
 //	@Tags			PINT
@@ -109,12 +109,12 @@ func NewStartTransferHandler(
 //	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain"
 //
 //	@Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted immediately (RECE or DUPE)"
-//	@response		299		{object}	pint.EnvelopeTransferFinishedResponse	"documentation only - decoded payload of the signed response (not returned directly)"
+//	@response		299		{object}	pint.EnvelopeTransferFinishedResponse		"documentation only - decoded payload of the signed response (not returned directly)"
 //	@Success		201		{object}	pint.EnvelopeTransferStartedResponse		"Transfer started (active), additional documents required"
 //	@Failure		400		{object}	pint.ErrorResponse							"Malformed request"
 //	@Failure		409		{object}	pint.ErrorResponse							"Disputed envelope (DISE)"
 //	@Failure		422		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Signature or validation failed (BSIG/BENV)"
-//	@response		499		{object}	pint.EnvelopeTransferFinishedResponse	"documentation only - decoded payload of the signed response (not returned directly)"
+//	@response		499		{object}	pint.EnvelopeTransferFinishedResponse		"documentation only - decoded payload of the signed response (not returned directly)"
 //	@Failure		500		{object}	pint.ErrorResponse							"Internal error processing request"
 //
 //	@Router			/v3/envelopes [post]

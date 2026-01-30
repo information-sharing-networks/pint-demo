@@ -248,7 +248,7 @@ definitions:
 info:
   contact: {}
   description: |
-    pint-demo is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers
+    pint-server is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers
 
     ## Common Error Responses
     All endpoints may return:
@@ -278,7 +278,7 @@ info:
     e.g where external clients need to initiate a transfer on behalf of a user.
   license:
     name: MIT
-  title: DCSA API
+  title: pint-server API
 paths:
   /.well-known/jwks.json:
     get:
@@ -433,7 +433,10 @@ paths:
       - PINT
   /version:
     get:
-      description: Returns the version and build information for the service
+      description: |-
+        Returns the version and build information for the service
+        Note: version information is embeded at build time using ldflags. see build.sh for details.
+        Returns placeholders when running from source.
       produces:
       - application/json
       responses:

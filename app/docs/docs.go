@@ -165,7 +165,7 @@ const docTemplate = `{
         },
         "/version": {
             "get": {
-                "description": "Returns the version and build information for the service",
+                "description": "Returns the version and build information for the service\nNote: version information is embeded at build time using ldflags. see build.sh for details.\nReturns placeholders when running from source.",
                 "produces": [
                     "application/json"
                 ],
@@ -471,8 +471,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "DCSA API",
-	Description:      "pint-demo is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers\n\n## Common Error Responses\nAll endpoints may return:\n- `413` Request body exceeds size limit\n- `429` Rate limit exceeded\n- `500` Internal server error\n\nIndividual endpoints document their specific business logic errors.\n\n## Request Limits\nAll endpoints are protected by:\n- **Rate limiting**: Configurable requests per second (see env vars) - default 100 rps (set to 0 to disable)\n- **Request size limits**: Configurable (see env vars) - default 1MB\n\nCheck the X-Max-Request-Body response header for the configured limit on signals payload.\n\nThe rate limit is set globaly and prevents abuse of the service.\nIn production there will be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.\n\n## Authentication & Authorization\n\nThe pint-demo PINT APIs do not require credentials to be sent with the request.\nParticipating platforms are authenticated via JWS signatures -\nrequests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.\n\nIn a real production system, OAuth 2.0 service accounts would provide additional authentication and authorization capabilities,\ne.g where external clients need to initiate a transfer on behalf of a user.\n",
+	Title:            "pint-server API",
+	Description:      "pint-server is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers\n\n## Common Error Responses\nAll endpoints may return:\n- `413` Request body exceeds size limit\n- `429` Rate limit exceeded\n- `500` Internal server error\n\nIndividual endpoints document their specific business logic errors.\n\n## Request Limits\nAll endpoints are protected by:\n- **Rate limiting**: Configurable requests per second (see env vars) - default 100 rps (set to 0 to disable)\n- **Request size limits**: Configurable (see env vars) - default 1MB\n\nCheck the X-Max-Request-Body response header for the configured limit on signals payload.\n\nThe rate limit is set globaly and prevents abuse of the service.\nIn production there will be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.\n\n## Authentication & Authorization\n\nThe pint-demo PINT APIs do not require credentials to be sent with the request.\nParticipating platforms are authenticated via JWS signatures -\nrequests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.\n\nIn a real production system, OAuth 2.0 service accounts would provide additional authentication and authorization capabilities,\ne.g where external clients need to initiate a transfer on behalf of a user.\n",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
