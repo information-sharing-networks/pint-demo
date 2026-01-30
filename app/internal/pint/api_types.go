@@ -33,7 +33,7 @@ type EnvelopeTransferStartedResponse struct {
 // The payload when decoded contains an EnvelopeTransferFinishedResponse object that summarizes the result of the transfer.
 type SignedEnvelopeTransferFinishedResponse struct {
 
-	// EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response (200 OK) returned when
+	// EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when
 	// an envelope transfer is accepted or rejected.
 	SignedContent string `json:"envelopeTransferFinishedResponseSignedContent"  example:"eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"`
 }

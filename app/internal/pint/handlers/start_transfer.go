@@ -60,11 +60,11 @@ func NewStartTransferHandler(
 //	@Description
 //	@Description	**Success Responses:**
 //	@Description
-//	@Description	`201 Created` - Transfer started (not yet accepted)
+//	@Description	`201 Created` - Transfer started but not yet accepted)
 //	@Description	- The envelope transfer is now active
 //	@Description	- Additional documents listed in the EnvelopeManifest are required
 //	@Description	- Sender must transfer documents, then call "Finish envelope transfer" endpoint
-//	@Description	- Only at finish will the transfer be accepted or rejected (signed response)
+//	@Description	- Only at finish will the transfer be accepted or rejected with a signed response
 //	@Description
 //	@Description	Retry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,
 //	@Description	the receiver assumes the sender has lost track of the state of the transer.
@@ -72,23 +72,50 @@ func NewStartTransferHandler(
 //	@Description	reference and current missing documents are returned with HTTP 201.
 //	@Description
 //	@Description	`200 OK` - Transfer accepted immediately (with signed response)
-//	@Description	- No additional documents required, OR receiver already has all documents
-//	@Description	- the signed response includes `responseCode`: `RECE` (accepted) or `DUPE` (duplicate)
+//	@Description	- No additional documents required, or receiver already has all documents
+//	@Description	- The response body contains a JWS (JSON Web Signature) token, where
+//	@Description	the payload contains the response details.
+//	@Description	The payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate)
 //	@Description
-//	@Description	`DUPE` means this transfer was previously accepted - in this case the response
+//	@Description	`DUPE` means this transfer was previously received and accepted - in this case the response
 //	@Description	also includes the last accepted transfer chain entry
 //	@Description	`duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
 //	@Description	to verify which transfer was accepted.
+//	@Description
+//	@Description	**Error Responses:**
+//	@Description
+//	@Description	`422 Unprocessable Entity` - indicates a client side error
+//	@Description	(signature or data validation failure). The response body contains a JWS token,
+//	@Description	and the payload contains the error details.
+//	@Description
+//	@Description	`400 Bad Request` - indicates a malformed request (e.g. missing required fields, invalid JSON, etc.)
+//	@Description
+//	@Description	`409 Conflict` - indicates that the status of the BL is disputed (DISE) by the reciver
+//	@Description	e.g a subsequent transfer chain entry with a different state was already accepted
+//	@Description	(this feature is not yet implemented)
+//	@Description
+//	@Description	`500 internal error` For all other errors the sending platform should retry the
+//	@Description	envelope transfer until they get a signed response. If the sender gets an unsigned response
+//	@Description	that claims to be an acceptance or rejection, the sending platform should not act on it.
+//	@Description
+//	@Description	**Notes**
+//	@Description
+//	@Description	The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
+//	@Description 	When there is a mismatch between the HTTP response status code and the signed response,
+//	@Description	the signed response `responseCode` takes precedence.
 //
 //	@Tags			PINT
 //
 //	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain"
 //
-//	@Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Transfer accepted immediately (RECE or DUPE)"
+//	@Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted immediately (RECE or DUPE)"
+//	@response		299		{object}	pint.EnvelopeTransferFinishedResponse	"documentation only - decoded payload of the signed response (not returned directly)"
 //	@Success		201		{object}	pint.EnvelopeTransferStartedResponse		"Transfer started (active), additional documents required"
 //	@Failure		400		{object}	pint.ErrorResponse							"Malformed request"
 //	@Failure		409		{object}	pint.ErrorResponse							"Disputed envelope (DISE)"
-//	@Failure		422		{object}	pint.ErrorResponse							"Signature or validation failed (BSIG/BENV)"
+//	@Failure		422		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Signature or validation failed (BSIG/BENV)"
+//	@response		499		{object}	pint.EnvelopeTransferFinishedResponse	"documentation only - decoded payload of the signed response (not returned directly)"
+//	@Failure		500		{object}	pint.ErrorResponse							"Internal error processing request"
 //
 //	@Router			/v3/envelopes [post]
 func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *http.Request) {

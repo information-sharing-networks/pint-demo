@@ -66,6 +66,50 @@ definitions:
       value:
         type: string
     type: object
+  pint.EnvelopeTransferFinishedResponse:
+    properties:
+      duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent:
+        description: |-
+          DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent is the last transfer chain entry
+          from the previously accepted envelope transfer.
+          Only included when ResponseCode is DUPE.
+          This is a JWS compact serialization string.
+        type: string
+      lastEnvelopeTransferChainEntrySignedContentChecksum:
+        description: |-
+          LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
+          transfer chain entry received.
+          Required
+        example: 20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9
+        type: string
+      missingAdditionalDocumentChecksums:
+        description: |-
+          MissingAdditionalDocumentChecksums lists the checksums of additional documents that
+          the receiving platform believes have not been transferred.
+        items:
+          type: string
+        type: array
+      reason:
+        description: |-
+          Reason is a free text comment clarifying the result or suggesting follow-up actions.
+          Should be omitted when ResponseCode is RECE (no additional information needed).
+        type: string
+      receivedAdditionalDocumentChecksums:
+        description: |-
+          ReceivedAdditionalDocumentChecksums confirms all additional documents received during
+          the envelope transfer.
+          Included with RECE or DUPE ResponseCode to provide a signed receipt.
+          Must include all additional documents (including ones receiver already had).
+        items:
+          type: string
+        type: array
+      responseCode:
+        allOf:
+        - $ref: '#/definitions/pint.ResponseCode'
+        description: |-
+          ResponseCode indicates the result of the envelope transfer.
+          Required
+    type: object
   pint.EnvelopeTransferStartedResponse:
     properties:
       envelopeReference:
@@ -174,11 +218,29 @@ definitions:
           code
         type: string
     type: object
+  pint.ResponseCode:
+    enum:
+    - RECE
+    - DUPE
+    - BSIG
+    - BENV
+    - INCD
+    - MDOC
+    - DISE
+    type: string
+    x-enum-varnames:
+    - ResponseCodeRECE
+    - ResponseCodeDUPE
+    - ResponseCodeBSIG
+    - ResponseCodeBENV
+    - ResponseCodeINCD
+    - ResponseCodeMDOC
+    - ResponseCodeDISE
   pint.SignedEnvelopeTransferFinishedResponse:
     properties:
       envelopeTransferFinishedResponseSignedContent:
         description: |-
-          EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response (200 OK) returned when
+          EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when
           an envelope transfer is accepted or rejected.
         example: eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM
         type: string
@@ -280,11 +342,11 @@ paths:
 
         **Success Responses:**
 
-        `201 Created` - Transfer started (not yet accepted)
+        `201 Created` - Transfer started but not yet accepted)
         - The envelope transfer is now active
         - Additional documents listed in the EnvelopeManifest are required
         - Sender must transfer documents, then call "Finish envelope transfer" endpoint
-        - Only at finish will the transfer be accepted or rejected (signed response)
+        - Only at finish will the transfer be accepted or rejected with a signed response
 
         Retry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,
         the receiver assumes the sender has lost track of the state of the transer.
@@ -292,13 +354,37 @@ paths:
         reference and current missing documents are returned with HTTP 201.
 
         `200 OK` - Transfer accepted immediately (with signed response)
-        - No additional documents required, OR receiver already has all documents
-        - the signed response includes `responseCode`: `RECE` (accepted) or `DUPE` (duplicate)
+        - No additional documents required, or receiver already has all documents
+        - The response body contains a JWS (JSON Web Signature) token, where
+        the payload contains the response details.
+        The payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate)
 
-        `DUPE` means this transfer was previously accepted - in this case the response
+        `DUPE` means this transfer was previously received and accepted - in this case the response
         also includes the last accepted transfer chain entry
         `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
         to verify which transfer was accepted.
+
+        **Error Responses:**
+
+        `422 Unprocessable Entity` - indicates a client side error
+        (signature or data validation failure). The response body contains a JWS token,
+        and the payload contains the error details.
+
+        `400 Bad Request` - indicates a malformed request (e.g. missing required fields, invalid JSON, etc.)
+
+        `409 Conflict` - indicates that the status of the BL is disputed (DISE) by the reciver
+        e.g a subsequent transfer chain entry with a different state was already accepted
+        (this feature is not yet implemented)
+
+        `500 internal error` For all other errors the sending platform should retry the
+        envelope transfer until they get a signed response. If the sender gets an unsigned response
+        that claims to be an acceptance or rejection, the sending platform should not act on it.
+
+        **Notes**
+
+        The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
+        When there is a mismatch between the HTTP response status code and the signed response,
+        the signed response `responseCode` takes precedence.
       parameters:
       - description: eBL envelope containing transport document, signed manifest,
           and transfer chain
@@ -309,13 +395,18 @@ paths:
           $ref: '#/definitions/ebl.EblEnvelope'
       responses:
         "200":
-          description: Transfer accepted immediately (RECE or DUPE)
+          description: Signed response - Transfer accepted immediately (RECE or DUPE)
           schema:
             $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
         "201":
           description: Transfer started (active), additional documents required
           schema:
             $ref: '#/definitions/pint.EnvelopeTransferStartedResponse'
+        "299":
+          description: documentation only - decoded payload of the signed response
+            (not returned directly)
+          schema:
+            $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
         "400":
           description: Malformed request
           schema:
@@ -325,7 +416,16 @@ paths:
           schema:
             $ref: '#/definitions/pint.ErrorResponse'
         "422":
-          description: Signature or validation failed (BSIG/BENV)
+          description: Signed response - Signature or validation failed (BSIG/BENV)
+          schema:
+            $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
+        "499":
+          description: documentation only - decoded payload of the signed response
+            (not returned directly)
+          schema:
+            $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
+        "500":
+          description: Internal error processing request
           schema:
             $ref: '#/definitions/pint.ErrorResponse'
       summary: Start envelope transfer
