@@ -21,7 +21,6 @@ package ebl
 
 import (
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -179,33 +178,6 @@ func loadDocumentMetadata(filePath string) (*DocumentMetadata, error) {
 		MediaType:        contentType,
 		DocumentChecksum: checksum,
 	}, nil
-}
-
-// GetDocumentContent reads a file and returns its base64-encoded content.
-// This is used when you need to send the actual document content via the
-// POST /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum} endpoint.
-//
-// The DCSA spec requires documents to be transferred as base64-encoded strings.
-func GetDocumentContent(filePath string) (string, error) {
-	dir := filepath.Dir(filePath)
-	filename := filepath.Base(filePath)
-
-	// Read the file
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return "", WrapEnvelopeError(err, fmt.Sprintf("failed to open directory %s", dir))
-	}
-	defer root.Close()
-
-	content, err := root.ReadFile(filename)
-	if err != nil {
-		return "", WrapEnvelopeError(err, "failed to read file")
-	}
-
-	// Base64 encode the content
-	encodedContent := base64.StdEncoding.EncodeToString(content)
-
-	return encodedContent, nil
 }
 
 // TransferChainEntryInput contains the data needed to create an entry.
