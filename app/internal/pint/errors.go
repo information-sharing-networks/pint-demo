@@ -93,7 +93,7 @@ const (
 	ErrCodeInsufficientTrust ErrorCode = 8002 // Trust level below minimum required
 )
 
-// ErrorResponse represents the DCSA standard error response format
+// ErrorResponse represents the DCSA error response format
 type ErrorResponse struct {
 
 	// The HTTP method used to make the request e.g. GET, POST, etc
@@ -123,7 +123,7 @@ type ErrorResponse struct {
 
 // DetailedError represents a detailed error in the DCSA error response
 type DetailedError struct {
-	// A standard error code see https://developer.dcsa.org/standard-error-codes
+	// error code used on the platform: 7000-7999 for technical errors, 8000-8999 for functional errors
 	ErrorCode        ErrorCode `json:"errorCode"`
 	Property         string    `json:"property,omitempty"`
 	Value            string    `json:"value,omitempty"`

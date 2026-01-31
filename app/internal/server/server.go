@@ -196,6 +196,7 @@ func (s *Server) registerPintRoutes() {
 		s.signingKey,
 		s.x5cCertChain,
 		s.x5cCustomRoots,
+		s.config.MinTrustLevel,
 	)
 
 	s.router.Route("/v3", func(r chi.Router) {

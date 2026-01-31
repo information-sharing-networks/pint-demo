@@ -95,7 +95,7 @@ const docTemplate = `{
         },
         "/v3/envelopes": {
             "post": {
-                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started but not yet accepted)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted immediately (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\nThe payload includes the ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted) or ` + "`" + `DUPE` + "`" + ` (duplicate)\n\n` + "`" + `DUPE` + "`" + ` means this transfer was previously received and accepted - in this case the response\nalso includes the last accepted transfer chain entry\n` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` which the sender can use\nto verify which transfer was accepted.\n\n**Error Responses:**\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - indicates a client side error\n(signature or data validation failure). The response body contains a JWS token,\nand the payload contains the error details.\n\n` + "`" + `400 Bad Request` + "`" + ` - indicates a malformed request (e.g. missing required fields, invalid JSON, etc.)\n\n` + "`" + `409 Conflict` + "`" + ` - indicates that the status of the BL is disputed (DISE) by the reciver\ne.g a subsequent transfer chain entry with a different state was already accepted\n(this feature is not yet implemented)\n\n` + "`" + `500 internal error` + "`" + ` For all other errors the sending platform should retry the\nenvelope transfer until they get a signed response. If the sender gets an unsigned response\nthat claims to be an acceptance or rejection, the sending platform should not act on it.\n\n**Notes**\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code and the status in signed response,\nthe signed response ` + "`" + `responseCode` + "`" + ` takes precedence.",
+                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started but not yet accepted\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transfer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted immediately (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted) or ` + "`" + `DUPE` + "`" + ` (duplicate).\n` + "`" + `DUPE` + "`" + ` means this transfer was previously received and accepted - in this case the response\nalso includes the last accepted transfer chain entry\n` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\nIn the normal flow, you receive a signed response containing\na JWS token with the error details in the payload.\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with ` + "`" + `responseCode` + "`" + ` of ` + "`" + `BSIG` + "`" + ` (signature failure)\nor ` + "`" + `BENV` + "`" + ` (envelope validation failure).\n\n**Trust Level Failures**\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifsest JWS.\n- Trust level 1 means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n- Trust level 2 means the JWS must contain a valid certificate,\nbut Domain Validation (DV) certificate are allowed.\n- Trust level 3 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will also return a ` + "`" + `422 Unprocessable Entity` + "`" + ` response.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n` + "`" + `400 Bad Request` + "`" + ` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n` + "`" + `500 Internal Server Error` + "`" + ` or other unexpected errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected\n- only determine transfer acceptance/rejection from signed responses\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the ` + "`" + `responseCode` + "`" + ` in the signed response, the ` + "`" + `responseCode` + "`" + ` takes precedence.",
                 "tags": [
                     "PINT"
                 ],
@@ -118,14 +118,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
                         }
                     },
-                    "400": {
-                        "description": "Malformed request",
+                    "201": {
+                        "description": "Transfer started but not yet accepted",
                         "schema": {
-                            "$ref": "#/definitions/pint.ErrorResponse"
+                            "$ref": "#/definitions/pint.EnvelopeTransferStartedResponse"
                         }
                     },
-                    "409": {
-                        "description": "Disputed envelope (DISE)",
+                    "400": {
+                        "description": "Malformed request",
                         "schema": {
                             "$ref": "#/definitions/pint.ErrorResponse"
                         }
@@ -143,7 +143,7 @@ const docTemplate = `{
                         }
                     },
                     "default": {
-                        "description": "documentation only - decoded payload of the signed response (not returned directly)",
+                        "description": "documentation only (not returned directly) - decoded payload of the signed response",
                         "schema": {
                             "$ref": "#/definitions/pint.EnvelopeTransferFinishedResponse"
                         }
@@ -226,7 +226,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "errorCode": {
-                    "description": "A standard error code see https://developer.dcsa.org/standard-error-codes",
+                    "description": "error code used on the platform: 7000-7999 for technical errors, 8000-8999 for functional errors",
                     "allOf": [
                         {
                             "$ref": "#/definitions/pint.ErrorCode"
@@ -254,39 +254,75 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent": {
-                    "description": "DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent is the last transfer chain entry\nfrom the previously accepted envelope transfer.\nOnly included when ResponseCode is DUPE.\nThis is a JWS compact serialization string.",
-                    "type": "string"
+                    "description": "DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent is the last transfer chain entry\nfrom the previously accepted envelope transfer.\nOnly included when ResponseCode is DUPE.\nThis is a JWS compact serialization token.",
+                    "type": "string",
+                    "example": "eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5Mz"
                 },
                 "lastEnvelopeTransferChainEntrySignedContentChecksum": {
-                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last\ntransfer chain entry received.\nRequired",
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last\ntransfer chain entry received.",
                     "type": "string",
                     "example": "20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"
                 },
                 "missingAdditionalDocumentChecksums": {
-                    "description": "MissingAdditionalDocumentChecksums lists the checksums of additional documents that\nthe receiving platform believes have not been transferred.",
+                    "description": "MissingAdditionalDocumentChecksums lists the checksums of additional documents that\nhave not been received by the receiving platform.",
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"
+                    ]
                 },
                 "reason": {
-                    "description": "Reason is a free text comment clarifying the result or suggesting follow-up actions.\nShould be omitted when ResponseCode is RECE (no additional information needed).",
-                    "type": "string"
+                    "description": "Reason is a free text comment clarifying the result or suggesting follow-up actions.\nOmitted when ResponseCode is RECE (no additional information needed).",
+                    "type": "string",
+                    "example": "jws.Verify(): invalid key type"
                 },
                 "receivedAdditionalDocumentChecksums": {
-                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.\nIncluded with RECE or DUPE ResponseCode to provide a signed receipt.\nMust include all additional documents (including ones receiver already had).",
+                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.\nIncluded with RECE or DUPE ResponseCode to provide a signed receipt.\nThis includes all additional documents (including ones the receiver already had).",
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "123329ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"
+                    ]
                 },
                 "responseCode": {
-                    "description": "ResponseCode indicates the result of the envelope transfer.\nRequired",
+                    "description": "ResponseCode indicates the result of the envelope transfer.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/pint.ResponseCode"
                         }
-                    ]
+                    ],
+                    "example": "BSIG"
+                }
+            }
+        },
+        "pint.EnvelopeTransferStartedResponse": {
+            "type": "object",
+            "properties": {
+                "envelopeReference": {
+                    "description": "EnvelopeReference is the receiver-generated identifier for this envelope transfer.\nUsed in subsequent API calls (PUT additional-documents, PUT finish-transfer).\nMax length: 100 characters",
+                    "type": "string",
+                    "example": "4TkP5nvgTly0MwFrDxfIkR2rvOjkUIgzibBoKABU"
+                },
+                "lastEnvelopeTransferChainEntrySignedContentChecksum": {
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last\ntransfer chain entry received.",
+                    "type": "string",
+                    "example": "20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"
+                },
+                "missingAdditionalDocumentChecksums": {
+                    "description": "MissingAdditionalDocumentChecksums lists the checksums of additional documents that\nthe receiving platform expects to receive before accepting the envelope transfer.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transportDocumentChecksum": {
+                    "description": "TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).\nComputed on the canonical form of the JSON.",
+                    "type": "string",
+                    "example": "583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"
                 }
             }
         },

@@ -22,11 +22,8 @@ package ebl
 //  vi)  Include JWS in IssuanceRequest.issuanceManifestSignedContent
 
 import (
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
@@ -207,40 +204,8 @@ func (m *IssuanceManifest) Sign(privateKey any, certChain []*x509.Certificate) (
 		return "", WrapInternalError(err, "failed to marshal issuance manifest")
 	}
 
-	// Generate keyID from public key (thumbprint) and sign
-	var jws string
-	var keyID string
-
-	switch key := privateKey.(type) {
-	case ed25519.PrivateKey:
-		publicKey := key.Public().(ed25519.PublicKey)
-		keyID, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
-		if err != nil {
-			return "", WrapInternalError(err, "failed to generate keyID from public key")
-		}
-
-		if len(certChain) > 0 {
-			jws, err = crypto.SignJSONWithEd25519AndX5C(jsonBytes, key, keyID, certChain)
-		} else {
-			jws, err = crypto.SignJSONWithEd25519(jsonBytes, key, keyID)
-		}
-
-	case *rsa.PrivateKey:
-		keyID, err = crypto.GenerateKeyIDFromRSAKey(&key.PublicKey)
-		if err != nil {
-			return "", WrapInternalError(err, "failed to generate keyID from public key")
-		}
-
-		if len(certChain) > 0 {
-			jws, err = crypto.SignJSONWithRSAAndX5C(jsonBytes, key, keyID, certChain)
-		} else {
-			jws, err = crypto.SignJSONWithRSA(jsonBytes, key, keyID)
-		}
-
-	default:
-		return "", NewIssuanceBadRequestError(fmt.Sprintf("unsupported key type: %T (expected ed25519.PrivateKey or *rsa.PrivateKey)", privateKey))
-	}
-
+	// Sign
+	jws, err := crypto.SignJSON(jsonBytes, privateKey, certChain)
 	if err != nil {
 		return "", WrapSignatureError(err, "failed to sign manifest")
 	}

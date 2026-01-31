@@ -6,9 +6,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
@@ -31,6 +33,9 @@ type StartTransferHandler struct {
 
 	// Custom root CAs for x5c verification (optional, nil = system roots)
 	x5cCustomRoots *x509.CertPool
+
+	// Minimum trust level required for signatures (server config)
+	minTrustLevel int32
 }
 
 // NewStartTransferHandler creates a new handler for starting envelope transfers
@@ -40,6 +45,7 @@ func NewStartTransferHandler(
 	signingKey any,
 	x5cCertChain []*x509.Certificate,
 	x5cCustomRoots *x509.CertPool,
+	minTrustLevel int32,
 ) *StartTransferHandler {
 	return &StartTransferHandler{
 		queries:        queries,
@@ -47,7 +53,36 @@ func NewStartTransferHandler(
 		signingKey:     signingKey,
 		x5cCertChain:   x5cCertChain,
 		x5cCustomRoots: x5cCustomRoots,
+		minTrustLevel:  minTrustLevel,
 	}
+}
+
+// createSignedRejectionResponse creates a signed rejection response for envelope transfer failures.
+// This is used when the envelope verification fails or trust level is insufficient.
+// Returns a SignedEnvelopeTransferFinishedResponse with the appropriate response code and reason.
+func (s *StartTransferHandler) createSignedRejectionResponse(lastChainChecksum string, responseCode pint.ResponseCode, reason string) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
+	// Create the response payload
+	response := pint.EnvelopeTransferFinishedResponse{
+		LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
+		ResponseCode: responseCode,
+		Reason:       &reason,
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, pint.WrapInternalError(err, "failed to marshal rejection response")
+	}
+
+	// Sign
+	jws, err := crypto.SignJSON(jsonBytes, s.signingKey, s.x5cCertChain)
+	if err != nil {
+		return nil, pint.WrapInternalError(err, "failed to sign rejection response")
+	}
+
+	return &pint.SignedEnvelopeTransferFinishedResponse{
+		SignedContent: jws,
+	}, nil
 }
 
 // HandleStartTransfer godoc
@@ -60,14 +95,14 @@ func NewStartTransferHandler(
 //	@Description
 //	@Description	**Success Responses:**
 //	@Description
-//	@Description	`201 Created` - Transfer started but not yet accepted)
+//	@Description	`201 Created` - Transfer started but not yet accepted
 //	@Description	- The envelope transfer is now active
 //	@Description	- Additional documents listed in the EnvelopeManifest are required
 //	@Description	- Sender must transfer documents, then call "Finish envelope transfer" endpoint
 //	@Description	- Only at finish will the transfer be accepted or rejected with a signed response
 //	@Description
 //	@Description	Retry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,
-//	@Description	the receiver assumes the sender has lost track of the state of the transer.
+//	@Description	the receiver assumes the sender has lost track of the state of the transfer.
 //	@Description	In this case, the request is treated as a retry and the existing envelope
 //	@Description	reference and current missing documents are returned with HTTP 201.
 //	@Description
@@ -75,47 +110,68 @@ func NewStartTransferHandler(
 //	@Description	- No additional documents required, or receiver already has all documents
 //	@Description	- The response body contains a JWS (JSON Web Signature) token, where
 //	@Description	the payload contains the response details.
-//	@Description	The payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate)
 //	@Description
+//	@Description	The payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate).
 //	@Description	`DUPE` means this transfer was previously received and accepted - in this case the response
 //	@Description	also includes the last accepted transfer chain entry
 //	@Description	`duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
-//	@Description	to verify which transfer was accepted.
+//	@Description	to confirm which transfer was accepted.
 //	@Description
-//	@Description	**Error Responses:**
+//	@Description	**Error Responses**
 //	@Description
-//	@Description	`422 Unprocessable Entity` - indicates a client side error
-//	@Description	(signature or data validation failure). The response body contains a JWS token,
-//	@Description	and the payload contains the error details.
+//	@Description	In the normal flow, you receive a signed response containing
+//	@Description	a JWS token with the error details in the payload.
 //	@Description
-//	@Description	`400 Bad Request` - indicates a malformed request (e.g. missing required fields, invalid JSON, etc.)
+//	@Description	`422 Unprocessable Entity` indicates the platform has rejected the transfer.
+//	@Description	The response body contains a JWS token with `responseCode` of `BSIG` (signature failure)
+//	@Description	or `BENV` (envelope validation failure).
 //	@Description
-//	@Description	`409 Conflict` - indicates that the status of the BL is disputed (DISE) by the reciver
-//	@Description	e.g a subsequent transfer chain entry with a different state was already accepted
-//	@Description	(this feature is not yet implemented)
+//	@Description	**Trust Level Failures**
+//	@Description	This platform enforces a minimum trust level for signatures,
+//	@Description	based on the x5c header in the envelope manifsest JWS.
+//	@Description	- Trust level 1 means that the JWS must contain a valid Extended Validation (EV)
+//	@Description	or Organization Validation (OV) certificate.
+//	@Description	- Trust level 2 means the JWS must contain a valid certificate,
+//	@Description	but Domain Validation (DV) certificate are allowed.
+//	@Description	- Trust level 3 is the lowest trust level, and means that a JWS
+//	@Description	will be accepted even if no x5c header is present.
 //	@Description
-//	@Description	`500 internal error` For all other errors the sending platform should retry the
-//	@Description	envelope transfer until they get a signed response. If the sender gets an unsigned response
-//	@Description	that claims to be an acceptance or rejection, the sending platform should not act on it.
+//	@Description	The trust level is checked after signature verification, and a valid JWS with an insufficient trust
+//	@Description	level will also return a `422 Unprocessable Entity` response.
+//	@Description
+//	@Description	**Unsigned Error Responses**
+//	@Description
+//	@Description	The only time you get an unsigned response is when the request is malformed or the
+//	@Description	receiving platform is having technical difficulties.
+//	@Description
+//	@Description	`400 Bad Request` indicates a malformed request (invalid JSON, missing required fields, etc.)
+//	@Description
+//	@Description	`500 Internal Server Error` or other unexpected errors indicate temporary technical issues.
+//	@Description	The sender should retry until they receive a signed response.
 //	@Description
 //	@Description	**Notes**
 //	@Description
+//	@Description	IMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform
+//	@Description	(they may come from middleware or infrastructure). Therefore:
+//	@Description	- Do not assume an unsigned error means the transfer was rejected
+//	@Description	- only determine transfer acceptance/rejection from signed responses
+//	@Description
 //	@Description	The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
-//	@Description	When there is a mismatch between the HTTP response status code and the status in signed response,
-//	@Description	the signed response `responseCode` takes precedence.
+//	@Description	When there is a mismatch between the HTTP response status code
+//	@Description	and the `responseCode` in the signed response, the `responseCode` takes precedence.
 //
-//	@Tags			PINT
+// @Tags			PINT
 //
-//	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain"
+// @Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain"
 //
-//	@Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted immediately (RECE or DUPE) - see the 'default' response for details of the response payload"
-//	@response		default	{object}	pint.EnvelopeTransferFinishedResponse		"documentation only - decoded payload of the signed response (not returned directly)"
-//	@Failure		400		{object}	pint.ErrorResponse							"Malformed request"
-//	@Failure		409		{object}	pint.ErrorResponse							"Disputed envelope (DISE)"
-//	@Failure		422		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Signature or validation failed (BSIG/BENV) - see the 'default' response for details of the response payload"
-//	@Failure		500		{object}	pint.ErrorResponse							"Internal error processing request"
+// @Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted immediately (RECE or DUPE) - see the 'default' response for details of the response payload"
+// @Success		201		{object}	pint.EnvelopeTransferStartedResponse			"Transfer started but not yet accepted"
+// @Failure		400		{object}	pint.ErrorResponse							"Malformed request"
+// @Failure		422		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Signature or validation failed (BSIG/BENV) - see the 'default' response for details of the response payload"
+// @Failure		500		{object}	pint.ErrorResponse							"Internal error processing request"
+// @Success		default	{object}	pint.EnvelopeTransferFinishedResponse		"documentation only (not returned directly) - decoded payload of the signed response"
 //
-//	@Router			/v3/envelopes [post]
+// @Router			/v3/envelopes [post]
 func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	reqLogger := logger.ContextRequestLogger(ctx)
@@ -134,7 +190,56 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		KeyProvider: s.keyManager,
 	})
 	if err != nil {
-		pint.RespondWithError(w, r, ebl.WrapEnvelopeError(err, "envelope verification failed"))
+		// Verification failed - return signed rejection response with BSIG or BENV
+		// Extract the last chain checksum from the envelope for the signed response
+		var lastChainChecksum string
+		if len(envelope.EnvelopeTransferChain) > 0 {
+			lastEntryJWS := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
+			lastChainChecksum, _ = crypto.Hash([]byte(lastEntryJWS))
+		}
+
+		// Determine response code based on error type
+		responseCode := pint.ResponseCodeBENV // Default to envelope validation error
+		var cryptoErr *crypto.CryptoError
+		if errors.As(err, &cryptoErr) {
+			if cryptoErr.Code() == crypto.ErrCodeInvalidSignature || cryptoErr.Code() == crypto.ErrCodeCertificate {
+				responseCode = pint.ResponseCodeBSIG
+			}
+		}
+
+		response, signErr := s.createSignedRejectionResponse(
+			lastChainChecksum,
+			responseCode,
+			err.Error(),
+		)
+		if signErr != nil {
+			// If we can't sign the response, fall back to unsigned error
+			pint.RespondWithError(w, r, ebl.WrapEnvelopeError(err, "envelope verification failed"))
+			return
+		}
+
+		reqLogger.Warn("Envelope verification failed",
+			slog.String("response_code", string(responseCode)),
+			slog.String("error", err.Error()),
+		)
+		pint.RespondWithJSON(w, http.StatusUnprocessableEntity, response)
+		return
+	}
+
+	// check the trust level meets the platform minimum
+	if verificationResult.TrustLevel > crypto.TrustLevel(s.minTrustLevel) {
+		// Trust level insufficient - reject with BSIG
+		response, err := s.createSignedRejectionResponse(
+			verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
+			pint.ResponseCodeBSIG,
+			fmt.Sprintf("Trust level %s does not meet minimum required level",
+				verificationResult.TrustLevel.String()),
+		)
+		if err != nil {
+			pint.RespondWithError(w, r, err)
+			return
+		}
+		pint.RespondWithJSON(w, http.StatusUnprocessableEntity, response)
 		return
 	}
 

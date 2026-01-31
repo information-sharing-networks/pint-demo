@@ -110,7 +110,7 @@ func TestSignAndVerifSignatureEdSCA(t *testing.T) {
 			}
 
 			// verify
-			p, err := VerifyEd25519(jwsString, tt.publicKey)
+			p, err := VerifyJWSEd25519(jwsString, tt.publicKey)
 			if err != nil {
 				if tt.wantVerifyErr {
 					return
@@ -217,7 +217,7 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 			}
 
 			// verify
-			p, err := VerifyRSA(jwsString, tt.publicKey)
+			p, err := VerifyJWSRSA(jwsString, tt.publicKey)
 			if err != nil {
 				if tt.wantVerifyErr {
 					return
@@ -269,7 +269,7 @@ func TestSignRSAWithX5C(t *testing.T) {
 
 	// Verify the signature is valid
 	publicKey := &privateKey.PublicKey
-	verifiedPayload, err := VerifyRSA(jwsString, publicKey)
+	verifiedPayload, err := VerifyJWSRSA(jwsString, publicKey)
 	if err != nil {
 		t.Fatalf("VerifyRSA() failed: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestSignEd25519WithX5C(t *testing.T) {
 
 	// Verify the signature is valid
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	verifiedPayload, err := VerifyEd25519(jwsString, publicKey)
+	verifiedPayload, err := VerifyJWSEd25519(jwsString, publicKey)
 	if err != nil {
 		t.Fatalf("VerifyEd25519() failed: %v", err)
 	}
@@ -584,6 +584,138 @@ func TestVerifyJWS(t *testing.T) {
 
 			if !tt.expectCertX5C && certChain != nil {
 				t.Errorf("expected nil cert chain, got %d certs", len(certChain))
+			}
+		})
+	}
+}
+
+// TestSignJSON tests the convenience SignJSON function with both Ed25519 and RSA keys
+func TestSignJSON(t *testing.T) {
+	// Load test keys and certificates
+	ed25519PrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	if err != nil {
+		t.Fatalf("failed to load Ed25519 private key: %v", err)
+	}
+	ed25519PublicKey := ed25519PrivateKey.Public().(ed25519.PublicKey)
+
+	ed25519CertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load Ed25519 cert chain: %v", err)
+	}
+
+	rsaPrivateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys/rsa-eblplatform.example.com.private.jwk")
+	if err != nil {
+		t.Fatalf("failed to load RSA private key: %v", err)
+	}
+	rsaPublicKey := &rsaPrivateKey.PublicKey
+
+	rsaCertChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load RSA cert chain: %v", err)
+	}
+
+	payload := []byte(`{"test":"data"}`)
+
+	tests := []struct {
+		name       string
+		privateKey any
+		certChain  []*x509.Certificate
+		publicKey  any
+		wantErr    bool
+	}{
+		{
+			name:       "Ed25519 with x5c",
+			privateKey: ed25519PrivateKey,
+			certChain:  ed25519CertChain,
+			publicKey:  ed25519PublicKey,
+			wantErr:    false,
+		},
+		{
+			name:       "Ed25519 without x5c",
+			privateKey: ed25519PrivateKey,
+			certChain:  nil,
+			publicKey:  ed25519PublicKey,
+			wantErr:    false,
+		},
+		{
+			name:       "RSA with x5c",
+			privateKey: rsaPrivateKey,
+			certChain:  rsaCertChain,
+			publicKey:  rsaPublicKey,
+			wantErr:    false,
+		},
+		{
+			name:       "RSA without x5c",
+			privateKey: rsaPrivateKey,
+			certChain:  nil,
+			publicKey:  rsaPublicKey,
+			wantErr:    false,
+		},
+		{
+			name:       "Unsupported key type",
+			privateKey: "not-a-key",
+			certChain:  nil,
+			publicKey:  nil,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Sign the payload
+			jws, err := SignJSON(payload, tt.privateKey, tt.certChain)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("SignJSON() expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("SignJSON() error = %v", err)
+			}
+
+			// Verify the JWS format
+			parts := strings.Split(jws, ".")
+			if len(parts) != 3 {
+				t.Fatalf("JWS format invalid: got %d parts, want 3", len(parts))
+			}
+
+			// Verify the signature
+			var verifiedPayload []byte
+			switch key := tt.publicKey.(type) {
+			case ed25519.PublicKey:
+				verifiedPayload, err = VerifyJWSEd25519(jws, key)
+			case *rsa.PublicKey:
+				verifiedPayload, err = VerifyJWSRSA(jws, key)
+			}
+
+			if err != nil {
+				t.Fatalf("Failed to verify signature: %v", err)
+			}
+
+			// Verify payload matches
+			if !bytes.Equal(verifiedPayload, payload) {
+				t.Errorf("Payload mismatch: got %s, want %s", verifiedPayload, payload)
+			}
+
+			// Verify x5c presence
+			extractedCerts, err := ParseX5CFromJWS(jws)
+			if err != nil {
+				t.Fatalf("ParseX5CFromJWS() error = %v", err)
+			}
+
+			if tt.certChain != nil {
+				if extractedCerts == nil {
+					t.Errorf("Expected x5c cert chain but got nil")
+				} else if len(extractedCerts) != len(tt.certChain) {
+					t.Errorf("x5c cert count = %d, want %d", len(extractedCerts), len(tt.certChain))
+				}
+			} else {
+				if extractedCerts != nil {
+					t.Errorf("Expected no x5c cert chain but got %d certs", len(extractedCerts))
+				}
 			}
 		})
 	}

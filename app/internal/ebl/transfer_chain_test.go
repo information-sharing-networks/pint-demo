@@ -62,7 +62,7 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 
 	// check the signature can be verified
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	payload, err := crypto.VerifyEd25519(string(jws), publicKey)
+	payload, err := crypto.VerifyJWSEd25519(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 
 	// Verify the signature
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	payload, err := crypto.VerifyEd25519(string(jws), publicKey)
+	payload, err := crypto.VerifyJWSEd25519(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 
 	// Verify the signature
 	publicKey := &privateKey.PublicKey
-	payload, err := crypto.VerifyRSA(string(jws), publicKey)
+	payload, err := crypto.VerifyJWSRSA(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 
 	// Verify the signature
 	publicKey := &privateKey.PublicKey
-	payload, err := crypto.VerifyRSA(string(jws), publicKey)
+	payload, err := crypto.VerifyJWSRSA(string(jws), publicKey)
 	if err != nil {
 		t.Fatalf("Failed to verify JWS: %v", err)
 	}

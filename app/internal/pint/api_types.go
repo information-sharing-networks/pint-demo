@@ -24,7 +24,6 @@ type EnvelopeTransferStartedResponse struct {
 
 	// MissingAdditionalDocumentChecksums lists the checksums of additional documents that
 	// the receiving platform expects to receive before accepting the envelope transfer.
-	// Empty array if no additional documents are required.
 	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums"`
 }
 
@@ -45,32 +44,30 @@ type EnvelopeTransferFinishedResponse struct {
 
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
 	// transfer chain entry received.
-	// Required
 	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
 
 	// ResponseCode indicates the result of the envelope transfer.
-	// Required
-	ResponseCode ResponseCode `json:"responseCode"`
+	ResponseCode ResponseCode `json:"responseCode" example:"BSIG"`
 
 	// DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent is the last transfer chain entry
 	// from the previously accepted envelope transfer.
 	// Only included when ResponseCode is DUPE.
-	// This is a JWS compact serialization string.
-	DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent *string `json:"duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent,omitempty"`
+	// This is a JWS compact serialization token.
+	DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent *string `json:"duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent,omitempty" example:"eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5MzQ0OTM0NDkzNDQ5Mz"`
 
 	// Reason is a free text comment clarifying the result or suggesting follow-up actions.
-	// Should be omitted when ResponseCode is RECE (no additional information needed).
-	Reason *string `json:"reason,omitempty"`
+	// Omitted when ResponseCode is RECE (no additional information needed).
+	Reason *string `json:"reason,omitempty" example:"jws.Verify(): invalid key type"`
 
 	// MissingAdditionalDocumentChecksums lists the checksums of additional documents that
-	// the receiving platform believes have not been transferred.
-	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums,omitempty"`
+	// have not been received by the receiving platform.
+	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums,omitempty" example:"583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
 
 	// ReceivedAdditionalDocumentChecksums confirms all additional documents received during
 	// the envelope transfer.
 	// Included with RECE or DUPE ResponseCode to provide a signed receipt.
-	// Must include all additional documents (including ones receiver already had).
-	ReceivedAdditionalDocumentChecksums []string `json:"receivedAdditionalDocumentChecksums,omitempty"`
+	// This includes all additional documents (including ones the receiver already had).
+	ReceivedAdditionalDocumentChecksums []string `json:"receivedAdditionalDocumentChecksums,omitempty" example:"123329ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
 }
 
 // ResponseCode represents the result of an envelope transfer operation.

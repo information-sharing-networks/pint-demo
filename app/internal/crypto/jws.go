@@ -31,26 +31,83 @@ type JWSHeader struct {
 	KeyID string `json:"kid"`
 }
 
-// VerifyEd25519 verifies a Ed25519 JWS compact serialization signature and returns the payload
-func VerifyEd25519(jwsString string, publicKey ed25519.PublicKey) ([]byte, error) {
-	// Verify the JWS using EdDSA algorithm
-	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.EdDSA(), publicKey))
-	if err != nil {
-		return nil, WrapSignatureError(err, "failed to verify JWS")
+// VerifyJWS performs verification for JWS signatures received over PINT.
+//
+// If you have not already established which public key to use for verification,
+// use VerifyJWSWithKeyProvider instead.
+//
+// The function verifies the JWS signature and, if the JWS contains an x5c
+// header, it also verifies the x5c certificate chain.
+//
+// To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
+// separately after verification.
+//
+// Parameters:
+//   - jwsString: JWS compact serialization (header.payload.signature)
+//   - publicKey: Public key for signature verification (ed25519.PublicKey or *rsa.PublicKey)
+//   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
+//
+// Returns:
+//   - payload: Verified payload bytes
+//   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
+//   - error: Any validation errors
+func VerifyJWS(
+	jwsString string,
+	publicKey any,
+	rootCAs *x509.CertPool,
+) (payload []byte, certChain []*x509.Certificate, err error) {
+
+	if publicKey == nil {
+		return nil, nil, NewInternalError("public key is required")
 	}
 
-	return payload, nil
-}
-
-// VerifyRSA verifies a RSA JWS compact serialization signature and returns the payload
-func VerifyRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
-	// Verify the JWS using RS256 algorithm
-	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.RS256(), publicKey))
-	if err != nil {
-		return nil, WrapSignatureError(err, "failed to verify JWS")
+	if jwsString == "" {
+		return nil, nil, NewInternalError("jwsString is required")
 	}
 
-	return payload, nil
+	// Step 1: Verify the JWS signature
+	// This proves the signer owns the private key corresponding to publicKey
+	switch key := publicKey.(type) {
+	case ed25519.PublicKey:
+		payload, err = VerifyJWSEd25519(jwsString, key)
+	case *rsa.PublicKey:
+		payload, err = VerifyJWSRSA(jwsString, key)
+	default:
+		return nil, nil, NewValidationError("unsupported public key type")
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Step 2: Extract x5c certificate chain (if present)
+	certChain, err = ParseX5CFromJWS(jwsString)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// no x5c present (x5c is optional, so this is not an error)
+	if certChain == nil {
+		return payload, nil, nil
+	}
+
+	// Step 3: Validate x5c public key matches the signing key
+	// this prevents an attacker including a valid certificate for someone other than the org that signed the JWS
+	if err = ValidateX5CMatchesKey(certChain, publicKey); err != nil {
+		return nil, nil, err
+	}
+
+	// Step 4: Validate certificate chain (CA trust, expiry, domain)
+	// This checks:
+	// - Certificate chain is valid and trusted by root CAs
+	// - Certificates are not expired
+	if err := ValidateCertificateChain(certChain, rootCAs); err != nil {
+		return nil, nil, err
+	}
+
+	// TODO: Certificate revocation status (OCSP/CRL)
+
+	return payload, certChain, nil
 }
 
 // VerifyJWSWithKeyProvider performs verification for JWS signatures using a KeyProvider.
@@ -130,132 +187,81 @@ func VerifyJWSWithKeyProvider(
 	return payload, publicKey, certChain, nil
 }
 
-// VerifyJWS performs verification for JWS signatures received over PINT.
-//
-// If you have not already established which public key to use for verification,
-// use VerifyJWSWithKeyProvider instead.
-//
-// The function verifies the JWS signature and, if the JWS contains an x5c
-// header, it also verifies the x5c certificate chain.
-//
-// To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
-// separately after verification.
-//
-// Parameters:
-//   - jwsString: JWS compact serialization (header.payload.signature)
-//   - publicKey: Public key for signature verification (ed25519.PublicKey or *rsa.PublicKey)
-//   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
-//
-// Returns:
-//   - payload: Verified payload bytes
-//   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
-//   - error: Any validation errors
-func VerifyJWS(
-	jwsString string,
-	publicKey any,
-	rootCAs *x509.CertPool,
-) (payload []byte, certChain []*x509.Certificate, err error) {
-
-	if publicKey == nil {
-		return nil, nil, NewInternalError("public key is required")
+// VerifyJWSEd25519 verifies a Ed25519 JWS compact serialization signature and returns the payload
+func VerifyJWSEd25519(jwsString string, publicKey ed25519.PublicKey) ([]byte, error) {
+	// Verify the JWS using EdDSA algorithm
+	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.EdDSA(), publicKey))
+	if err != nil {
+		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}
 
-	if jwsString == "" {
-		return nil, nil, NewInternalError("jwsString is required")
+	return payload, nil
+}
+
+// VerifyJWSRSA verifies a RSA JWS compact serialization signature and returns the payload
+func VerifyJWSRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
+	// Verify the JWS using RS256 algorithm
+	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.RS256(), publicKey))
+	if err != nil {
+		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}
 
-	// Step 1: Verify the JWS signature
-	// This proves the signer owns the private key corresponding to publicKey
-	switch key := publicKey.(type) {
-	case ed25519.PublicKey:
-		payload, err = VerifyEd25519(jwsString, key)
-	case *rsa.PublicKey:
-		payload, err = VerifyRSA(jwsString, key)
+	return payload, nil
+}
+
+// SignJSON signs a JSON payload using the provided private key and optional certificate chain.
+// This function determines the key type and calls the appropriate
+// explicit signing function (SignJSONWithEd25519AndX5C, SignJSONWithRSA, etc.).
+//
+// The privateKey must be either ed25519.PrivateKey or *rsa.PrivateKey.
+// The keyID is generated automatically from the public key using JWK thumbprint.
+// If certChain is provided and non-empty, it will be included in the x5c header.
+//
+// Returns the JWS compact serialization string.
+func SignJSON(payload []byte, privateKey any, certChain []*x509.Certificate) (string, error) {
+	var jws string
+	var keyID string
+	var err error
+
+	switch key := privateKey.(type) {
+	case ed25519.PrivateKey:
+		// Generate keyID from public key
+		publicKey := key.Public().(ed25519.PublicKey)
+		keyID, err = GenerateKeyIDFromEd25519Key(publicKey)
+		if err != nil {
+			return "", WrapInternalError(err, "failed to generate keyID from Ed25519 key")
+		}
+
+		// Sign with or without x5c based on cert chain presence
+		if len(certChain) > 0 {
+			jws, err = SignJSONWithEd25519AndX5C(payload, key, keyID, certChain)
+		} else {
+			jws, err = SignJSONWithEd25519(payload, key, keyID)
+		}
+
+	case *rsa.PrivateKey:
+		// Generate keyID from public key
+		keyID, err = GenerateKeyIDFromRSAKey(&key.PublicKey)
+		if err != nil {
+			return "", WrapInternalError(err, "failed to generate keyID from RSA key")
+		}
+
+		// Sign with or without x5c based on cert chain presence
+		if len(certChain) > 0 {
+			jws, err = SignJSONWithRSAAndX5C(payload, key, keyID, certChain)
+		} else {
+			jws, err = SignJSONWithRSA(payload, key, keyID)
+		}
+
 	default:
-		return nil, nil, NewValidationError("unsupported public key type")
+		return "", NewInternalError("unsupported private key type (expected ed25519.PrivateKey or *rsa.PrivateKey)")
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return "", err
 	}
 
-	// Step 2: Extract x5c certificate chain (if present)
-	certChain, err = ParseX5CFromJWS(jwsString)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// no x5c present (x5c is optional, so this is not an error)
-	if certChain == nil {
-		return payload, nil, nil
-	}
-
-	// Step 3: Validate x5c public key matches the signing key
-	// this prevents an attacker including a valid certificate for someone other than the org that signed the JWS
-	if err = ValidateX5CMatchesKey(certChain, publicKey); err != nil {
-		return nil, nil, err
-	}
-
-	// Step 4: Validate certificate chain (CA trust, expiry, domain)
-	// This checks:
-	// - Certificate chain is valid and trusted by root CAs
-	// - Certificates are not expired
-	if err := ValidateCertificateChain(certChain, rootCAs); err != nil {
-		return nil, nil, err
-	}
-
-	// TODO: Certificate revocation status (OCSP/CRL)
-
-	return payload, certChain, nil
-}
-
-// ParseHeader extracts the header from a JWS without verifying
-// The function returns an error if the header contains something other than the fields in JWSHeader
-func ParseHeader(jwsString string) (JWSHeader, error) {
-	// Parse the JWS message
-	msg, err := jws.Parse([]byte(jwsString))
-	if err != nil {
-		return JWSHeader{}, WrapValidationError(err, "failed to parse JWS")
-	}
-
-	// Get the first signature's protected headers
-	signatures := msg.Signatures()
-	if len(signatures) == 0 {
-		return JWSHeader{}, NewValidationError("no signatures found in JWS")
-	}
-
-	headers := signatures[0].ProtectedHeaders()
-
-	// Extract algorithm
-	alg, ok := headers.Algorithm()
-	if !ok {
-		return JWSHeader{}, NewValidationError("missing required field: alg")
-	}
-
-	// Extract key ID
-	kid, ok := headers.KeyID()
-	if !ok || kid == "" {
-		return JWSHeader{}, NewValidationError("missing required field: kid")
-	}
-
-	return JWSHeader{
-		Algorithm: alg.String(),
-		KeyID:     kid,
-	}, nil
-}
-
-// CertChainToX5C converts X.509 certificate chain to x5c format
-// Returns array of Base64-encoded DER certificates
-//
-// The x5c header parameter contains the X.509 certificate chain as an array of Base64-encoded DER certificates
-// This provides non-repudiation by including the public key certificate in the JWS header
-func CertChainToX5C(certChain []*x509.Certificate) []string {
-	x5c := make([]string, len(certChain))
-	for i, cert := range certChain {
-		// cert.Raw contains the DER-encoded certificate
-		x5c[i] = base64.StdEncoding.EncodeToString(cert.Raw)
-	}
-	return x5c
+	return jws, nil
 }
 
 // SignJSONWithEd25519AndX5C signs payload and includes x5c certificate chain in JWS header.
@@ -410,4 +416,53 @@ func SignJSONWithRSA(payload []byte, privateKey *rsa.PrivateKey, keyID string) (
 	}
 
 	return string(signed), nil
+}
+
+// ParseHeader extracts the header from a JWS without verifying
+// The function returns an error if the header contains something other than the fields in JWSHeader
+func ParseHeader(jwsString string) (JWSHeader, error) {
+	// Parse the JWS message
+	msg, err := jws.Parse([]byte(jwsString))
+	if err != nil {
+		return JWSHeader{}, WrapValidationError(err, "failed to parse JWS")
+	}
+
+	// Get the first signature's protected headers
+	signatures := msg.Signatures()
+	if len(signatures) == 0 {
+		return JWSHeader{}, NewValidationError("no signatures found in JWS")
+	}
+
+	headers := signatures[0].ProtectedHeaders()
+
+	// Extract algorithm
+	alg, ok := headers.Algorithm()
+	if !ok {
+		return JWSHeader{}, NewValidationError("missing required field: alg")
+	}
+
+	// Extract key ID
+	kid, ok := headers.KeyID()
+	if !ok || kid == "" {
+		return JWSHeader{}, NewValidationError("missing required field: kid")
+	}
+
+	return JWSHeader{
+		Algorithm: alg.String(),
+		KeyID:     kid,
+	}, nil
+}
+
+// CertChainToX5C converts X.509 certificate chain to x5c format
+// Returns array of Base64-encoded DER certificates
+//
+// The x5c header parameter contains the X.509 certificate chain as an array of Base64-encoded DER certificates
+// This provides non-repudiation by including the public key certificate in the JWS header
+func CertChainToX5C(certChain []*x509.Certificate) []string {
+	x5c := make([]string, len(certChain))
+	for i, cert := range certChain {
+		// cert.Raw contains the DER-encoded certificate
+		x5c[i] = base64.StdEncoding.EncodeToString(cert.Raw)
+	}
+	return x5c
 }
