@@ -25,8 +25,6 @@ INSERT INTO envelopes (
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content,
     last_transfer_chain_entry_checksum,
-    sender_platform,
-    sender_ebl_platform,
     trust_level,
     state,
     response_code
@@ -35,8 +33,8 @@ INSERT INTO envelopes (
     now(),
     now(),
     gen_random_uuid(),
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-) RETURNING id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, trust_level, state, response_code
 `
 
 type CreateEnvelopeParams struct {
@@ -46,8 +44,6 @@ type CreateEnvelopeParams struct {
 	EnvelopeManifestSignedContent       string          `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContent string          `json:"last_transfer_chain_entry_signed_content"`
 	LastTransferChainEntryChecksum      string          `json:"last_transfer_chain_entry_checksum"`
-	SenderPlatform                      string          `json:"sender_platform"`
-	SenderEblPlatform                   *string         `json:"sender_ebl_platform"`
 	TrustLevel                          int32           `json:"trust_level"`
 	State                               string          `json:"state"`
 	ResponseCode                        *string         `json:"response_code"`
@@ -62,8 +58,6 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		arg.EnvelopeManifestSignedContent,
 		arg.LastTransferChainEntrySignedContent,
 		arg.LastTransferChainEntryChecksum,
-		arg.SenderPlatform,
-		arg.SenderEblPlatform,
 		arg.TrustLevel,
 		arg.State,
 		arg.ResponseCode,
@@ -80,8 +74,6 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.LastTransferChainEntryChecksum,
-		&i.SenderPlatform,
-		&i.SenderEblPlatform,
 		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
@@ -104,7 +96,7 @@ func (q *Queries) ExistsEnvelopeByLastChainEntryChecksum(ctx context.Context, la
 }
 
 const GetEnvelopeByID = `-- name: GetEnvelopeByID :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, trust_level, state, response_code FROM envelopes
 WHERE id = $1
 `
 
@@ -122,8 +114,6 @@ func (q *Queries) GetEnvelopeByID(ctx context.Context, id uuid.UUID) (Envelope, 
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.LastTransferChainEntryChecksum,
-		&i.SenderPlatform,
-		&i.SenderEblPlatform,
 		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
@@ -132,7 +122,7 @@ func (q *Queries) GetEnvelopeByID(ctx context.Context, id uuid.UUID) (Envelope, 
 }
 
 const GetEnvelopeByLastChainEntryChecksum = `-- name: GetEnvelopeByLastChainEntryChecksum :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, trust_level, state, response_code FROM envelopes
 WHERE last_transfer_chain_entry_checksum = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -152,8 +142,6 @@ func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastT
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.LastTransferChainEntryChecksum,
-		&i.SenderPlatform,
-		&i.SenderEblPlatform,
 		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
@@ -162,7 +150,7 @@ func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastT
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, trust_level, state, response_code FROM envelopes
 WHERE envelope_reference = $1
 `
 
@@ -180,8 +168,6 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, envelopeReference 
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.LastTransferChainEntryChecksum,
-		&i.SenderPlatform,
-		&i.SenderEblPlatform,
 		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
@@ -190,7 +176,7 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, envelopeReference 
 }
 
 const GetEnvelopeByTransportDocumentChecksum = `-- name: GetEnvelopeByTransportDocumentChecksum :one
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, trust_level, state, response_code FROM envelopes
 WHERE transport_document_checksum = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -210,8 +196,6 @@ func (q *Queries) GetEnvelopeByTransportDocumentChecksum(ctx context.Context, tr
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.LastTransferChainEntryChecksum,
-		&i.SenderPlatform,
-		&i.SenderEblPlatform,
 		&i.TrustLevel,
 		&i.State,
 		&i.ResponseCode,
@@ -220,7 +204,7 @@ func (q *Queries) GetEnvelopeByTransportDocumentChecksum(ctx context.Context, tr
 }
 
 const ListEnvelopes = `-- name: ListEnvelopes :many
-SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, sender_platform, sender_ebl_platform, trust_level, state, response_code FROM envelopes
+SELECT id, created_at, updated_at, envelope_reference, transport_document_reference, transport_document_checksum, transport_document, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, last_transfer_chain_entry_checksum, trust_level, state, response_code FROM envelopes
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
 `
@@ -250,8 +234,6 @@ func (q *Queries) ListEnvelopes(ctx context.Context, arg ListEnvelopesParams) ([
 			&i.EnvelopeManifestSignedContent,
 			&i.LastTransferChainEntrySignedContent,
 			&i.LastTransferChainEntryChecksum,
-			&i.SenderPlatform,
-			&i.SenderEblPlatform,
 			&i.TrustLevel,
 			&i.State,
 			&i.ResponseCode,

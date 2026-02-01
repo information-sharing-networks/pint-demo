@@ -28,19 +28,10 @@ func RequestSizeLimit(maxBytes int64) func(http.Handler) http.Handler {
 
 			// Check Content-Length header for early rejection
 			if r.ContentLength > maxBytes {
-				// Create DCSA-formatted error response
-				errorResponse := pint.NewErrorResponse(
-					r,
-					http.StatusRequestEntityTooLarge,
-					pint.ErrCodeRequestTooLarge,
-					"Request Too Large",
+				err := pint.NewRequestTooLargeError(
 					fmt.Sprintf("Request body size (%d bytes) exceeds maximum allowed size (%d bytes)", r.ContentLength, maxBytes),
-					"",
-					"",
 				)
-
-				// Send error response
-				pint.RespondWithJSON(w, http.StatusRequestEntityTooLarge, errorResponse)
+				pint.RespondWithError(w, r, err)
 				return
 			}
 
@@ -96,19 +87,8 @@ func RateLimit(requestsPerSecond int32, burst int32) func(http.Handler) http.Han
 					slog.String("remote_addr", r.RemoteAddr),
 				)
 
-				// respond with pint error
-				// Create DCSA-formatted error response
-				errorResponse := pint.NewErrorResponse(
-					r,
-					http.StatusTooManyRequests,
-					pint.ErrCodeRateLimitExceeded,
-					"Rate limit exceeded",
-					"Too many requests. Please try again later.",
-					"",
-					"",
-				)
-				// send error response
-				pint.RespondWithJSON(w, http.StatusTooManyRequests, errorResponse)
+				err := pint.NewRateLimitError("Too many requests. Please try again later.")
+				pint.RespondWithError(w, r, err)
 				return
 			}
 			next.ServeHTTP(w, r)

@@ -8,7 +8,11 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 )
 
-// RespondWithError sends a DCSA-formatted error response
+// RespondWithError sends a DCSA-formatted error response as a JSON payload.
+//
+// Use this function when a request faied because it was malformed or because of a server-side error
+// prevents signing the response.
+//
 // It logs the full error details server-side and sends a sanitized response to the client
 func RespondWithError(w http.ResponseWriter, r *http.Request, err error) {
 	// Map the error to DCSA format
@@ -24,11 +28,17 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, err error) {
 	)
 
 	// Send the DCSA error response
-	RespondWithJSON(w, errorResponse.StatusCode, errorResponse)
+	RespondWithPayload(w, errorResponse.StatusCode, errorResponse)
 }
 
-// RespondWithJSON sends a JSON response with the given status code
-func RespondWithJSON(w http.ResponseWriter, statusCode int, payload any) {
+// RespondWithPayload sends a JSON response with the given status code
+//
+// Use this function when returning a standard response to the client, including
+// expected PINT errors (e.g. BSIG, BENV, etc.)
+//
+// If returning information about an unexpected error (e.g a request failed because of
+// an internal server error), use RespondWithError which will create an unsigned error response.
+func RespondWithPayload(w http.ResponseWriter, statusCode int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 

@@ -161,7 +161,7 @@ definitions:
     type: integer
     x-enum-comments:
       ErrCodeInsufficientTrust: Trust level below minimum required
-      ErrCodeMalformedJSON: JSON parsing or encoding failed
+      ErrCodeMalformedRequest: JSON parsing or encoding failed
     x-enum-descriptions:
     - ""
     - ""
@@ -181,7 +181,7 @@ definitions:
     - ErrCodeBadChecksum
     - ErrCodeInvalidEnvelope
     - ErrCodeInternalError
-    - ErrCodeMalformedJSON
+    - ErrCodeMalformedRequest
     - ErrCodeKeyError
     - ErrCodeRegistryError
     - ErrCodeRateLimitExceeded
@@ -369,25 +369,25 @@ paths:
 
         **Error Responses**
 
-        In the normal flow, you receive a signed response containing
-        a JWS token with the error details in the payload.
-
         `422 Unprocessable Entity` indicates the platform has rejected the transfer.
         The response body contains a JWS token with `responseCode` of `BSIG` (signature failure)
-        or `BENV` (envelope validation failure).
+        or `BENV` (envelope validation failure). Details of the error are in the payload of the JWS.
 
         **Trust Level Failures**
         This platform enforces a minimum trust level for signatures,
         based on the x5c header in the envelope manifsest JWS.
-        - Trust level 1 means that the JWS must contain a valid Extended Validation (EV)
-        or Organization Validation (OV) certificate.
-        - Trust level 2 means the JWS must contain a valid certificate,
-        but Domain Validation (DV) certificate are allowed.
-        - Trust level 3 is the lowest trust level, and means that a JWS
+        - Trust level 1 is the lowest trust level, and means that a JWS
         will be accepted even if no x5c header is present.
+        - Trust level 2 means the JWS must contain a valid certificate,
+        (Domain Validation (DV) certificates are allowed).
+        - Trust level 3 is the hightest trust level, and means that the JWS must contain a valid Extended Validation (EV)
+        or Organization Validation (OV) certificate.
 
         The trust level is checked after signature verification, and a valid JWS with an insufficient trust
-        level will also return a `422 Unprocessable Entity` response.
+        level will return a `422 Unprocessable Entity` (BSIG) response.
+
+        Note that if an x5c cert is included, it must be signed by a trusted root CA and the
+        public key in the certificate must match the key used to sign the JWS.
 
         **Unsigned Error Responses**
 

@@ -2,4 +2,7 @@
 //
 // these functions are used by the pint-demo app to simulate the PINT workflow.
 // you can refer to these functions to see how to use the crypto package to create valid PINT and issuance requests.
+//
+// Note because these functions rely heavily on the crypto package, bugs in the low level crypto package
+// cascading test failures here.  Fix the crypto issues first, then ebl failures.
 package ebl

@@ -134,14 +134,10 @@ func RequestLogging(logger *slog.Logger) func(http.Handler) http.Handler {
 			switch {
 			case strings.HasPrefix(r.URL.Path, "/docs"), strings.HasPrefix(r.URL.Path, "/swagger.json"):
 				req_type = "docs"
-			case strings.HasPrefix(r.URL.Path, "/api/"):
-				req_type = "api"
-			case strings.HasPrefix(r.URL.Path, "/oauth/"):
-				req_type = "oauth"
-			case strings.HasPrefix(r.URL.Path, "/ui-api/"): // ui routes used when rendering ui components
-				req_type = "ui-api"
+			case strings.HasPrefix(r.URL.Path, "/v3/envelope"):
+				req_type = "v3/envelope"
 			default: // ui end-user routes (/login /register etc)
-				req_type = "ui-client"
+				req_type = "server"
 			}
 
 			// shared slice for attributes that handlers can modify

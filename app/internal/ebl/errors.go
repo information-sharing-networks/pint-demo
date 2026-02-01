@@ -66,26 +66,15 @@ func WrapSignatureError(err error, msg string) error {
 }
 
 // NewEnvelopeError creates an envelope error for any non-signature technical failure.
-// Use this for errors related to:
-// - Envelope structure validation (missing fields, invalid format)
-// - Input validation (invalid parameters, business rule violations)
-// - Checksum mismatches and integrity failures
-// - Transfer chain validation issues
-// - Internal processing errors (file I/O, key loading, etc.)
+// Use this for errors related to missing fields, invalid format, invalid checksums, etc.
 //
 // Maps to DCSA "BENV" (Bad Envelope) response code.
 func NewEnvelopeError(msg string) error {
 	return &EblError{code: ErrCodeEnvelope, message: msg}
 }
 
-// WrapEnvelopeError wraps an existing error as an envelope error,
-// adding context while preserving the original error for inspection.
-// Use this for errors related to:
-// - Envelope structure validation (missing fields, invalid format)
-// - Input validation (invalid parameters, business rule violations)
-// - Checksum mismatches and integrity failures
-// - Transfer chain validation issues
-// - Internal processing errors (file I/O, key loading, etc.)
+// NewEnvelopeError creates an envelope error for any non-signature technical failure.
+// Use this for errors related to missing fields, invalid format, invalid checksums, etc.
 //
 // Maps to DCSA "BENV" (Bad Envelope) response code.
 func WrapEnvelopeError(err error, msg string) error {

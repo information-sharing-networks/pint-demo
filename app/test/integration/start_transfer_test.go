@@ -5,14 +5,42 @@ package integration
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 )
+
+// decodeSignedFinishedResponse decodes a SignedEnvelopeTransferFinishedResponse
+// and returns the payload (assumes the signature is valid)
+func decodeSignedFinishedResponse(t *testing.T, signedResp pint.SignedEnvelopeTransferFinishedResponse) pint.EnvelopeTransferFinishedResponse {
+	t.Helper()
+
+	// JWS format is header.payload.signature
+	parts := strings.Split(signedResp.SignedContent, ".")
+	if len(parts) != 3 {
+		t.Fatalf("Invalid JWS format: expected 3 parts, got %d", len(parts))
+	}
+
+	// Decode the base64url-encoded payload
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("Failed to decode JWS payload: %v", err)
+	}
+
+	// Unmarshal the JSON payload
+	var payload pint.EnvelopeTransferFinishedResponse
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal payload: %v", err)
+	}
+
+	return payload
+}
 
 // TestStartTransfer does an end-2-end test of the POST /v3/envelopes endpoint
 func TestStartTransfer(t *testing.T) {
@@ -103,9 +131,9 @@ func TestStartTransfer(t *testing.T) {
 			t.Errorf("Expected envelope state 'PENDING', got '%s'", envelope.State)
 		}
 
-		// Verify trust level is stored correctly (1 = TrustLevelEVOV)
-		if envelope.TrustLevel != 1 {
-			t.Errorf("Expected trust level 1 (EV/OV), got %d", envelope.TrustLevel)
+		// Verify trust level is stored correctly (3 = TrustLevelEVOV)
+		if envelope.TrustLevel != 3 {
+			t.Errorf("Expected trust level 3 (EV/OV), got %d", envelope.TrustLevel)
 		}
 
 		// Verify transfer chain entries were stored
@@ -145,12 +173,13 @@ func TestStartTransfer(t *testing.T) {
 			t.Errorf("Expected error statusCode 400, got %d", errorResp.StatusCode)
 		}
 
+		//spew.Dump(errorResp)
 		if len(errorResp.Errors) == 0 {
 			t.Error("Expected errors array to be populated")
 		}
 	})
 
-	t.Run("tampered envelope returns 400 Bad Request", func(t *testing.T) {
+	t.Run("tampered envelope returns 422 Unprocessable Entity", func(t *testing.T) {
 		// Load valid test envelope
 		envelopeData, err := os.ReadFile("../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json")
 		if err != nil {
@@ -158,13 +187,13 @@ func TestStartTransfer(t *testing.T) {
 		}
 
 		// Parse and tamper with the envelope
-		var envelope map[string]interface{}
+		var envelope map[string]any
 		if err := json.Unmarshal(envelopeData, &envelope); err != nil {
 			t.Fatalf("Failed to parse envelope: %v", err)
 		}
 
 		// Tamper with the transport document
-		envelope["transportDocument"] = map[string]interface{}{
+		envelope["transportDocument"] = map[string]any{
 			"tampered": "data",
 		}
 
@@ -180,19 +209,34 @@ func TestStartTransfer(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		// Should return 400 Bad Request (envelope verification failed)
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Expected status 400, got %d", resp.StatusCode)
+		// Should return 422 Bad Request (envelope verification failed)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("Expected status 422, got %d", resp.StatusCode)
 		}
 
-		// Parse error response
-		var errorResp pint.ErrorResponse
-		if err := json.NewDecoder(resp.Body).Decode(&errorResp); err != nil {
-			t.Fatalf("Failed to decode error response: %v", err)
+		// Decode the signed response
+		var signedResp pint.SignedEnvelopeTransferFinishedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&signedResp); err != nil {
+			t.Fatalf("Failed to decode signed response: %v", err)
 		}
 
-		if len(errorResp.Errors) == 0 {
-			t.Error("Expected errors array to be populated")
+		// Decode the JWS payload
+		payload := decodeSignedFinishedResponse(t, signedResp)
+
+		// Verify the response code is BENV (bad envelope)
+		if payload.ResponseCode != pint.ResponseCodeBENV {
+			t.Errorf("Expected responseCode 'BENV', got '%s'", payload.ResponseCode)
+		}
+
+		// Verify the reason is populated
+		if payload.Reason == nil || *payload.Reason == "" {
+			t.Error("Expected reason to be populated for BENV response")
+		}
+		//t.Logf("Rejection reason: %s", *payload.Reason)
+
+		// Verify lastEnvelopeTransferChainEntrySignedContentChecksum is set
+		if payload.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
+			t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
 		}
 
 	})

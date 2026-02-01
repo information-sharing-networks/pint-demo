@@ -192,6 +192,7 @@ func (s *Server) registerCommonRoutes() {
 func (s *Server) registerPintRoutes() {
 	startTransfer := pinthandlers.NewStartTransferHandler(
 		s.queries,
+		s.pool,
 		s.keyManager,
 		s.signingKey,
 		s.x5cCertChain,

@@ -12,8 +12,6 @@ INSERT INTO envelopes (
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content,
     last_transfer_chain_entry_checksum,
-    sender_platform,
-    sender_ebl_platform,
     trust_level,
     state,
     response_code
@@ -22,7 +20,7 @@ INSERT INTO envelopes (
     now(),
     now(),
     gen_random_uuid(),
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
 ) RETURNING *;
 
 -- name: GetEnvelopeByReference :one

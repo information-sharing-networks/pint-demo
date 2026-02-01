@@ -18,35 +18,36 @@ import (
 
 // TrustLevel represents the trust level of a signature and is determined by the x5c (X.509 certificate chain) in the JWS header.
 //
-// this implementation uses x5c headers to support the DCSA non-repudiation requirements.
+// 1=lowest trust (no x5c), 3=highest trust (EV/OV certificates)
+// This implementation uses x5c headers to support the DCSA non-repudiation requirements.
 type TrustLevel int32
 
 const (
-	// TrustLevelEVOV represents signatures with x5c certs that use Extended Validation (EV) or Organization Validation (OV) certificates.
-	//	- Organisation identity verified by CA (provides non-repudiation)
-	//	- Recommended for production digital signatures
-	TrustLevelEVOV TrustLevel = 1
+	// TrustLevelNoX5C represents keys without any certificate chain
+	//	- The signature has no identity proof
+	//	- Recommended for testing only
+	TrustLevelNoX5C TrustLevel = 1
 
 	// TrustLevelDV - certs with Domain Validation (DV) certificates.
 	//	- Domain ownership verified by CA
 	// 	- May be acceptable for production depending on policy
 	TrustLevelDV TrustLevel = 2
 
-	// TrustLevelNoX5C represents keys without any certificate chain
-	//	- The signature has no identity proof
-	//	- recommended for testing only
-	TrustLevelNoX5C TrustLevel = 3
+	// TrustLevelEVOV represents signatures with x5c certs that use Extended Validation (EV) or Organization Validation (OV) certificates.
+	//	- Organisation identity verified by CA (provides non-repudiation)
+	//	- Recommended for production digital signatures
+	TrustLevelEVOV TrustLevel = 3
 )
 
 // String returns a human-readable string representation of the trust level.
 func (t TrustLevel) String() string {
 	switch t {
-	case TrustLevelEVOV:
-		return "EV/OV (Organization Validated)"
-	case TrustLevelDV:
-		return "DV (Domain Validated)"
 	case TrustLevelNoX5C:
 		return "No X5C (Testing Only)"
+	case TrustLevelDV:
+		return "DV (Domain Validated)"
+	case TrustLevelEVOV:
+		return "EV/OV (Organization Validated)"
 	default:
 		return fmt.Sprintf("Unknown(%d)", t)
 	}

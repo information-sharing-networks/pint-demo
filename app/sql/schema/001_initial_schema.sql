@@ -11,17 +11,15 @@ CREATE TABLE envelopes (
     transport_document JSONB NOT NULL,  -- The eBL document
     envelope_manifest_signed_content TEXT NOT NULL,  -- JWS-signed EnvelopeManifest
     last_transfer_chain_entry_signed_content TEXT NOT NULL,  -- JWS-signed last transfer chain entry
-    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content
-    sender_platform TEXT NOT NULL,  -- eBL platform that sent this envelope
-    sender_ebl_platform TEXT,  -- Optional: eBL platform identifier from JWS kid
+    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content (unique to prevent duplicate transfers)
     trust_level INTEGER NOT NULL,  -- Certificate trust level: 1=EV/OV, 2=DV, 3=NoX5C
     state TEXT NOT NULL,
     response_code TEXT,
     CONSTRAINT envelopes_state_check CHECK (state IN (
-        'PENDING',      -- Transfer started (201), waiting for additional documents
-        'ACCEPTED',     -- Transfer accepted (200 with RECE)
-        'DUPLICATE',    -- Duplicate detected (200 with DUPE)
-        'REJECTED'      -- Transfer rejected (422 with BSIG/BENV or 409 with DISE)
+        'PENDING',      -- Transfer started
+        'ACCEPTED',     -- Transfer accepted
+        'DUPLICATE',    -- Duplicate detected
+        'REJECTED'      -- Transfer rejected
     )),
     CONSTRAINT envelopes_response_code_check CHECK (response_code IS NULL OR response_code IN (
         'RECE',  -- Received and accepted
@@ -31,17 +29,15 @@ CREATE TABLE envelopes (
         'MDOC',  -- Missing documents
         'DISE',  -- Disagreement on envelope state
         'INCD',  -- Inconsistent document
-        'INT2'    -- Internal error
+        'INT'   -- Internal error
     )),
     CONSTRAINT envelopes_trust_level_check CHECK (trust_level IN (1, 2, 3))
 );
 
+CREATE UNIQUE INDEX unique_envelopes_last_chain_checksum ON envelopes(last_transfer_chain_entry_checksum);
 CREATE INDEX idx_envelopes_reference ON envelopes(envelope_reference);
 CREATE INDEX idx_envelopes_transport_document_reference ON envelopes(transport_document_reference);
 CREATE INDEX idx_envelopes_transport_document_checksum ON envelopes(transport_document_checksum);
-CREATE INDEX idx_envelopes_last_chain_entry_checksum ON envelopes(last_transfer_chain_entry_checksum);
-CREATE INDEX idx_envelopes_state ON envelopes(state);
-CREATE INDEX idx_envelopes_created_at ON envelopes(created_at DESC);
 
 -- Additional documents table - tracks supporting documents and eBL visualizations
 CREATE TABLE additional_documents (

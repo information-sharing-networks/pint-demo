@@ -11,47 +11,60 @@ import (
 	"github.com/google/uuid"
 )
 
-const CountAdditionalDocumentsByEnvelope = `-- name: CountAdditionalDocumentsByEnvelope :one
+const CountMissingAdditionalDocuments = `-- name: CountMissingAdditionalDocuments :one
 SELECT COUNT(*) FROM additional_documents
-WHERE envelope_id = $1
+WHERE envelope_id = $1 AND received_at IS NULL
 `
 
-func (q *Queries) CountAdditionalDocumentsByEnvelope(ctx context.Context, envelopeID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, CountAdditionalDocumentsByEnvelope, envelopeID)
+// Count how many additional documents are still missing for an envelope
+func (q *Queries) CountMissingAdditionalDocuments(ctx context.Context, envelopeID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, CountMissingAdditionalDocuments, envelopeID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const CreateAdditionalDocument = `-- name: CreateAdditionalDocument :one
+const CreateExpectedAdditionalDocument = `-- name: CreateExpectedAdditionalDocument :one
+
 INSERT INTO additional_documents (
     id,
     created_at,
+    updated_at,
     envelope_id,
     document_checksum,
-    document_content,
+    document_name,
+    document_size,
     media_type,
-    is_ebl_visualisation
+    is_ebl_visualisation,
+    document_content,
+    received_at,
+    last_error_at,
+    last_error_message
 ) VALUES (
     gen_random_uuid(),
     now(),
-    $1, $2, $3, $4, $5
-) RETURNING id, created_at, envelope_id, document_checksum, document_content, media_type, is_ebl_visualisation
+    now(),
+    $1, $2, $3, $4, $5, $6, NULL, NULL, NULL, NULL
+) RETURNING id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message
 `
 
-type CreateAdditionalDocumentParams struct {
+type CreateExpectedAdditionalDocumentParams struct {
 	EnvelopeID         uuid.UUID `json:"envelope_id"`
 	DocumentChecksum   string    `json:"document_checksum"`
-	DocumentContent    []byte    `json:"document_content"`
+	DocumentName       string    `json:"document_name"`
+	DocumentSize       int64     `json:"document_size"`
 	MediaType          string    `json:"media_type"`
 	IsEblVisualisation bool      `json:"is_ebl_visualisation"`
 }
 
-func (q *Queries) CreateAdditionalDocument(ctx context.Context, arg CreateAdditionalDocumentParams) (AdditionalDocument, error) {
-	row := q.db.QueryRow(ctx, CreateAdditionalDocument,
+// Additional document queries for PINT API
+// Create a placeholder record for an expected additional document (not yet received)
+func (q *Queries) CreateExpectedAdditionalDocument(ctx context.Context, arg CreateExpectedAdditionalDocumentParams) (AdditionalDocument, error) {
+	row := q.db.QueryRow(ctx, CreateExpectedAdditionalDocument,
 		arg.EnvelopeID,
 		arg.DocumentChecksum,
-		arg.DocumentContent,
+		arg.DocumentName,
+		arg.DocumentSize,
 		arg.MediaType,
 		arg.IsEblVisualisation,
 	)
@@ -59,17 +72,23 @@ func (q *Queries) CreateAdditionalDocument(ctx context.Context, arg CreateAdditi
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.EnvelopeID,
 		&i.DocumentChecksum,
-		&i.DocumentContent,
+		&i.DocumentName,
+		&i.DocumentSize,
 		&i.MediaType,
 		&i.IsEblVisualisation,
+		&i.DocumentContent,
+		&i.ReceivedAt,
+		&i.LastErrorAt,
+		&i.LastErrorMessage,
 	)
 	return i, err
 }
 
 const GetAdditionalDocument = `-- name: GetAdditionalDocument :one
-SELECT id, created_at, envelope_id, document_checksum, document_content, media_type, is_ebl_visualisation FROM additional_documents
+SELECT id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message FROM additional_documents
 WHERE envelope_id = $1 AND document_checksum = $2
 `
 
@@ -78,29 +97,37 @@ type GetAdditionalDocumentParams struct {
 	DocumentChecksum string    `json:"document_checksum"`
 }
 
+// Get a specific additional document by envelope and checksum
 func (q *Queries) GetAdditionalDocument(ctx context.Context, arg GetAdditionalDocumentParams) (AdditionalDocument, error) {
 	row := q.db.QueryRow(ctx, GetAdditionalDocument, arg.EnvelopeID, arg.DocumentChecksum)
 	var i AdditionalDocument
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.EnvelopeID,
 		&i.DocumentChecksum,
-		&i.DocumentContent,
+		&i.DocumentName,
+		&i.DocumentSize,
 		&i.MediaType,
 		&i.IsEblVisualisation,
+		&i.DocumentContent,
+		&i.ReceivedAt,
+		&i.LastErrorAt,
+		&i.LastErrorMessage,
 	)
 	return i, err
 }
 
-const GetAdditionalDocumentChecksums = `-- name: GetAdditionalDocumentChecksums :many
+const GetReceivedAdditionalDocumentChecksums = `-- name: GetReceivedAdditionalDocumentChecksums :many
 SELECT document_checksum FROM additional_documents
-WHERE envelope_id = $1
-ORDER BY created_at ASC
+WHERE envelope_id = $1 AND received_at IS NOT NULL
+ORDER BY received_at
 `
 
-func (q *Queries) GetAdditionalDocumentChecksums(ctx context.Context, envelopeID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, GetAdditionalDocumentChecksums, envelopeID)
+// Get checksums of all received additional documents for an envelope
+func (q *Queries) GetReceivedAdditionalDocumentChecksums(ctx context.Context, envelopeID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, GetReceivedAdditionalDocumentChecksums, envelopeID)
 	if err != nil {
 		return nil, err
 	}
@@ -120,11 +147,12 @@ func (q *Queries) GetAdditionalDocumentChecksums(ctx context.Context, envelopeID
 }
 
 const ListAdditionalDocumentsByEnvelope = `-- name: ListAdditionalDocumentsByEnvelope :many
-SELECT id, created_at, envelope_id, document_checksum, document_content, media_type, is_ebl_visualisation FROM additional_documents
+SELECT id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message FROM additional_documents
 WHERE envelope_id = $1
-ORDER BY created_at ASC
+ORDER BY created_at
 `
 
+// List all additional documents for an envelope
 func (q *Queries) ListAdditionalDocumentsByEnvelope(ctx context.Context, envelopeID uuid.UUID) ([]AdditionalDocument, error) {
 	rows, err := q.db.Query(ctx, ListAdditionalDocumentsByEnvelope, envelopeID)
 	if err != nil {
@@ -137,11 +165,17 @@ func (q *Queries) ListAdditionalDocumentsByEnvelope(ctx context.Context, envelop
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.EnvelopeID,
 			&i.DocumentChecksum,
-			&i.DocumentContent,
+			&i.DocumentName,
+			&i.DocumentSize,
 			&i.MediaType,
 			&i.IsEblVisualisation,
+			&i.DocumentContent,
+			&i.ReceivedAt,
+			&i.LastErrorAt,
+			&i.LastErrorMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -151,4 +185,164 @@ func (q *Queries) ListAdditionalDocumentsByEnvelope(ctx context.Context, envelop
 		return nil, err
 	}
 	return items, nil
+}
+
+const ListMissingAdditionalDocuments = `-- name: ListMissingAdditionalDocuments :many
+SELECT id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message FROM additional_documents
+WHERE envelope_id = $1 AND received_at IS NULL
+ORDER BY created_at
+`
+
+// List all additional documents that have not yet been received for an envelope
+func (q *Queries) ListMissingAdditionalDocuments(ctx context.Context, envelopeID uuid.UUID) ([]AdditionalDocument, error) {
+	rows, err := q.db.Query(ctx, ListMissingAdditionalDocuments, envelopeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AdditionalDocument
+	for rows.Next() {
+		var i AdditionalDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnvelopeID,
+			&i.DocumentChecksum,
+			&i.DocumentName,
+			&i.DocumentSize,
+			&i.MediaType,
+			&i.IsEblVisualisation,
+			&i.DocumentContent,
+			&i.ReceivedAt,
+			&i.LastErrorAt,
+			&i.LastErrorMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ListReceivedAdditionalDocuments = `-- name: ListReceivedAdditionalDocuments :many
+SELECT id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message FROM additional_documents
+WHERE envelope_id = $1 AND received_at IS NOT NULL
+ORDER BY received_at
+`
+
+// List all additional documents that have been received for an envelope
+func (q *Queries) ListReceivedAdditionalDocuments(ctx context.Context, envelopeID uuid.UUID) ([]AdditionalDocument, error) {
+	rows, err := q.db.Query(ctx, ListReceivedAdditionalDocuments, envelopeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AdditionalDocument
+	for rows.Next() {
+		var i AdditionalDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnvelopeID,
+			&i.DocumentChecksum,
+			&i.DocumentName,
+			&i.DocumentSize,
+			&i.MediaType,
+			&i.IsEblVisualisation,
+			&i.DocumentContent,
+			&i.ReceivedAt,
+			&i.LastErrorAt,
+			&i.LastErrorMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const RecordAdditionalDocumentError = `-- name: RecordAdditionalDocumentError :one
+UPDATE additional_documents
+SET
+    last_error_at = now(),
+    last_error_message = $3,
+    updated_at = now()
+WHERE envelope_id = $1 AND document_checksum = $2
+RETURNING id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message
+`
+
+type RecordAdditionalDocumentErrorParams struct {
+	EnvelopeID       uuid.UUID `json:"envelope_id"`
+	DocumentChecksum string    `json:"document_checksum"`
+	LastErrorMessage *string   `json:"last_error_message"`
+}
+
+// Record an error that occurred during document transfer
+func (q *Queries) RecordAdditionalDocumentError(ctx context.Context, arg RecordAdditionalDocumentErrorParams) (AdditionalDocument, error) {
+	row := q.db.QueryRow(ctx, RecordAdditionalDocumentError, arg.EnvelopeID, arg.DocumentChecksum, arg.LastErrorMessage)
+	var i AdditionalDocument
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnvelopeID,
+		&i.DocumentChecksum,
+		&i.DocumentName,
+		&i.DocumentSize,
+		&i.MediaType,
+		&i.IsEblVisualisation,
+		&i.DocumentContent,
+		&i.ReceivedAt,
+		&i.LastErrorAt,
+		&i.LastErrorMessage,
+	)
+	return i, err
+}
+
+const StoreAdditionalDocument = `-- name: StoreAdditionalDocument :one
+UPDATE additional_documents
+SET
+    document_content = $2,
+    received_at = now(),
+    updated_at = now(),
+    last_error_at = NULL,
+    last_error_message = NULL
+WHERE envelope_id = $1 AND document_checksum = $3
+RETURNING id, created_at, updated_at, envelope_id, document_checksum, document_name, document_size, media_type, is_ebl_visualisation, document_content, received_at, last_error_at, last_error_message
+`
+
+type StoreAdditionalDocumentParams struct {
+	EnvelopeID       uuid.UUID `json:"envelope_id"`
+	DocumentContent  []byte    `json:"document_content"`
+	DocumentChecksum string    `json:"document_checksum"`
+}
+
+// Update an expected document with the actual content when received
+func (q *Queries) StoreAdditionalDocument(ctx context.Context, arg StoreAdditionalDocumentParams) (AdditionalDocument, error) {
+	row := q.db.QueryRow(ctx, StoreAdditionalDocument, arg.EnvelopeID, arg.DocumentContent, arg.DocumentChecksum)
+	var i AdditionalDocument
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnvelopeID,
+		&i.DocumentChecksum,
+		&i.DocumentName,
+		&i.DocumentSize,
+		&i.MediaType,
+		&i.IsEblVisualisation,
+		&i.DocumentContent,
+		&i.ReceivedAt,
+		&i.LastErrorAt,
+		&i.LastErrorMessage,
+	)
+	return i, err
 }

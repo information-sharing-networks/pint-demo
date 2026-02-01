@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Netflix/go-env"
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // Environment variables with defaults
@@ -14,14 +15,14 @@ import (
 type ServerEnvironment struct {
 
 	// http server settings
-	Environment           string        `env:"ENVIRONMENT,default=dev"`
-	Host                  string        `env:"HOST,default=0.0.0.0"`
-	Port                  int           `env:"PORT,default=8080"`
-	LogLevel              string        `env:"LOG_LEVEL,default=debug"`
-	ServerShutdownTimeout time.Duration `env:"SERVER_SHUTDOWN_TIMEOUT,default=10s"`
-	MinTrustLevel         int32         `env:"MIN_TRUST_LEVEL,default=1"`
-	RegistryFetchTimeout  time.Duration `env:"REGISTRY_FETCH_TIMEOUT,default=10s"`
-	MaxRequestSize        int64         `env:"MAX_REQUEST_SIZE,default=1048576"` // 1MB - limits request body size for all endpoints
+	Environment           string            `env:"ENVIRONMENT,default=dev"`
+	Host                  string            `env:"HOST,default=0.0.0.0"`
+	Port                  int               `env:"PORT,default=8080"`
+	LogLevel              string            `env:"LOG_LEVEL,default=debug"`
+	ServerShutdownTimeout time.Duration     `env:"SERVER_SHUTDOWN_TIMEOUT,default=10s"`
+	MinTrustLevel         crypto.TrustLevel `env:"MIN_TRUST_LEVEL,default=3"` // Default to highest trust (EV/OV)
+	RegistryFetchTimeout  time.Duration     `env:"REGISTRY_FETCH_TIMEOUT,default=10s"`
+	MaxRequestSize        int64             `env:"MAX_REQUEST_SIZE,default=1048576"` // 1MB - limits request body size for all endpoints
 
 	// database settings
 	ReadTimeout         time.Duration `env:"READ_TIMEOUT,default=15s"`
@@ -119,11 +120,11 @@ func validateConfig(cfg *ServerEnvironment) error {
 	}
 
 	if cfg.MinTrustLevel < 1 || cfg.MinTrustLevel > 3 {
-		return fmt.Errorf("MIN_TRUST_LEVEL must be between 1 and 3, got %d", cfg.MinTrustLevel)
+		return fmt.Errorf("MIN_TRUST_LEVEL must be between 1 and 3 (1=NoX5C, 2=DV, 3=EV/OV), got %d", cfg.MinTrustLevel)
 	}
 
 	// TODO - this rule says participants using custom root CAs must also use x5c headers
-	// (ie it is assumed the particpants in a private PKI require reciprical trust and must operate at trust-level 1 or 2)
+	// (ie it is assumed the particpants in a private PKI require reciprical trust and must operate at trust-level 2 or 3)
 	// .. but we don't have a similar rule for public CAs (allowing the particpants to select their trust level)
 	// is this correct?
 	if cfg.X5CCustomRootsPath != "" && cfg.X5CCertPath == "" {

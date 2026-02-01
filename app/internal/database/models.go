@@ -14,11 +14,17 @@ import (
 type AdditionalDocument struct {
 	ID                 uuid.UUID          `json:"id"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	EnvelopeID         uuid.UUID          `json:"envelope_id"`
 	DocumentChecksum   string             `json:"document_checksum"`
-	DocumentContent    []byte             `json:"document_content"`
+	DocumentName       string             `json:"document_name"`
+	DocumentSize       int64              `json:"document_size"`
 	MediaType          string             `json:"media_type"`
 	IsEblVisualisation bool               `json:"is_ebl_visualisation"`
+	DocumentContent    []byte             `json:"document_content"`
+	ReceivedAt         pgtype.Timestamptz `json:"received_at"`
+	LastErrorAt        pgtype.Timestamptz `json:"last_error_at"`
+	LastErrorMessage   *string            `json:"last_error_message"`
 }
 
 type Envelope struct {
@@ -32,8 +38,6 @@ type Envelope struct {
 	EnvelopeManifestSignedContent       string             `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContent string             `json:"last_transfer_chain_entry_signed_content"`
 	LastTransferChainEntryChecksum      string             `json:"last_transfer_chain_entry_checksum"`
-	SenderPlatform                      string             `json:"sender_platform"`
-	SenderEblPlatform                   *string            `json:"sender_ebl_platform"`
 	TrustLevel                          int32              `json:"trust_level"`
 	State                               string             `json:"state"`
 	ResponseCode                        *string            `json:"response_code"`

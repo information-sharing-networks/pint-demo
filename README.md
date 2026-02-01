@@ -81,7 +81,7 @@ you can override default configs by setting environment variables when you start
 SKIP_JWK_CACHE=true make docker-up    # Set true to disable JWK caching
 PORT=8081 make docker-up              # server port (default is 8080)
 LOG_LEVEL=info make docker-up         # debug, info, warn, error (default is debug)
-MIN_TRUST_LEVEL=2  make docker-up     # 1=EV/OV, 2=DV, 3=NoX5C (defaults to the 1)
+MIN_TRUST_LEVEL=2  make docker-up     # 1=NoX5C, 2=DV, 3=EV/OV (defaults to 3)
 ```
 Other configs have sensible defaults (see `app/internal/server/config/config.go` for the full list).
 
@@ -94,20 +94,35 @@ make sqlc      # Generate SQLC code
 make migrate   # Run database migrations
 make docs      # generate swagger (openAPI) docs
 make swag-fmt  # format swag comments
-make test      # Run tests
-make check     # Run all checks (fmt, vet, test, lint, security)
 make psql      # run psql against the dev database
 ```
 
-if there are updates to the go dependencies (go.mod), you will need to rebuild the app container:
+To run the tests (needs a local install of go)
+```bash
+make test      # Run all tests (system and integration)
+```
+
+to run all tests and checks (fmt, vet, lint, security) before committing:
+```bash
+make check     # Run all tests and checks 
+```
+
+If there are updates to the go dependencies (go.mod), you will need to rebuild the app container:
 
 ```bash
 docker compose up build app
 ```
 
-to reset the database and restart the containers:
+to delete the database and restart the containers:
 ```bash
 make docker-reset
+```
+
+to run specific database migrations:
+```bash
+DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable"
+
+docker compose exec app bash -c 'cd /pint-demo/app && goose -dir sql/schema postgres "$DATABASE_URL" down"
 ```
 
 ## Concepts
@@ -137,13 +152,13 @@ This app implements an experimental approach to verifying the legal entities ope
 The x5c header contains a certificate chain that cryptographically binds the public key to a verified legal entity. The app validates this chain against trusted root certificates, which can be either system-provided roots or custom roots configured for the deployment.
 
 The x5c is optional - there are three tiers of trust supported:
-1. **TrustLevelEVOV**: x5c with EV/OV certificates (organisation verified by CA) - recommended for production
-2. **TrustLevelDV**: x5c with DV certificates (domain ownership verified by CA)
-3. **TrustLevelNoX5C**: no x5c (no verification of legal entity) - testing only
+1. **TrustLevelNoX5C**: x5c not required (no verification of legal entity)
+2. **TrustLevelDV**: x5c certificate required - Domain Validation certificates (domain ownership validated by Certificate Authority) accepted
+3. **TrustLevelEVOV**: x5c certificate with Extended Validation or Organisation Validation certificates (organisation verified by Certificate Authority) required.
 
-The platform can enforce a minimum trust level policy via the `MIN_TRUST_LEVEL` environment variable (1=EV/OV, 2=DV, 3=NoX5C). Signatures below the minimum trust level are rejected.
+The platform will enforce a minimum trust level policy via the `MIN_TRUST_LEVEL` environment variable (1=NoX5C, 2=DV, 3=EV/OV). Signatures below the minimum trust level are rejected.
 
-Per DCSA, it is not clear how PINT networks operating at the 2nd and 3rd trust levels could support non-repudiation, but they are supported in case they are needed.
+Per DCSA, it is not clear how PINT networks operating at the first trust level could support non-repudiation, but this is supported in case it is needed.
 
 Note: the public key in the x5c certificate must match the key pair used by platform to sign the JWS - see the *Generating Key Pairs* section below for more information.
 

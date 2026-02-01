@@ -15,7 +15,7 @@ func TestErrorCodes(t *testing.T) {
 		{"bad_checksum", ErrCodeBadChecksum, 7003},
 		{"invalid_envelope", ErrCodeInvalidEnvelope, 7004},
 		{"internal_error", ErrCodeInternalError, 7005},
-		{"malformed_json", ErrCodeMalformedJSON, 7006},
+		{"malformed_json", ErrCodeMalformedRequest, 7006},
 		{"key_error", ErrCodeKeyError, 7007},
 		{"registry_error", ErrCodeRegistryError, 7008},
 		{"unknown_party", ErrCodeUnknownParty, 8001},
