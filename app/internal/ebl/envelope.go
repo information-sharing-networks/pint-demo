@@ -119,7 +119,7 @@ func (e *EblEnvelopeBuilder) Build() (*EblEnvelope, error) {
 
 // EnvelopeManifest is used to verify the transport document and the transfer chain have not been tampered with
 // and to provide details of any supporting documents transferred via PINT.
-// this is the payload that gets signed and included in eblEnvelope.envelopeManifestSignedContent
+// This is the payload that gets signed and included in eblEnvelope.envelopeManifestSignedContent.
 type EnvelopeManifest struct {
 
 	// TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.

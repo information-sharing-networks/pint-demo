@@ -119,6 +119,33 @@ func (q *Queries) GetAdditionalDocument(ctx context.Context, arg GetAdditionalDo
 	return i, err
 }
 
+const GetMissingAdditionalDocumentChecksums = `-- name: GetMissingAdditionalDocumentChecksums :many
+SELECT document_checksum FROM additional_documents
+WHERE envelope_id = $1 AND received_at IS NULL
+ORDER BY created_at
+`
+
+// Get checksums of all missing additional documents for an envelope
+func (q *Queries) GetMissingAdditionalDocumentChecksums(ctx context.Context, envelopeID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, GetMissingAdditionalDocumentChecksums, envelopeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var document_checksum string
+		if err := rows.Scan(&document_checksum); err != nil {
+			return nil, err
+		}
+		items = append(items, document_checksum)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const GetReceivedAdditionalDocumentChecksums = `-- name: GetReceivedAdditionalDocumentChecksums :many
 SELECT document_checksum FROM additional_documents
 WHERE envelope_id = $1 AND received_at IS NOT NULL

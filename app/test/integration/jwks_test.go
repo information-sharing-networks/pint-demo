@@ -21,9 +21,9 @@ func TestJWKSEndpoint(t *testing.T) {
 	// currently the jwks is for ed25519-eblplatform.example.com.private.jwk which has the public key thumbprint (key id) ea8904dc74e9395a
 
 	ctx := context.Background()
-	testDB := setupTestDatabase(t, ctx)
+	testDB := setupCleanDatabase(t, ctx)
 	testEnv := setupTestEnvironment(testDB)
-	testDatabaseURL := getTestDatabaseURL()
+	testDatabaseURL := getDatabaseURL()
 	baseURL, stopServer := startInProcessServer(t, ctx, testEnv.dbConn, testDatabaseURL)
 	testDomain := "ed25519-eblplatform.example.com"
 

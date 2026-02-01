@@ -102,12 +102,21 @@ const docTemplate = `{
                 "summary": "Start envelope transfer",
                 "parameters": [
                     {
-                        "description": "eBL envelope containing transport document, signed manifest, and transfer chain",
+                        "description": "eBL envelope containing transport document, signed manifest, and transfer chain - see the schema ebl.EnvelopeManifest definition for details of the expected structure in the signed field",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/ebl.EblEnvelope"
+                        }
+                    },
+                    {
+                        "description": "documentation only (not used directly)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ebl.EnvelopeManifest"
                         }
                     }
                 ],
@@ -202,6 +211,27 @@ const docTemplate = `{
                 }
             }
         },
+        "ebl.DocumentMetadata": {
+            "type": "object",
+            "properties": {
+                "documentChecksum": {
+                    "description": "documentChecksum: SHA-256 checksum of the document",
+                    "type": "string"
+                },
+                "mediaType": {
+                    "description": "mediaType: MIME type of the document",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "name: The name of the document",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "size: The size of the decoded document in bytes (not the Base64 encoded size)",
+                    "type": "integer"
+                }
+            }
+        },
         "ebl.EblEnvelope": {
             "type": "object",
             "properties": {
@@ -219,6 +249,34 @@ const docTemplate = `{
                 "transportDocument": {
                     "description": "TransportDocument: The transport document (Bill of Lading) as a JSON object.",
                     "type": "object"
+                }
+            }
+        },
+        "ebl.EnvelopeManifest": {
+            "type": "object",
+            "properties": {
+                "eBLVisualisationByCarrier": {
+                    "description": "EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.DocumentMetadata"
+                        }
+                    ]
+                },
+                "lastEnvelopeTransferChainEntrySignedContentChecksum": {
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry\nin the transfer chain.\nThis binds the manifest to the specific transfer chain it was created for,\npreventing an attacker from replacing the last entry with a valid one from a different transfer.",
+                    "type": "string"
+                },
+                "supportingDocuments": {
+                    "description": "SupportingDocuments contains metadata for supporting documents (optional).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.DocumentMetadata"
+                    }
+                },
+                "transportDocumentChecksum": {
+                    "description": "TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.\nThis is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.",
+                    "type": "string"
                 }
             }
         },

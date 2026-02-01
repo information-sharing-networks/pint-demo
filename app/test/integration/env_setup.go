@@ -45,94 +45,140 @@ func setupTestEnvironment(dbConn *pgxpool.Pool) *testEnvironment {
 	}
 }
 
-// Test configuration constants
-const (
-	testDatabaseName = "tmp_pint_integration_test"
+// cleanupDatabase truncates the envelope tables to reset the database state between tests
+func cleanupDatabase(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
 
-	// CI database configuration
-	ciPostgresDatabaseURL = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
-	ciTestDatabaseURL     = "postgres://postgres:postgres@localhost:5432/" + testDatabaseName + "?sslmode=disable"
+	_, err := pool.Exec(ctx, `
+		TRUNCATE TABLE envelopes CASCADE;
+	`)
+	if err != nil {
+		t.Fatalf("Failed to cleanup database: %v", err)
+	}
+}
 
-	// Local development database configuration
-	localPostgresDatabaseURL = "postgres://pint-dev@localhost:15433/postgres?sslmode=disable"
-	localTestDatabaseURL     = "postgres://pint-dev@localhost:15433/" + testDatabaseName + "?sslmode=disable"
+// Test configuration
+
+type databaseConfig struct {
+	userAndPassword string
+	password        string
+	dbname          string
+	host            string
+	port            int
+}
+
+// serverConfig holds PINT server configuration for tests
+// All paths are relative to app/test/integration/ directory
+type serverConfig struct {
+	registryPath       string
+	manualKeysDir      string
+	signingKeyPath     string
+	x5cCertPath        string
+	x5cCustomRootsPath string
+	platformCode       string
+}
+
+var (
+	ciDatabaseConfig = databaseConfig{
+		userAndPassword: "postgres:postgres",
+		dbname:          "tmp_pint_integration_test",
+		host:            "localhost",
+		port:            5432,
+	}
+	localDatabaseConfig = databaseConfig{
+		userAndPassword: "pint-dev",
+		dbname:          "tmp_pint_integration_test",
+		host:            "localhost",
+		port:            15433,
+	}
+
+	testServerConfig = serverConfig{
+		registryPath:       "../../internal/crypto/testdata/platform-registry/eblsolutionproviders.csv",
+		manualKeysDir:      "../../internal/crypto/testdata/keys",
+		signingKeyPath:     "../../internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
+		x5cCertPath:        "../../internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
+		x5cCustomRootsPath: "../../internal/crypto/testdata/certs/root-ca.crt",
+		platformCode:       "EBL1",
+	}
 )
 
-// getTestDatabaseURL returns the appropriate test database URL for the local docker db when running locally
+func buildConnString(userAndPassword string, host string, port int, dbname string) string {
+	return fmt.Sprintf("postgres://%s@%s:%d/%s?sslmode=disable",
+		userAndPassword, host, port, dbname)
+}
+
+// getDatabaseURL returns the appropriate test database URL for the local docker db when running locally
 // or the CI test database when being run in github action
-func getTestDatabaseURL() string {
+func getDatabaseURL() string {
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		return ciTestDatabaseURL
+		return buildConnString(ciDatabaseConfig.userAndPassword, ciDatabaseConfig.host, ciDatabaseConfig.port, ciDatabaseConfig.dbname)
 	}
-	return localTestDatabaseURL
+	return buildConnString(localDatabaseConfig.userAndPassword, localDatabaseConfig.host, localDatabaseConfig.port, localDatabaseConfig.dbname)
 }
 
-// setupTestDatabase sets up a test database environment:
-// - In CI: uses GitHub Actions PostgreSQL service
-// - Locally: uses Docker Compose PostgreSQL container
-// - applies database migrations and drops database on exit
-func setupTestDatabase(t *testing.T, ctx context.Context) *pgxpool.Pool {
-	// Check if we're in CI environment
+// setupCleanDatabase creates an empty test db, applies migrations and returns a connection pool
+func setupCleanDatabase(t *testing.T, ctx context.Context) *pgxpool.Pool {
+
+	config := localDatabaseConfig
+
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		return setupCIDatabase(t, ctx)
+		config = ciDatabaseConfig
+		t.Log("Running integration tests in CI")
 	}
 
-	// local dev env
-	return setupLocalDatabase(t, ctx)
-}
-
-// setupCIDatabase uses GitHub Actions PostgreSQL service
-func setupCIDatabase(t *testing.T, ctx context.Context) *pgxpool.Pool {
-	t.Log("Running integration tests in CI")
+	// connect to the postgres database to create the test database
+	postgresConnectionURL := buildConnString(config.userAndPassword, config.host, config.port, "postgres")
 
 	// Check PostgreSQL server connectivity
-	postgresDatabase := setupDatabaseConn(t, ciPostgresDatabaseURL)
-	if err := postgresDatabase.Ping(ctx); err != nil {
-		t.Fatalf("❌ Can't ping PostgreSQL server %s", ciPostgresDatabaseURL)
+	postgresPool := setupDatabaseConn(t, postgresConnectionURL)
+	if err := postgresPool.Ping(ctx); err != nil {
+		t.Fatalf("❌ Can't ping PostgreSQL server %s", postgresConnectionURL)
 	}
 
-	// create the test database
-	t.Logf("setting up test database %v", ciTestDatabaseURL)
-	createTestDatabase(t, ctx, postgresDatabase, testDatabaseName)
+	_, err := postgresPool.Exec(ctx, "DROP DATABASE IF EXISTS "+config.dbname)
+	if err != nil {
+		t.Fatalf("DROP DATABASE IF EXISTS Failed : %v", err)
+	}
 
-	testDatabase := setupDatabaseConn(t, ciTestDatabaseURL)
+	_, err = postgresPool.Exec(ctx, "CREATE DATABASE "+config.dbname)
+	if err != nil {
+		t.Fatalf("CREATE DATABASE Failed : %v", err)
+	}
 
+	// drop the test database when the test is complete
+	t.Cleanup(func() {
+		_, err := postgresPool.Exec(ctx, "DROP DATABASE "+config.dbname)
+		if err != nil {
+			t.Fatalf("Failed to drop test database: %v", err)
+		}
+	})
 	t.Log("test database created")
 
+	testDatabaseURLTODO := buildConnString(config.userAndPassword, config.host, config.port, config.dbname)
+	testDatabasePool := setupDatabaseConn(t, testDatabaseURLTODO)
+
 	// Apply database migrations
-	if err := runDatabaseMigrations(t, testDatabase); err != nil {
+	if err := runDatabaseMigrations(t, testDatabasePool); err != nil {
 		t.Fatalf("❌ Failed to apply database migrations: %v", err)
+	}
+	// Convert pgx pool to database/sql interface that Goose expects
+	var db *sql.DB = stdlib.OpenDBFromPool(testDatabasePool)
+	defer db.Close()
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		t.Fatalf("failed to set goose dialect: %v", err)
+	}
+
+	// Apply migrations from the sql/schema directory
+	migrationDir := "../../sql/schema"
+	if err := goose.Up(db, migrationDir); err != nil {
+		t.Fatalf("failed to apply migrations: %v", err)
 	}
 
 	t.Log("✅ Database created")
 
-	return testDatabase
-}
-
-// setupLocalDatabase uses Docker Compose database
-func setupLocalDatabase(t *testing.T, ctx context.Context) *pgxpool.Pool {
-	t.Log("Running local integration test")
-
-	// Check PostgreSQL server connectivity
-	postgresDatabase := setupDatabaseConn(t, localPostgresDatabaseURL)
-	if err := postgresDatabase.Ping(ctx); err != nil {
-		t.Fatalf("❌ Can't ping PostgreSQL server %s - is the docker db container running? Run: docker compose up db", localPostgresDatabaseURL)
-	}
-
-	// create the test database
-	t.Logf("setting up test database %v", localTestDatabaseURL)
-	createTestDatabase(t, ctx, postgresDatabase, testDatabaseName)
-
-	testDatabase := setupDatabaseConn(t, localTestDatabaseURL)
-
-	// Apply database migrations
-	if err := runDatabaseMigrations(t, testDatabase); err != nil {
-		t.Fatalf("❌ Failed to apply database migrations: %v", err)
-	}
-
-	t.Log("✅ Database created")
-
-	return testDatabase
+	return testDatabasePool
 }
 
 func setupDatabaseConn(t *testing.T, databaseURL string) *pgxpool.Pool {
@@ -178,30 +224,6 @@ func runDatabaseMigrations(t *testing.T, pool *pgxpool.Pool) error {
 	return nil
 }
 
-func createTestDatabase(t *testing.T, ctx context.Context, pool *pgxpool.Pool, databaseName string) {
-	t.Helper()
-
-	// try to drop db in case previous run was killed and the test db still exists
-	_, err := pool.Exec(ctx, "DROP DATABASE IF EXISTS "+databaseName)
-	if err != nil {
-		t.Fatalf("DROP DATABASE IF EXISTS Failed : %v", err)
-	}
-
-	_, err = pool.Exec(ctx, "CREATE DATABASE "+databaseName)
-	if err != nil {
-		t.Fatalf("CREATE DATABASE Failed : %v", err)
-	}
-
-	t.Cleanup(func() {
-		_, err := pool.Exec(ctx, "DROP DATABASE "+databaseName)
-		if err != nil {
-			t.Fatalf("Failed to drop test database: %v", err)
-		}
-	})
-
-	t.Log("Test database created")
-}
-
 // startInProcessServer starts the pint-server in-process for testing - returns the base URL for the API and a shutdown function
 func startInProcessServer(t *testing.T, ctx context.Context, testDB *pgxpool.Pool, testDatabaseURL string) (string, func()) {
 	t.Helper()
@@ -216,21 +238,22 @@ func startInProcessServer(t *testing.T, ctx context.Context, testDB *pgxpool.Poo
 	port := findFreePort(t)
 
 	// Set environment variables before calling NewServerConfig
-	// Paths are relative to app/test/integration/ directory
 	testEnvVars := map[string]string{
-		"DATABASE_URL":          testDatabaseURL,
-		"ENVIRONMENT":           "test",
-		"LOG_LEVEL":             "debug",
-		"PORT":                  fmt.Sprintf("%d", port),
-		"HOST":                  "localhost",
-		"REGISTRY_PATH":         "../../internal/crypto/testdata/platform-registry/eblsolutionproviders.csv",
-		"MANUAL_KEYS_DIR":       "../../internal/crypto/testdata/keys",
-		"SIGNING_KEY_PATH":      "../../internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
-		"X5C_CERT_PATH":         "../../internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
-		"X5C_CUSTOM_ROOTS_PATH": "../../internal/crypto/testdata/certs/root-ca.crt",
-		"PLATFORM_CODE":         "EBL1",
-		"SKIP_JWK_CACHE":        "true",
-		"RATE_LIMIT_RPS":        "0", // disable rate limiting in tests
+		"DATABASE_URL": testDatabaseURL,
+		"ENVIRONMENT":  "test",
+		"LOG_LEVEL":    "debug",
+		"PORT":         fmt.Sprintf("%d", port),
+		"HOST":         "localhost",
+
+		"REGISTRY_PATH":         testServerConfig.registryPath,
+		"MANUAL_KEYS_DIR":       testServerConfig.manualKeysDir,
+		"SIGNING_KEY_PATH":      testServerConfig.signingKeyPath,
+		"X5C_CERT_PATH":         testServerConfig.x5cCertPath,
+		"X5C_CUSTOM_ROOTS_PATH": testServerConfig.x5cCustomRootsPath,
+		"PLATFORM_CODE":         testServerConfig.platformCode,
+
+		"SKIP_JWK_CACHE": "true",
+		"RATE_LIMIT_RPS": "0", // disable rate limiting in tests
 	}
 
 	// Save original env vars and set test values

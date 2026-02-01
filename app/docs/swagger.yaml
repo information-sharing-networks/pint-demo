@@ -21,6 +21,22 @@ definitions:
         example: 1.0.0
         type: string
     type: object
+  ebl.DocumentMetadata:
+    properties:
+      documentChecksum:
+        description: 'documentChecksum: SHA-256 checksum of the document'
+        type: string
+      mediaType:
+        description: 'mediaType: MIME type of the document'
+        type: string
+      name:
+        description: 'name: The name of the document'
+        type: string
+      size:
+        description: 'size: The size of the decoded document in bytes (not the Base64
+          encoded size)'
+        type: integer
+    type: object
   ebl.EblEnvelope:
     properties:
       envelopeManifestSignedContent:
@@ -48,6 +64,32 @@ definitions:
         description: 'TransportDocument: The transport document (Bill of Lading) as
           a JSON object.'
         type: object
+    type: object
+  ebl.EnvelopeManifest:
+    properties:
+      eBLVisualisationByCarrier:
+        allOf:
+        - $ref: '#/definitions/ebl.DocumentMetadata'
+        description: EBLVisualisationByCarrier contains metadata for the eBL visualisation
+          (optional).
+      lastEnvelopeTransferChainEntrySignedContentChecksum:
+        description: |-
+          LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry
+          in the transfer chain.
+          This binds the manifest to the specific transfer chain it was created for,
+          preventing an attacker from replacing the last entry with a valid one from a different transfer.
+        type: string
+      supportingDocuments:
+        description: SupportingDocuments contains metadata for supporting documents
+          (optional).
+        items:
+          $ref: '#/definitions/ebl.DocumentMetadata'
+        type: array
+      transportDocumentChecksum:
+        description: |-
+          TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.
+          This is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.
+        type: string
     type: object
   pint.DetailedError:
     properties:
@@ -411,12 +453,19 @@ paths:
         and the `responseCode` in the signed response, the `responseCode` takes precedence.
       parameters:
       - description: eBL envelope containing transport document, signed manifest,
-          and transfer chain
+          and transfer chain - see the schema ebl.EnvelopeManifest definition for
+          details of the expected structure in the signed field
         in: body
         name: request
         required: true
         schema:
           $ref: '#/definitions/ebl.EblEnvelope'
+      - description: documentation only (not used directly)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ebl.EnvelopeManifest'
       responses:
         "200":
           description: Signed response - Transfer accepted immediately (RECE or DUPE)

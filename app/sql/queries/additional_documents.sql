@@ -73,6 +73,12 @@ ORDER BY received_at;
 SELECT COUNT(*) FROM additional_documents
 WHERE envelope_id = $1 AND received_at IS NULL;
 
+-- name: GetMissingAdditionalDocumentChecksums :many
+-- Get checksums of all missing additional documents for an envelope
+SELECT document_checksum FROM additional_documents
+WHERE envelope_id = $1 AND received_at IS NULL
+ORDER BY created_at;
+
 -- name: GetReceivedAdditionalDocumentChecksums :many
 -- Get checksums of all received additional documents for an envelope
 SELECT document_checksum FROM additional_documents

@@ -105,7 +105,7 @@ swag-fmt:
 # Generate swagger documentation
 docs:
 	@echo "🔄 Generating swagger documentation..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag init -g ./cmd/pint-server/main.go"
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag init --parseInternal -g ./cmd/pint-server/main.go  "
 
 # Run security analysis
 security:
