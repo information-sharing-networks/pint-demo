@@ -210,7 +210,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "envelopeTransferChain": {
-                    "description": "EnvelopeTransferChain: Ordered list of JWS strings representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.",
+                    "description": "EnvelopeTransferChain: Ordered list of JWS tokens representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.",
                     "type": "array",
                     "items": {
                         "type": "string"

@@ -36,7 +36,7 @@ type EblEnvelope struct {
 	// of any supporting documents that will be subsequently transferred by the sender.
 	EnvelopeManifestSignedContent EnvelopeManifestSignedContent `json:"envelopeManifestSignedContent"`
 
-	// EnvelopeTransferChain: Ordered list of JWS strings representing the complete
+	// EnvelopeTransferChain: Ordered list of JWS tokens representing the complete
 	// transfer chain.
 	//
 	// Each EnvelopeTransferChainEntry represents a batch of transactions

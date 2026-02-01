@@ -34,7 +34,7 @@ definitions:
         type: string
       envelopeTransferChain:
         description: |-
-          EnvelopeTransferChain: Ordered list of JWS strings representing the complete
+          EnvelopeTransferChain: Ordered list of JWS tokens representing the complete
           transfer chain.
 
           Each EnvelopeTransferChainEntry represents a batch of transactions

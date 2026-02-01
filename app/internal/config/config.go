@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Netflix/go-env"
@@ -58,6 +59,7 @@ type ServerEnvironment struct {
 	ManualKeysDir string `env:"MANUAL_KEYS_DIR,required=true"`
 
 	// Path to the private JWK file used to sign eBL documents - Ed25519 or RSA keys are supported
+	// In prod/staging, this should point to a mounted secret (e.g., /run/secrets/signing-key.jwk)
 	SigningKeyPath string `env:"SIGNING_KEY_PATH,required=true"`
 
 	// DCSA issued 4 char platform code
@@ -67,11 +69,13 @@ type ServerEnvironment struct {
 	// When set, certificate(s) are included in the JWS x5c header for non-repudiation purposes
 	// Can be a single leaf certificate or a full chain (leaf + intermediates)
 	// The leaf certificate's public key must match the private key at SIGNING_KEY_PATH
+	// In prod/staging, this should point to a mounted secret (e.g., /run/secrets/cert-chain.pem)
 	X5CCertPath string `env:"X5C_CERT_PATH"`
 
 	// Path to custom root CA certificate(s) in PEM format (optional)
 	// Use this when x5c certificates are issued by a private PKI
 	// Leave unset to validate against system root CAs
+	// In prod/staging, this should point to a mounted config (e.g., /etc/pint/custom-roots.pem)
 	X5CCustomRootsPath string `env:"X5C_CUSTOM_ROOTS_PATH"`
 }
 
@@ -123,6 +127,23 @@ func validateConfig(cfg *ServerEnvironment) error {
 		return fmt.Errorf("MIN_TRUST_LEVEL must be between 1 and 3 (1=NoX5C, 2=DV, 3=EV/OV), got %d", cfg.MinTrustLevel)
 	}
 
+	// In prod/staging, validate that secret paths point to approved mount locations
+	if cfg.Environment == "prod" || cfg.Environment == "staging" {
+		if err := validateSecretPath(cfg.SigningKeyPath, "SIGNING_KEY_PATH"); err != nil {
+			return err
+		}
+		if cfg.X5CCertPath != "" {
+			if err := validateSecretPath(cfg.X5CCertPath, "X5C_CERT_PATH"); err != nil {
+				return err
+			}
+		}
+		if cfg.X5CCustomRootsPath != "" {
+			if err := validateConfigPath(cfg.X5CCustomRootsPath, "X5C_CUSTOM_ROOTS_PATH"); err != nil {
+				return err
+			}
+		}
+	}
+
 	// TODO - this rule says participants using custom root CAs must also use x5c headers
 	// (ie it is assumed the particpants in a private PKI require reciprical trust and must operate at trust-level 2 or 3)
 	// .. but we don't have a similar rule for public CAs (allowing the particpants to select their trust level)
@@ -133,4 +154,38 @@ func validateConfig(cfg *ServerEnvironment) error {
 	}
 
 	return nil
+}
+
+// validateSecretPath ensures that in prod/staging, secret file paths point to approved mount locations.
+func validateSecretPath(path, envVarName string) error {
+	// Approved mount points for secrets in production
+	approvedPrefixes := []string{
+		"/run/secrets/",
+		"/var/run/secrets/",
+		"/secrets/",
+	}
+
+	for _, prefix := range approvedPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s must point to a mounted secret location in prod/staging (e.g., /run/secrets/*, /secrets/*), got: %s", envVarName, path)
+}
+
+func validateConfigPath(path, envVarName string) error {
+	// Approved mount points for config files in production
+	approvedPrefixes := []string{
+		"/etc/",
+		"/config/",
+	}
+
+	for _, prefix := range approvedPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s must point to a mounted config location in prod/staging (e.g., /etc/*, /config/*), got: %s", envVarName, path)
 }

@@ -270,16 +270,16 @@ See `app/internal/crypto/testdata/README.md` for details on how to regenerate th
 a demo CLI client is provided in `app/cmd/pint-client/main.go` - this is work-in-progress
 
 ## Server
-There is a single server implementation in `app/cmd/pint-server/main.go` - this is work-in-progress
+There is a server implementation in `app/cmd/pint-server/main.go` - this is work-in-progress
 
 see the http://localhost:8080/docs for the API docs
 
 The pint-server service provides:
 - `GET /health` - Health check endpoint
 - `GET /.well-known/jwks.json` - JWK set endpoint (public key for this instance of the server)
-- `GET /docs` - API documentation (ReDoc)
+- `GET /docs` - API documentation 
 - `GET /swagger.json` - OpenAPI specification
-- `POST /v3/envelopes` - Receive PINT transfer envelopes 
+- `POST /v3/envelopes` - Start envelope transfer (PINT)
 
 Support for the following endpoints is planned but not yet implemented:
 - `PUT /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}` - Add additional documents to a PINT transfer envelope 
