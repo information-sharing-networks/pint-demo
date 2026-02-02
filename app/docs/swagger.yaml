@@ -21,6 +21,32 @@ definitions:
         example: 1.0.0
         type: string
     type: object
+  ebl.ActorParty:
+    properties:
+      eblPlatform:
+        description: 'EblPlatform: The eBL platform code (required) - BOLE, WAVE etc
+          (c.f https://github.com/dcsaorg/DCSA-OpenAPI/tree/master/reference-data)'
+        type: string
+      identifyingCodes:
+        description: 'IdentifyingCodes: List of identifying codes (at least one required)'
+        items:
+          $ref: '#/definitions/ebl.IdentifyingCode'
+        type: array
+      partyName:
+        description: 'PartyName: Name of the party (required)'
+        type: string
+      representedParty:
+        allOf:
+        - $ref: '#/definitions/ebl.RepresentedActorParty'
+        description: 'RepresentedParty: An identifier issued by the eBL Solution Provider,
+          used for auditing purposes to verify that the endorsement chain action has
+          been securely recorded.'
+      taxLegalReferences:
+        description: 'TaxLegalReferences: List of tax/legal references (optional)'
+        items:
+          $ref: '#/definitions/ebl.TaxLegalReference'
+        type: array
+    type: object
   ebl.DocumentMetadata:
     properties:
       documentChecksum:
@@ -90,6 +116,148 @@ definitions:
           TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.
           This is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.
         type: string
+    type: object
+  ebl.EnvelopeTransferChainEntry:
+    properties:
+      controlTrackingRegistry:
+        description: 'ControlTrackingRegistry: URI of CTR (optional, only in first
+          entry). Example: https://ctr.dcsa.org/v1'
+        type: string
+      eblPlatform:
+        description: 'EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX")
+          responsible for this entry'
+        type: string
+      issuanceManifestSignedContent:
+        description: |-
+          IssuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)
+          The issuance manifest is created and signed the carrier when the eBL is issued and proves the integrity of the transport document and the issueTo party data.
+          It should not change for the lifetime of the eBL.
+        type: string
+      previousEnvelopeTransferChainEntrySignedContentChecksum:
+        description: |-
+          PreviousEnvelopeTransferChainEntrySignedContentChecksum: SHA-256 of previous entry JWS (omitted for first entry)
+          this is the checksum of the previous entry in the transfer chain, and should only be included if this is not the first entry in the transfer chain.
+          This ensures the integrity of the transfer chain.
+        type: string
+      transactions:
+        description: 'Transactions: List of transactions (at least one required)'
+        items:
+          $ref: '#/definitions/ebl.Transaction'
+        type: array
+      transportDocumentChecksum:
+        description: |-
+          TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON
+          this should not change for the lifetime of the eBL.
+        type: string
+    type: object
+  ebl.IdentifyingCode:
+    properties:
+      codeListName:
+        description: |-
+          codeListName: The name of the code list, code generation mechanism or code authority for the partyCode.
+          Example values could be: DID (codeListProvider W3C), LEI (codeListProvider GLEIF), DUNS (codeListProvider Dunn and Bradstreet) etc.
+        type: string
+      codeListProvider:
+        description: 'CodeListProvider: The provider of the code list (this can be
+          a platform code like "WAVE", or a code list provider like "DCSA", "GLEIF",
+          "W3C", "DNB")'
+        type: string
+      partyCode:
+        description: 'PartyCode: Code to identify the party as provided by the code
+          list provider'
+        type: string
+    type: object
+  ebl.RecipientParty:
+    properties:
+      eblPlatform:
+        description: 'EblPlatform: The eBL platform code (required)'
+        type: string
+      identifyingCodes:
+        items:
+          $ref: '#/definitions/ebl.IdentifyingCode'
+        type: array
+      partyName:
+        description: 'PartyName: Name of the party (required)'
+        type: string
+      representedParty:
+        allOf:
+        - $ref: '#/definitions/ebl.RepresentedRecipientParty'
+        description: 'RepresentedParty: Party on whose behalf the action was directed
+          (optional)'
+      taxLegalReferences:
+        description: 'TaxLegalReferences: List of tax/legal references (optional)'
+        items:
+          $ref: '#/definitions/ebl.TaxLegalReference'
+        type: array
+    type: object
+  ebl.RepresentedActorParty:
+    properties:
+      identifyingCodes:
+        description: 'IdentifyingCodes: List of identifying codes (optional)'
+        items:
+          $ref: '#/definitions/ebl.IdentifyingCode'
+        type: array
+      partyName:
+        description: 'PartyName: Name of the party (required)'
+        type: string
+    type: object
+  ebl.RepresentedRecipientParty:
+    properties:
+      identifyingCodes:
+        description: 'IdentifyingCodes: List of identifying codes (optional)'
+        items:
+          $ref: '#/definitions/ebl.IdentifyingCode'
+        type: array
+      partyName:
+        description: 'PartyName: Name of the party (required)'
+        type: string
+    type: object
+  ebl.TaxLegalReference:
+    properties:
+      countryCode:
+        description: 'CountryCode: ISO 3166-1 alpha-2 country code'
+        type: string
+      type:
+        description: 'Type: The reference type code (e.g., "PAN", "EORI", "GSTIN",
+          "CVR")'
+        type: string
+      value:
+        description: 'Value: The actual reference value'
+        type: string
+    type: object
+  ebl.Transaction:
+    properties:
+      actionCode:
+        description: 'actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE,
+          SURRENDER_FOR_DELIVERY, etc.)'
+        type: string
+      actionDateTime:
+        description: 'actionDateTime: RFC3339 timestamp (UTC) when the transaction
+          was created'
+        type: string
+      actor:
+        allOf:
+        - $ref: '#/definitions/ebl.ActorParty'
+        description: 'actor: The legal entity (party) performing the action (required)'
+      auditReference:
+        description: 'auditReference: Audit identifier from eBL Solution Provider
+          (optional)'
+        type: string
+      comments:
+        description: 'comments: Free text comment (optional)'
+        type: string
+      reasonCode:
+        description: |-
+          reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)
+          SWTP (Switch to paper)
+          COD (Change of destination)
+          SWI (Switch BL)
+        type: string
+      recipient:
+        allOf:
+        - $ref: '#/definitions/ebl.RecipientParty'
+        description: 'recipient: The party receiving the action (optional for some
+          action codes like SIGN)'
     type: object
   pint.DetailedError:
     properties:
@@ -387,7 +555,7 @@ paths:
 
         **Success Responses:**
 
-        `201 Created` - Transfer started but not yet accepted
+        `201 Created` - Transfer started but not yet accepted  (unsigned json response)
         - The envelope transfer is now active
         - Additional documents listed in the EnvelopeManifest are required
         - Sender must transfer documents, then call "Finish envelope transfer" endpoint
@@ -433,12 +601,12 @@ paths:
 
         **Unsigned Error Responses**
 
-        The only time you get an unsigned response is when the request is malformed or the
+        The only time you get an unsigned error response is when the request is malformed or the
         receiving platform is having technical difficulties.
 
         `400 Bad Request` indicates a malformed request (invalid JSON, missing required fields, etc.)
 
-        `500 Internal Server Error` or other unexpected errors indicate temporary technical issues.
+        `500 Internal Server Error` errors indicate temporary technical issues.
         The sender should retry until they receive a signed response.
 
         **Notes**
@@ -466,6 +634,12 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/ebl.EnvelopeManifest'
+      - description: documentation only (not used directly)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ebl.EnvelopeTransferChainEntry'
       responses:
         "200":
           description: Signed response - Transfer accepted immediately (RECE or DUPE)
@@ -495,6 +669,87 @@ paths:
           schema:
             $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
       summary: Start envelope transfer
+      tags:
+      - PINT
+  /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}:
+    put:
+      consumes:
+      - application/json
+      description: |
+        Transfer additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
+
+        The receiving platform validates:
+        - Document was declared in the EnvelopeManifest
+        - SHA-256 checksum matches the URL parameter
+        - Document size matches the manifest
+
+        **Request Body Format:**
+
+        The request body is a base64-encoded string containing the document content.
+        Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure)
+        The decoded content type is determined by sending platform based on the media type
+        declared in the EnvelopeManifest.
+
+        If the sending platform looses track of the transfer state for a document, it can safely
+        retry the transfer by resending the same document.
+
+        If the sending platform looses track of which documents have not been received, it can call
+        the PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.
+
+        **Success Response**
+
+        `204 No Content` - this is returned when the document is received successfully,
+        or when the document has already been received.
+
+
+        **Error Responses (signed):**
+
+        `409 Conflict` - Checksum or size mismatch (INCD response code)
+
+        `422 Unprocessable Entity` - Envelope rejected (BSIG/BENV response code)
+      parameters:
+      - description: Envelope reference (UUID)
+        in: path
+        name: envelopeReference
+        required: true
+        type: string
+      - description: SHA-256 checksum of the document
+        in: path
+        name: documentChecksum
+        required: true
+        type: string
+      - description: Base64-encoded document content (plain string, e.g., UmF3IGNvbnRlbnQ...)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Document received successfully
+        "400":
+          description: Malformed request
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+        "404":
+          description: Envelope or document not found
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+        "409":
+          description: Checksum/size mismatch (INCD)
+          schema:
+            $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
+        "422":
+          description: Envelope rejected (BSIG/BENV)
+          schema:
+            $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+      summary: Transfer additional document
       tags:
       - PINT
   /version:

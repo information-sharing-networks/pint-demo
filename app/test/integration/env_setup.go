@@ -51,7 +51,7 @@ func cleanupDatabase(t *testing.T, pool *pgxpool.Pool) {
 	ctx := context.Background()
 
 	_, err := pool.Exec(ctx, `
-		TRUNCATE TABLE envelopes CASCADE;
+		TRUNCATE TABLE transport_documents CASCADE;
 	`)
 	if err != nil {
 		t.Fatalf("Failed to cleanup database: %v", err)
@@ -71,6 +71,8 @@ type databaseConfig struct {
 // serverConfig holds PINT server configuration for tests
 // All paths are relative to app/test/integration/ directory
 type serverConfig struct {
+	environment        string
+	logLevel           string
 	registryPath       string
 	manualKeysDir      string
 	signingKeyPath     string
@@ -94,6 +96,8 @@ var (
 	}
 
 	testServerConfig = serverConfig{
+		environment:        "test",
+		logLevel:           "debug",
 		registryPath:       "../../internal/crypto/testdata/platform-registry/eblsolutionproviders.csv",
 		manualKeysDir:      "../../internal/crypto/testdata/keys",
 		signingKeyPath:     "../../internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
@@ -239,11 +243,14 @@ func startInProcessServer(t *testing.T, ctx context.Context, testDB *pgxpool.Poo
 
 	// Set environment variables before calling NewServerConfig
 	testEnvVars := map[string]string{
+		"HOST":           "localhost",
+		"SKIP_JWK_CACHE": "true",
+		"RATE_LIMIT_RPS": "0",
+
 		"DATABASE_URL": testDatabaseURL,
-		"ENVIRONMENT":  "test",
-		"LOG_LEVEL":    "debug",
+		"ENVIRONMENT":  testServerConfig.environment,
+		"LOG_LEVEL":    testServerConfig.logLevel,
 		"PORT":         fmt.Sprintf("%d", port),
-		"HOST":         "localhost",
 
 		"REGISTRY_PATH":         testServerConfig.registryPath,
 		"MANUAL_KEYS_DIR":       testServerConfig.manualKeysDir,
@@ -251,9 +258,6 @@ func startInProcessServer(t *testing.T, ctx context.Context, testDB *pgxpool.Poo
 		"X5C_CERT_PATH":         testServerConfig.x5cCertPath,
 		"X5C_CUSTOM_ROOTS_PATH": testServerConfig.x5cCustomRootsPath,
 		"PLATFORM_CODE":         testServerConfig.platformCode,
-
-		"SKIP_JWK_CACHE": "true",
-		"RATE_LIMIT_RPS": "0", // disable rate limiting in tests
 	}
 
 	// Save original env vars and set test values

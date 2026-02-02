@@ -200,10 +200,17 @@ func (s *Server) registerPintRoutes() {
 		s.config.MinTrustLevel,
 	)
 
+	transferAdditionalDocument := pinthandlers.NewTransferAdditionalDocumentHandler(
+		s.queries,
+		s.pool,
+		s.signingKey,
+		s.x5cCertChain,
+	)
+
 	s.router.Route("/v3", func(r chi.Router) {
 		r.Post("/receiver-validation", s.handleReceiverValidation)
 		r.Post("/envelopes", startTransfer.HandleStartTransfer)
-		r.Put("/envelopes/{envelopeReference}/additional-documents/{documentChecksum}", s.handleTransferAdditionalDocument)
+		r.Put("/envelopes/{envelopeReference}/additional-documents/{documentChecksum}", transferAdditionalDocument.HandleTransferAdditionalDocument)
 		r.Put("/envelopes/{envelopeReference}/finish-transfer", s.handleFinishEnvelopeTransfer)
 	})
 }
@@ -317,10 +324,6 @@ func (s *Server) createJWKSet() (jwk.Set, error) {
 }
 
 func (s *Server) handleReceiverValidation(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
-}
-
-func (s *Server) handleTransferAdditionalDocument(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }
 

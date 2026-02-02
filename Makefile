@@ -45,7 +45,7 @@ docker-down:
 docker-reset:
 	@echo "🔄 Resetting database..."
 	$(MAKE) docker-down
-	@docker volume rm pint-demo_db-data || true
+	@docker volume rm pint-demo_db-data-dev || true
 	$(MAKE) docker-up
 
 restart:

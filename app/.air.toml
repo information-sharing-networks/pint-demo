@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  bin = "./bin/pint-server"
+  entrypoint = "./bin/pint-server"
   cmd = "swag init -g ./cmd/pint-server/main.go && sqlc generate && go build -o ./bin/pint-server ./cmd/pint-server/main.go"
   delay = 1000
   exclude_dir = ["tmp", "internal/database", "docs"]
@@ -12,7 +12,7 @@ tmp_dir = "tmp"
   follow_symlink = false
   full_bin = ""
   include_dir = []
-  include_ext = ["go", "templ", "sql"]
+  include_ext = ["go", "templ", "sql", "html"]
   kill_delay = "0s"
   log = "build-errors.log"
   send_interrupt = false

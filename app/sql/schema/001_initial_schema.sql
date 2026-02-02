@@ -1,80 +1,128 @@
 -- +goose Up
 
--- Envelopes table - tracks envelope transfer state
+-- transport_documents - Registry of unique eBL documents (transport documents) seen by this platform.
+CREATE TABLE transport_documents (
+    checksum TEXT PRIMARY KEY, -- SHA-256 checksum of canonical JSON (per DCSA spec)
+    content JSONB NOT NULL, -- The actual transport document content
+    first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    first_received_from_platform_code TEXT NOT NULL -- 4-char DCSA platform code that first sent this eBL to us (e.g., "WAVE", "CARX")
+);
+
+-- envelopes - each row represents a transfer session (envelope transfer) of an eBL.
+-- The same eBL can be transferred multiple times and go back and forth between platforms.
+-- Each transfer has a unique chain of transactions (transfer chain entries) that are cryptographically linked
+-- and uniquely identified by the last_transfer_chain_entry_checksum
 CREATE TABLE envelopes (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY, -- Used as 'envelope_reference' in API responses
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    envelope_reference UUID NOT NULL UNIQUE,  -- Receiver-generated identifier returned to sender for subsequent API calls
-    transport_document_reference TEXT NOT NULL,  -- Sender's B/L number (extracted from transportDocument JSON for indexing)
-    transport_document_checksum TEXT NOT NULL,  -- SHA-256 checksum of the canonical JSON transportDocument
-    transport_document JSONB NOT NULL,  -- The eBL document
-    envelope_manifest_signed_content TEXT NOT NULL,  -- JWS-signed EnvelopeManifest
-    last_transfer_chain_entry_signed_content TEXT NOT NULL,  -- JWS-signed last transfer chain entry
-    last_transfer_chain_entry_checksum TEXT NOT NULL,  -- SHA-256 checksum of last_transfer_chain_entry_signed_content (unique to prevent duplicate transfers)
-    trust_level INTEGER NOT NULL,  -- Certificate trust level: 1=EV/OV, 2=DV, 3=NoX5C
-    state TEXT NOT NULL,
-    response_code TEXT,
-    CONSTRAINT envelopes_state_check CHECK (state IN (
-        'PENDING',      -- Transfer started
-        'ACCEPTED',     -- Transfer accepted
-        'DUPLICATE',    -- Duplicate detected
-        'REJECTED'      -- Transfer rejected
-    )),
-    CONSTRAINT envelopes_response_code_check CHECK (response_code IS NULL OR response_code IN (
-        'RECE',  -- Received and accepted
-        'DUPE',  -- Duplicate (already received)
-        'BENV',  -- Bad envelope
-        'BSIG',  -- Bad signature
-        'MDOC',  -- Missing documents
-        'DISE',  -- Disagreement on envelope state
-        'INCD',  -- Inconsistent document
-        'INT'   -- Internal error
-    )),
-    CONSTRAINT envelopes_trust_level_check CHECK (trust_level IN (1, 2, 3))
-);
 
-CREATE UNIQUE INDEX unique_envelopes_last_chain_checksum ON envelopes(last_transfer_chain_entry_checksum);
-CREATE INDEX idx_envelopes_reference ON envelopes(envelope_reference);
-CREATE INDEX idx_envelopes_transport_document_reference ON envelopes(transport_document_reference);
-CREATE INDEX idx_envelopes_transport_document_checksum ON envelopes(transport_document_checksum);
+    -- Links to the eBL document being transferred
+    transport_document_checksum TEXT NOT NULL,
 
--- Additional documents table - tracks supporting documents and eBL visualizations
-CREATE TABLE additional_documents (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    envelope_id UUID NOT NULL,
-    document_checksum TEXT NOT NULL,
-    document_content BYTEA NOT NULL,
-    media_type TEXT NOT NULL,
-    is_ebl_visualisation BOOL NOT NULL,
-    CONSTRAINT additional_documents_unique_doc_per_envelope UNIQUE(envelope_id, document_checksum),
-    CONSTRAINT fk_additional_documents_envelope FOREIGN KEY (envelope_id)
-        REFERENCES envelopes(id)
+    -- Transfer metadata
+    sent_by_platform_code TEXT NOT NULL, -- 4-char DCSA platform code of sender (e.g., "WAVE", "CARX")
+    last_transfer_chain_entry_checksum TEXT NOT NULL UNIQUE, -- Prevents duplicate transfers
+
+    -- Signed content (JWS strings - kept for audit trail)
+    envelope_manifest_signed_content TEXT NOT NULL, -- JWS of EnvelopeManifest
+    last_transfer_chain_entry_signed_content TEXT NOT NULL, -- JWS of last entry
+
+    -- Response tracking (NULL = pending, otherwise the state of the response last sent to the sender)
+    response_code TEXT CHECK (response_code IN ('RECE', 'DUPE', 'BSIG', 'BENV', 'INCD', 'MDOC', 'DISE')),
+    response_reason TEXT, -- Optional reason for rejection
+
+    -- Trust level from certificate validation (1=NoX5C, 2=DV, 3=EV/OV)
+    trust_level INTEGER NOT NULL CHECK (trust_level IN (1, 2, 3)),
+
+    CONSTRAINT fk_envelopes_transport_document FOREIGN KEY (transport_document_checksum)
+        REFERENCES transport_documents(checksum)
         ON DELETE CASCADE
 );
+CREATE INDEX idx_envelopes_transport_document ON envelopes(transport_document_checksum);
+CREATE INDEX idx_envelopes_response_code ON envelopes(response_code);
 
-CREATE INDEX idx_additional_docs_envelope ON additional_documents(envelope_id);
-CREATE INDEX idx_additional_docs_checksum ON additional_documents(document_checksum);
-
--- Transfer chain entries table - stores the complete transfer chain history
+-- transfer_chain_entries - contains the transfer chain entries for all eBLs, linked by transport_document_checksum.
+-- This enables (limited) DISE (dispute) detection by comparing the transfer chain entries of two platforms for the same eBL.
+-- The chain forms a linked list via previous_entry_checksum, allowing reconstruction.
+-- of the full history by walking backwards from any entry.
+--
+-- Note the calling application is responsible for ensuring this table does not contain forks or broken chains.
 CREATE TABLE transfer_chain_entries (
     id UUID PRIMARY KEY,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+
+    -- Links to the eBL document (CRITICAL for DISE detection)
+    transport_document_checksum TEXT NOT NULL,
+
+    -- Links to the envelope/transfer that brought this entry to our platform
     envelope_id UUID NOT NULL,
-    signed_content TEXT NOT NULL,
-    sequence INT NOT NULL,
-    CONSTRAINT transfer_chain_entries_unique_sequence_per_envelope UNIQUE(envelope_id, sequence),
+
+    -- The signed content and its checksum
+    signed_content TEXT NOT NULL, -- JWS of EnvelopeTransferChainEntry
+    entry_checksum TEXT NOT NULL UNIQUE, -- SHA-256 of signed_content
+
+    -- Blockchain-like linking
+    previous_entry_checksum TEXT, -- NULL for first entry (ISSUE transaction)
+
+    -- Position in the chain for this envelope
+    sequence INTEGER NOT NULL,
+
     CONSTRAINT fk_transfer_chain_entries_envelope FOREIGN KEY (envelope_id)
         REFERENCES envelopes(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_transfer_chain_entries_transport_document FOREIGN KEY (transport_document_checksum)
+        REFERENCES transport_documents(checksum)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_transfer_chain_entries_previous FOREIGN KEY (previous_entry_checksum)
+        REFERENCES transfer_chain_entries(entry_checksum)
+        ON DELETE RESTRICT, -- Don't allow deleting entries that are referenced
+    CONSTRAINT unique_sequence_per_envelope UNIQUE(envelope_id, sequence)
 );
+CREATE INDEX idx_transfer_chain_entries_transport_document ON transfer_chain_entries(transport_document_checksum);
+CREATE INDEX idx_transfer_chain_entries_envelope ON transfer_chain_entries(envelope_id, sequence);
 
-CREATE INDEX idx_transfer_chain_envelope ON transfer_chain_entries(envelope_id, sequence);
+-- additional_documents - Tracks expected and received additional documents (supporting docs and eBL visualisation)
+-- for each envelope transfer. Documents are scoped to a specific transfer session.
+CREATE TABLE additional_documents (
+    id UUID PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+
+    -- Links to the envelope/transfer
+    envelope_id UUID NOT NULL,
+
+    -- Document metadata (from EnvelopeManifest)
+    document_checksum TEXT NOT NULL, -- SHA-256 of document content
+    document_name TEXT NOT NULL,
+    expected_size BIGINT NOT NULL,
+    media_type TEXT NOT NULL,
+    is_ebl_visualisation BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Document content (NULL until received via PUT endpoint)
+    document_content BYTEA, -- Binary content
+    received_at TIMESTAMP WITH TIME ZONE, -- When successfully received
+
+    CONSTRAINT fk_additional_documents_envelope FOREIGN KEY (envelope_id)
+        REFERENCES envelopes(id)
+        ON DELETE CASCADE,
+    CONSTRAINT unique_document_per_envelope UNIQUE(envelope_id, document_checksum),
+    CONSTRAINT content_and_received_together CHECK (
+        (document_content IS NULL AND received_at IS NULL) OR
+        (document_content IS NOT NULL AND received_at IS NOT NULL)
+    )
+);
+CREATE INDEX idx_additional_documents_envelope ON additional_documents(envelope_id);
+
+COMMENT ON TABLE transport_documents IS 'Registry of unique eBL documents. Same eBL can be transferred multiple times.';
+COMMENT ON TABLE envelopes IS 'Each row = one transfer session. Multiple rows can exist for same transport_document_checksum.';
+COMMENT ON TABLE transfer_chain_entries IS 'Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_checksum';
+COMMENT ON TABLE additional_documents IS 'Expected and received additional documents, scoped to specific transfer sessions.';
+
+COMMENT ON COLUMN envelopes.response_code IS 'Response code sent to sender. NULL = transfer pending (no final response sent yet). RECE/DUPE = accepted. BSIG/BENV/INCD/MDOC/DISE = rejected.';
+COMMENT ON COLUMN envelopes.last_transfer_chain_entry_checksum IS 'UNIQUE constraint prevents duplicate transfers of same chain.';
 
 -- +goose Down
-
-DROP TABLE IF EXISTS transfer_chain_entries CASCADE;
 DROP TABLE IF EXISTS additional_documents CASCADE;
+DROP TABLE IF EXISTS transfer_chain_entries CASCADE;
 DROP TABLE IF EXISTS envelopes CASCADE;
-
+DROP TABLE IF EXISTS transport_documents CASCADE;

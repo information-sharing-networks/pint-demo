@@ -86,7 +86,7 @@
         },
         "/v3/envelopes": {
             "post": {
-                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n`201 Created` - Transfer started but not yet accepted\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transfer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n`200 OK` - Transfer accepted immediately (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate).\n`DUPE` means this transfer was previously received and accepted - in this case the response\nalso includes the last accepted transfer chain entry\n`duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\n`422 Unprocessable Entity` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with `responseCode` of `BSIG` (signature failure)\nor `BENV` (envelope validation failure). Details of the error are in the payload of the JWS.\n\n**Trust Level Failures**\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifsest JWS.\n- Trust level 1 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n- Trust level 2 means the JWS must contain a valid certificate,\n(Domain Validation (DV) certificates are allowed).\n- Trust level 3 is the hightest trust level, and means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will return a `422 Unprocessable Entity` (BSIG) response.\n\nNote that if an x5c cert is included, it must be signed by a trusted root CA and the\npublic key in the certificate must match the key used to sign the JWS.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n`400 Bad Request` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n`500 Internal Server Error` or other unexpected errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected\n- only determine transfer acceptance/rejection from signed responses\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the `responseCode` in the signed response, the `responseCode` takes precedence.",
+                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n`201 Created` - Transfer started but not yet accepted  (unsigned json response)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transfer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n`200 OK` - Transfer accepted immediately (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate).\n`DUPE` means this transfer was previously received and accepted - in this case the response\nalso includes the last accepted transfer chain entry\n`duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\n`422 Unprocessable Entity` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with `responseCode` of `BSIG` (signature failure)\nor `BENV` (envelope validation failure). Details of the error are in the payload of the JWS.\n\n**Trust Level Failures**\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifsest JWS.\n- Trust level 1 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n- Trust level 2 means the JWS must contain a valid certificate,\n(Domain Validation (DV) certificates are allowed).\n- Trust level 3 is the hightest trust level, and means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will return a `422 Unprocessable Entity` (BSIG) response.\n\nNote that if an x5c cert is included, it must be signed by a trusted root CA and the\npublic key in the certificate must match the key used to sign the JWS.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned error response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n`400 Bad Request` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n`500 Internal Server Error` errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected\n- only determine transfer acceptance/rejection from signed responses\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the `responseCode` in the signed response, the `responseCode` takes precedence.",
                 "tags": [
                     "PINT"
                 ],
@@ -108,6 +108,15 @@
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/ebl.EnvelopeManifest"
+                        }
+                    },
+                    {
+                        "description": "documentation only (not used directly)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ebl.EnvelopeTransferChainEntry"
                         }
                     }
                 ],
@@ -146,6 +155,81 @@
                         "description": "documentation only (not returned directly) - decoded payload of the signed response",
                         "schema": {
                             "$ref": "#/definitions/pint.EnvelopeTransferFinishedResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}": {
+            "put": {
+                "description": "Transfer additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest\n- SHA-256 checksum matches the URL parameter\n- Document size matches the manifest\n\n**Request Body Format:**\n\nThe request body is a base64-encoded string containing the document content.\nExample: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure)\nThe decoded content type is determined by sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform looses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform looses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response**\n\n`204 No Content` - this is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n`409 Conflict` - Checksum or size mismatch (INCD response code)\n\n`422 Unprocessable Entity` - Envelope rejected (BSIG/BENV response code)\n",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PINT"
+                ],
+                "summary": "Transfer additional document",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Envelope reference (UUID)",
+                        "name": "envelopeReference",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "SHA-256 checksum of the document",
+                        "name": "documentChecksum",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Base64-encoded document content (plain string, e.g., UmF3IGNvbnRlbnQ...)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Document received successfully"
+                    },
+                    "400": {
+                        "description": "Malformed request",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Envelope or document not found",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Checksum/size mismatch (INCD)",
+                        "schema": {
+                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Envelope rejected (BSIG/BENV)",
+                        "schema": {
+                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
                         }
                     }
                 }
@@ -199,6 +283,41 @@
                 "version": {
                     "type": "string",
                     "example": "1.0.0"
+                }
+            }
+        },
+        "ebl.ActorParty": {
+            "type": "object",
+            "properties": {
+                "eblPlatform": {
+                    "description": "EblPlatform: The eBL platform code (required) - BOLE, WAVE etc (c.f https://github.com/dcsaorg/DCSA-OpenAPI/tree/master/reference-data)",
+                    "type": "string"
+                },
+                "identifyingCodes": {
+                    "description": "IdentifyingCodes: List of identifying codes (at least one required)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.IdentifyingCode"
+                    }
+                },
+                "partyName": {
+                    "description": "PartyName: Name of the party (required)",
+                    "type": "string"
+                },
+                "representedParty": {
+                    "description": "RepresentedParty: An identifier issued by the eBL Solution Provider, used for auditing purposes to verify that the endorsement chain action has been securely recorded.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.RepresentedActorParty"
+                        }
+                    ]
+                },
+                "taxLegalReferences": {
+                    "description": "TaxLegalReferences: List of tax/legal references (optional)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.TaxLegalReference"
+                    }
                 }
             }
         },
@@ -268,6 +387,179 @@
                 "transportDocumentChecksum": {
                     "description": "TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.\nThis is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.",
                     "type": "string"
+                }
+            }
+        },
+        "ebl.EnvelopeTransferChainEntry": {
+            "type": "object",
+            "properties": {
+                "controlTrackingRegistry": {
+                    "description": "ControlTrackingRegistry: URI of CTR (optional, only in first entry). Example: https://ctr.dcsa.org/v1",
+                    "type": "string"
+                },
+                "eblPlatform": {
+                    "description": "EblPlatform: The eBL platform code (e.g., \"WAVE\", \"BOLE\", \"CARX\") responsible for this entry",
+                    "type": "string"
+                },
+                "issuanceManifestSignedContent": {
+                    "description": "IssuanceManifestSignedContent: JWS of IssuanceManifest (required for first entry only)\nThe issuance manifest is created and signed the carrier when the eBL is issued and proves the integrity of the transport document and the issueTo party data.\nIt should not change for the lifetime of the eBL.",
+                    "type": "string"
+                },
+                "previousEnvelopeTransferChainEntrySignedContentChecksum": {
+                    "description": "PreviousEnvelopeTransferChainEntrySignedContentChecksum: SHA-256 of previous entry JWS (omitted for first entry)\nthis is the checksum of the previous entry in the transfer chain, and should only be included if this is not the first entry in the transfer chain.\nThis ensures the integrity of the transfer chain.",
+                    "type": "string"
+                },
+                "transactions": {
+                    "description": "Transactions: List of transactions (at least one required)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.Transaction"
+                    }
+                },
+                "transportDocumentChecksum": {
+                    "description": "TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON\nthis should not change for the lifetime of the eBL.",
+                    "type": "string"
+                }
+            }
+        },
+        "ebl.IdentifyingCode": {
+            "type": "object",
+            "properties": {
+                "codeListName": {
+                    "description": "codeListName: The name of the code list, code generation mechanism or code authority for the partyCode.\nExample values could be: DID (codeListProvider W3C), LEI (codeListProvider GLEIF), DUNS (codeListProvider Dunn and Bradstreet) etc.",
+                    "type": "string"
+                },
+                "codeListProvider": {
+                    "description": "CodeListProvider: The provider of the code list (this can be a platform code like \"WAVE\", or a code list provider like \"DCSA\", \"GLEIF\", \"W3C\", \"DNB\")",
+                    "type": "string"
+                },
+                "partyCode": {
+                    "description": "PartyCode: Code to identify the party as provided by the code list provider",
+                    "type": "string"
+                }
+            }
+        },
+        "ebl.RecipientParty": {
+            "type": "object",
+            "properties": {
+                "eblPlatform": {
+                    "description": "EblPlatform: The eBL platform code (required)",
+                    "type": "string"
+                },
+                "identifyingCodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.IdentifyingCode"
+                    }
+                },
+                "partyName": {
+                    "description": "PartyName: Name of the party (required)",
+                    "type": "string"
+                },
+                "representedParty": {
+                    "description": "RepresentedParty: Party on whose behalf the action was directed (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.RepresentedRecipientParty"
+                        }
+                    ]
+                },
+                "taxLegalReferences": {
+                    "description": "TaxLegalReferences: List of tax/legal references (optional)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.TaxLegalReference"
+                    }
+                }
+            }
+        },
+        "ebl.RepresentedActorParty": {
+            "type": "object",
+            "properties": {
+                "identifyingCodes": {
+                    "description": "IdentifyingCodes: List of identifying codes (optional)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.IdentifyingCode"
+                    }
+                },
+                "partyName": {
+                    "description": "PartyName: Name of the party (required)",
+                    "type": "string"
+                }
+            }
+        },
+        "ebl.RepresentedRecipientParty": {
+            "type": "object",
+            "properties": {
+                "identifyingCodes": {
+                    "description": "IdentifyingCodes: List of identifying codes (optional)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ebl.IdentifyingCode"
+                    }
+                },
+                "partyName": {
+                    "description": "PartyName: Name of the party (required)",
+                    "type": "string"
+                }
+            }
+        },
+        "ebl.TaxLegalReference": {
+            "type": "object",
+            "properties": {
+                "countryCode": {
+                    "description": "CountryCode: ISO 3166-1 alpha-2 country code",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type: The reference type code (e.g., \"PAN\", \"EORI\", \"GSTIN\", \"CVR\")",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value: The actual reference value",
+                    "type": "string"
+                }
+            }
+        },
+        "ebl.Transaction": {
+            "type": "object",
+            "properties": {
+                "actionCode": {
+                    "description": "actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE, SURRENDER_FOR_DELIVERY, etc.)",
+                    "type": "string"
+                },
+                "actionDateTime": {
+                    "description": "actionDateTime: RFC3339 timestamp (UTC) when the transaction was created",
+                    "type": "string"
+                },
+                "actor": {
+                    "description": "actor: The legal entity (party) performing the action (required)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.ActorParty"
+                        }
+                    ]
+                },
+                "auditReference": {
+                    "description": "auditReference: Audit identifier from eBL Solution Provider (optional)",
+                    "type": "string"
+                },
+                "comments": {
+                    "description": "comments: Free text comment (optional)",
+                    "type": "string"
+                },
+                "reasonCode": {
+                    "description": "reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)\nSWTP (Switch to paper)\nCOD (Change of destination)\nSWI (Switch BL)",
+                    "type": "string"
+                },
+                "recipient": {
+                    "description": "recipient: The party receiving the action (optional for some action codes like SIGN)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.RecipientParty"
+                        }
+                    ]
                 }
             }
         },

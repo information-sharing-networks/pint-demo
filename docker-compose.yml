@@ -105,6 +105,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    depends_on:
+      db:
+        condition: service_healthy
     command: >
       sh -c "
         cd /pint-demo/app &&

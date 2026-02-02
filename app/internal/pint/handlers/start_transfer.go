@@ -89,7 +89,7 @@ func (s *StartTransferHandler) createSignedFinishedResponse(response pint.Envelo
 //	@Description
 //	@Description	**Success Responses:**
 //	@Description
-//	@Description	`201 Created` - Transfer started but not yet accepted
+//	@Description	`201 Created` - Transfer started but not yet accepted  (unsigned json response)
 //	@Description	- The envelope transfer is now active
 //	@Description	- Additional documents listed in the EnvelopeManifest are required
 //	@Description	- Sender must transfer documents, then call "Finish envelope transfer" endpoint
@@ -135,12 +135,12 @@ func (s *StartTransferHandler) createSignedFinishedResponse(response pint.Envelo
 //	@Description
 //	@Description	**Unsigned Error Responses**
 //	@Description
-//	@Description	The only time you get an unsigned response is when the request is malformed or the
+//	@Description	The only time you get an unsigned error response is when the request is malformed or the
 //	@Description	receiving platform is having technical difficulties.
 //	@Description
 //	@Description	`400 Bad Request` indicates a malformed request (invalid JSON, missing required fields, etc.)
 //	@Description
-//	@Description	`500 Internal Server Error` or other unexpected errors indicate temporary technical issues.
+//	@Description	`500 Internal Server Error` errors indicate temporary technical issues.
 //	@Description	The sender should retry until they receive a signed response.
 //	@Description
 //	@Description	**Notes**
@@ -158,6 +158,7 @@ func (s *StartTransferHandler) createSignedFinishedResponse(response pint.Envelo
 //
 //	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain - see the schema ebl.EnvelopeManifest definition for details of the expected structure in the signed field"
 //	@Param			request	body		ebl.EnvelopeManifest						true	"documentation only (not used directly)"
+//	@Param			request	body		ebl.EnvelopeTransferChainEntry				true	"documentation only (not used directly)"
 //
 //	@Success		200		{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted immediately (RECE or DUPE) - see the 'default' response for details of the response payload"
 //	@Success		201		{object}	pint.EnvelopeTransferStartedResponse		"Transfer started but not yet accepted"
@@ -197,7 +198,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		trusted = true
 	}
 
-	// Return BSIG or BENV response for a verification or trust level failure
+	// Step 4. Return BSIG or BENV response for a verification or trust level failure
 	if !verified || !trusted {
 
 		// Extract the last chain checksum from the envelope for the signed response
@@ -259,10 +260,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 4. Check for duplicate envelope transfer (200 ok with signed response)
+	// valid envelopes from this point.
+
+	// Step 5. Check for envelope transfer retries
 	// The last entry chain checksum is the unique identifier for a specific transfer attempt.
-	// (when the same eBL is transferred multiple times, each transfer will have a different last chain entry checksum
-	// because the timestamp contained in the entry will change)
+	//
+	// retries are handled as follows:
+	//	- When there are no additional documents to be transferred return (200 OK,  signed response with a response_code of DUPE)
+	// 	- When there are additional documents still to be transferred (201 Created, unsigned response with the current state)
 	lastChainChecksum := verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum
 
 	exists, verificationErr := s.queries.ExistsEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
@@ -271,15 +276,13 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 	if exists {
-		// Retrieve the previously accepted envelope to get the last transfer chain entry
+		// Retrieve the existing envelope to check its status
 		existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
 		if err != nil {
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to retrieve duplicate envelope"))
 			return
 		}
 
-		// Get missing and received additional document checksums for the duplicate response
-		// This helps the sender understand the current state of the transfer
 		missingChecksums, err := s.queries.GetMissingAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
 		if err != nil {
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to retrieve missing documents"))
@@ -292,41 +295,58 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			return
 		}
 
-		// Create and sign the DUPE response
-		signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
-			ResponseCode: pint.ResponseCodeDUPE,
-			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &existingEnvelope.LastTransferChainEntrySignedContent,
-			MissingAdditionalDocumentChecksums:                         missingChecksums,
-			ReceivedAdditionalDocumentChecksums:                        receivedChecksums,
-		})
-		if err != nil {
-			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
-			return
+		if len(missingChecksums) == 0 {
+			// Already accepted previously - return DUPE
+			signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+				LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
+				ResponseCode: pint.ResponseCodeDUPE,
+				DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &existingEnvelope.LastTransferChainEntrySignedContent,
+				MissingAdditionalDocumentChecksums:                         missingChecksums,
+				ReceivedAdditionalDocumentChecksums:                        receivedChecksums,
+			})
+			if err != nil {
+				pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
+				return
+			}
+
+			pint.RespondWithPayload(w, http.StatusOK, signedResponse)
+
+			reqLogger.Info("Retry of already-accepted envelope (all docs already received)",
+				slog.String("last_chain_checksum", lastChainChecksum),
+				slog.String("existing_envelope_reference", existingEnvelope.ID.String()),
+				slog.Int("received_documents", len(receivedChecksums)),
+			)
+		} else {
+
+			// Documents still missing - return 201 Created (retry of pending transfer)
+			response := &pint.EnvelopeTransferStartedResponse{
+				EnvelopeReference:                                   existingEnvelope.ID.String(),
+				TransportDocumentChecksum:                           existingEnvelope.TransportDocumentChecksum,
+				LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
+				MissingAdditionalDocumentChecksums:                  missingChecksums,
+			}
+
+			pint.RespondWithPayload(w, http.StatusCreated, response)
+
+			reqLogger.Info("Retry of pending envelope transfer",
+				slog.String("last_chain_checksum", lastChainChecksum),
+				slog.String("existing_envelope_reference", existingEnvelope.ID.String()),
+				slog.Int("missing_documents", len(missingChecksums)),
+				slog.Int("received_documents", len(receivedChecksums)),
+			)
 		}
-
-		pint.RespondWithPayload(w, http.StatusOK, signedResponse)
-
-		reqLogger.Info("Duplicate envelope detected",
-			slog.String("last_chain_checksum", lastChainChecksum),
-			slog.String("existing_envelope_reference", existingEnvelope.EnvelopeReference.String()),
-			slog.String("transport_document_reference", existingEnvelope.TransportDocumentReference),
-			slog.Int("missing_documents", len(missingChecksums)),
-			slog.Int("received_documents", len(receivedChecksums)),
-		)
 		return
 	}
 
+	// Step 6. Process new transfers
+	// - if there are additonal documents required the response will be 201 Created, and the response will be unsigned
+	// - if there are no additional documents required the response will be 200 OK, and the response will be signed (accepted immediately)
+
 	reqLogger.Info("Envelope verified successfully",
-		slog.String("transport_document_reference", verificationResult.TransportDocumentReference),
 		slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
 		slog.String("trust_level", verificationResult.TrustLevel.String()),
 		slog.String("verified_domain", verificationResult.VerifiedDomain),
 		slog.String("verified_organisation", verificationResult.VerifiedOrganisation))
-
-	// Step 5. Process new transfers
-	// - if there are additonal documents required the response will be 201 Created, and the response will be unsigned
-	// - if there are no additional documents required the response will be 200 OK, and the response will be signed (accepted immediately)
 
 	// list the additional documents required for the transfer
 	type additionalDoc struct {
@@ -361,10 +381,10 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		})
 	}
 
-	// Step 6. check party exists on platform TODO
+	// Step 7. check party exists on platform TODO
 	logger.ContextRequestLogger(ctx).Warn("Party check not implemented")
 
-	// Step 7. Store envelope and transfer chain entries on db
+	// Step 8. Store envelope and transfer chain entries on db
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		logger.ContextWithLogAttrs(ctx,
@@ -383,33 +403,71 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}()
 
-	state := "PENDING"
-	if len(additionalDocs) == 0 {
-		state = "ACCEPTED"
-	}
-
 	txQueries := s.queries.WithTx(tx)
 
+	// Upsert transport document (insert if new, ignore if already exists)
+	_, err = txQueries.UpsertTransportDocument(ctx, database.UpsertTransportDocumentParams{
+		Checksum:                      verificationResult.TransportDocumentChecksum,
+		Content:                       envelope.TransportDocument,
+		FirstReceivedFromPlatformCode: verificationResult.LastTransferChainEntry.EblPlatform,
+	})
+	if err != nil {
+		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store transport document"))
+		return
+	}
+
+	// Determine response code
+	// - If no additional documents needed, we'll immediately accept (RECE)
+	// - If additional documents needed, response_code stays NULL until transfer completes
+	var responseCode *string
+	if len(additionalDocs) == 0 {
+		rece := string(pint.ResponseCodeRECE)
+		responseCode = &rece
+	}
+
+	// Create envelope record
 	storedEnvelope, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
-		TransportDocumentReference:          verificationResult.TransportDocumentReference,
 		TransportDocumentChecksum:           verificationResult.TransportDocumentChecksum,
-		TransportDocument:                   envelope.TransportDocument,
+		SentByPlatformCode:                  verificationResult.LastTransferChainEntry.EblPlatform,
+		LastTransferChainEntryChecksum:      verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
 		EnvelopeManifestSignedContent:       string(envelope.EnvelopeManifestSignedContent),
 		LastTransferChainEntrySignedContent: string(envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]),
-		LastTransferChainEntryChecksum:      verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
+		ResponseCode:                        responseCode, // RECE if immediate accept, NULL if pending
+		ResponseReason:                      nil,
 		TrustLevel:                          int32(verificationResult.TrustLevel),
-		State:                               state,
-		ResponseCode:                        nil,
 	})
 	if err != nil {
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store envelope"))
 		return
 	}
 
-	for i, entry := range envelope.EnvelopeTransferChain {
+	// Step r. Create transfer chain entries
+	// TODO: Add DISE validation before inserting entries (not implemented yet)
+	for i, entryJWS := range envelope.EnvelopeTransferChain {
+		// Calculate checksum of the JWS
+		entryChecksum, err := crypto.Hash([]byte(entryJWS))
+		if err != nil {
+			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to calculate entry checksum"))
+			return
+		}
+
+		// Get previous entry checksum (NULL for first entry)
+		var previousChecksum *string
+		if i > 0 {
+			prevChecksum, err := crypto.Hash([]byte(envelope.EnvelopeTransferChain[i-1]))
+			if err != nil {
+				pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to calculate previous entry checksum"))
+				return
+			}
+			previousChecksum = &prevChecksum
+		}
+
 		_, err = txQueries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
-			EnvelopeID:    storedEnvelope.ID,
-			SignedContent: string(entry),
+			TransportDocumentChecksum: verificationResult.TransportDocumentChecksum,
+			EnvelopeID:                storedEnvelope.ID,
+			SignedContent:             string(entryJWS),
+			EntryChecksum:             entryChecksum,
+			PreviousEntryChecksum:     previousChecksum,
 			// #nosec G115 -- transfer chains never exceed int32 max
 			Sequence: int32(i),
 		})
@@ -419,13 +477,13 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 8. Create placeholder records for expected additional documents
+	// Step 10 placeholder records for expected additional documents
 	for _, doc := range additionalDocs {
 		_, err = txQueries.CreateExpectedAdditionalDocument(ctx, database.CreateExpectedAdditionalDocumentParams{
 			EnvelopeID:         storedEnvelope.ID,
 			DocumentChecksum:   doc.checksum,
 			DocumentName:       doc.name,
-			DocumentSize:       doc.size,
+			ExpectedSize:       doc.size,
 			MediaType:          doc.mediaType,
 			IsEblVisualisation: doc.isEblVisualisation,
 		})
@@ -444,6 +502,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			slog.Int("count", len(additionalDocs)))
 	}
 
+	// commit db changes
 	if err := tx.Commit(ctx); err != nil {
 		logger.ContextWithLogAttrs(ctx,
 			slog.String("error", err.Error()),
@@ -454,11 +513,11 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	reqLogger.Info("Envelope stored successfully",
-		slog.String("envelope_reference", storedEnvelope.EnvelopeReference.String()),
-		slog.String("transport_document_reference", verificationResult.TransportDocumentReference),
+		slog.String("envelope_reference", storedEnvelope.ID.String()),
+		slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
 		slog.Int("transfer_chain_entries", len(verificationResult.TransferChain)))
 
-	// Step 9 - handle request with no additional documents (immediate acceptance)
+	// Step 11 - handle request with no additional documents (immediate acceptance)
 	if len(additionalDocs) == 0 {
 		// Create and sign the RECE response
 		signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -475,7 +534,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 10. Return response
+	// Step 12. Return response
 	// because this is the start of the transfer all the additional docs are 'missing'
 	missingChecksums := make([]string, len(additionalDocs))
 	for i, doc := range additionalDocs {
@@ -483,7 +542,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	response := &pint.EnvelopeTransferStartedResponse{
-		EnvelopeReference:                                   storedEnvelope.EnvelopeReference.String(),
+		EnvelopeReference:                                   storedEnvelope.ID.String(),
 		TransportDocumentChecksum:                           verificationResult.TransportDocumentChecksum,
 		LastEnvelopeTransferChainEntrySignedContentChecksum: verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
 		MissingAdditionalDocumentChecksums:                  missingChecksums,

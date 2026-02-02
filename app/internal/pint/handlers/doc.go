@@ -1,2 +1,2 @@
-// Package handlers provides PINT (Platform for Interoperable Negotiable Tokens) HTTP handlers.
+// Package handlers provides HTTP handlers for the PINT API.
 package handlers

@@ -1,87 +1,54 @@
--- Additional document queries for PINT API
+-- name: GetMissingAdditionalDocumentChecksums :many
+-- Get checksums of additional documents that haven't been received yet
+SELECT document_checksum FROM additional_documents
+WHERE envelope_id = $1
+  AND document_content IS NULL
+ORDER BY document_checksum;
+
+-- name: GetReceivedAdditionalDocumentChecksums :many
+-- Get checksums of additional documents that have been received
+SELECT document_checksum FROM additional_documents
+WHERE envelope_id = $1
+  AND document_content IS NOT NULL
+ORDER BY document_checksum;
 
 -- name: CreateExpectedAdditionalDocument :one
--- Create a placeholder record for an expected additional document (not yet received)
+-- Create a placeholder record for an expected additional document
 INSERT INTO additional_documents (
     id,
     created_at,
-    updated_at,
     envelope_id,
     document_checksum,
     document_name,
-    document_size,
+    expected_size,
     media_type,
     is_ebl_visualisation,
     document_content,
-    received_at,
-    last_error_at,
-    last_error_message
+    received_at
 ) VALUES (
     gen_random_uuid(),
-    now(),
-    now(),
-    $1, $2, $3, $4, $5, $6, NULL, NULL, NULL, NULL
+    NOW(),
+    sqlc.arg(envelope_id),
+    sqlc.arg(document_checksum),
+    sqlc.arg(document_name),
+    sqlc.arg(expected_size),
+    sqlc.arg(media_type),
+    sqlc.arg(is_ebl_visualisation),
+    NULL, -- document_content (not received yet)
+    NULL  -- received_at (not received yet)
 ) RETURNING *;
 
--- name: StoreAdditionalDocument :one
--- Update an expected document with the actual content when received
-UPDATE additional_documents
-SET
-    document_content = $2,
-    received_at = now(),
-    updated_at = now(),
-    last_error_at = NULL,
-    last_error_message = NULL
-WHERE envelope_id = $1 AND document_checksum = $3
-RETURNING *;
-
--- name: RecordAdditionalDocumentError :one
--- Record an error that occurred during document transfer
-UPDATE additional_documents
-SET
-    last_error_at = now(),
-    last_error_message = $3,
-    updated_at = now()
-WHERE envelope_id = $1 AND document_checksum = $2
-RETURNING *;
-
 -- name: GetAdditionalDocument :one
--- Get a specific additional document by envelope and checksum
-SELECT * FROM additional_documents
-WHERE envelope_id = $1 AND document_checksum = $2;
-
--- name: ListAdditionalDocumentsByEnvelope :many
--- List all additional documents for an envelope
 SELECT * FROM additional_documents
 WHERE envelope_id = $1
-ORDER BY created_at;
+  AND document_checksum = $2;
 
--- name: ListMissingAdditionalDocuments :many
--- List all additional documents that have not yet been received for an envelope
-SELECT * FROM additional_documents
-WHERE envelope_id = $1 AND received_at IS NULL
-ORDER BY created_at;
-
--- name: ListReceivedAdditionalDocuments :many
--- List all additional documents that have been received for an envelope
-SELECT * FROM additional_documents
-WHERE envelope_id = $1 AND received_at IS NOT NULL
-ORDER BY received_at;
-
--- name: CountMissingAdditionalDocuments :one
--- Count how many additional documents are still missing for an envelope
-SELECT COUNT(*) FROM additional_documents
-WHERE envelope_id = $1 AND received_at IS NULL;
-
--- name: GetMissingAdditionalDocumentChecksums :many
--- Get checksums of all missing additional documents for an envelope
-SELECT document_checksum FROM additional_documents
-WHERE envelope_id = $1 AND received_at IS NULL
-ORDER BY created_at;
-
--- name: GetReceivedAdditionalDocumentChecksums :many
--- Get checksums of all received additional documents for an envelope
-SELECT document_checksum FROM additional_documents
-WHERE envelope_id = $1 AND received_at IS NOT NULL
-ORDER BY received_at;
+-- name: UpdateAdditionalDocumentContent :exec
+-- Update additional document with received content
+UPDATE additional_documents
+SET 
+    document_content = $3,
+    received_at = NOW()
+WHERE envelope_id = $1
+  AND document_checksum = $2;
 
