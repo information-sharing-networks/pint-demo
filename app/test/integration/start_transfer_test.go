@@ -138,11 +138,11 @@ func TestStartTransfer(t *testing.T) {
 			// immediate acceptance - no additional documents, check the RECE response
 			if resp.StatusCode == http.StatusOK {
 
-				var parsedResponse pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&parsedResponse); err != nil {
+				var signedResponse pint.SignedEnvelopeTransferFinishedResponse
+				if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
 					t.Fatalf("Failed to decode response: %v", err)
 				}
-				payload := decodeSignedFinishedResponse(t, parsedResponse)
+				payload := decodeSignedFinishedResponse(t, signedResponse)
 				if test.isRetry {
 					if payload.ResponseCode != pint.ResponseCodeDUPE {
 						t.Errorf("Expected responseCode 'DUPE', got '%s'", payload.ResponseCode)
@@ -360,13 +360,13 @@ func TestStartTransfer(t *testing.T) {
 		}
 
 		// Decode the signed response
-		var signedResp pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&signedResp); err != nil {
+		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
 			t.Fatalf("Failed to decode signed response: %v", err)
 		}
 
 		// Decode the JWS payload
-		payload := decodeSignedFinishedResponse(t, signedResp)
+		payload := decodeSignedFinishedResponse(t, SignedResponse)
 
 		// Verify the response code is BENV (bad envelope)
 		if payload.ResponseCode != pint.ResponseCodeBENV {

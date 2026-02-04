@@ -73,12 +73,12 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 
 	if resp.StatusCode == http.StatusOK {
 		// Accepted or duplicate - decode signed EnvelopeTransferFinishedResponse
-		var parsedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&parsedResponse); err != nil {
+		var signedResponse pint.SignedEnvelopeTransferFinishedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
 			t.Fatalf("Failed to decode 200 response: %v", err)
 		}
 
-		payload := decodeSignedFinishedResponse(t, parsedResponse)
+		payload := decodeSignedFinishedResponse(t, signedResponse)
 
 		return additionalDocumentsState{
 			missingDocs:  payload.MissingAdditionalDocumentChecksums,
@@ -271,7 +271,6 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 
 	// After all documents are uploaded, call finish-transfer endpoint to complete the transfer
 	t.Run("6. Finish transfer (expect RECE)", func(t *testing.T) {
-		t.Skip("Finish-transfer endpoint not yet implemented")
 		finishURL := baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
 		req, err := http.NewRequest(http.MethodPut, finishURL, nil)
 		if err != nil {
@@ -290,13 +289,13 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 		}
 
 		// Decode the signed response
-		var signedResp pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&signedResp); err != nil {
+		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
 			t.Fatalf("Failed to decode signed response: %v", err)
 		}
 
 		// Decode the JWS payload
-		payload := decodeSignedFinishedResponse(t, signedResp)
+		payload := decodeSignedFinishedResponse(t, SignedResponse)
 
 		// Verify response code is RECE (first acceptance)
 		if payload.ResponseCode != pint.ResponseCodeRECE {
@@ -318,7 +317,6 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 
 	// Retry finish-transfer to verify DUPE response
 	t.Run("7. Retry finish transfer (expect DUPE)", func(t *testing.T) {
-		t.Skip("Finish-transfer endpoint not yet implemented")
 		finishURL := baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
 		req, err := http.NewRequest(http.MethodPut, finishURL, nil)
 		if err != nil {
@@ -337,13 +335,13 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 		}
 
 		// Decode the signed response
-		var signedResp pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&signedResp); err != nil {
+		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
 			t.Fatalf("Failed to decode signed response: %v", err)
 		}
 
 		// Decode the JWS payload
-		payload := decodeSignedFinishedResponse(t, signedResp)
+		payload := decodeSignedFinishedResponse(t, SignedResponse)
 
 		// Verify response code is DUPE (already accepted)
 		if payload.ResponseCode != pint.ResponseCodeDUPE {
@@ -501,12 +499,12 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 
 			// If we expect a PINT response code, verify it
 			if tt.expectedResponseCode != nil {
-				var signedResp pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&signedResp); err != nil {
+				var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
+				if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
 					t.Fatalf("Failed to decode signed response: %v", err)
 				}
 
-				payload := decodeSignedFinishedResponse(t, signedResp)
+				payload := decodeSignedFinishedResponse(t, SignedResponse)
 
 				if payload.ResponseCode != *tt.expectedResponseCode {
 					t.Errorf("Expected response code %s, got %s", *tt.expectedResponseCode, payload.ResponseCode)

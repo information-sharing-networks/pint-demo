@@ -676,7 +676,7 @@ paths:
       consumes:
       - application/json
       description: |
-        Transfer additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
+        Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
 
         The receiving platform validates:
         - Document was declared in the EnvelopeManifest
@@ -724,8 +724,6 @@ paths:
         required: true
         schema:
           type: string
-      produces:
-      - application/json
       responses:
         "204":
           description: Document received successfully
@@ -749,7 +747,83 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/pint.ErrorResponse'
-      summary: Transfer additional document
+      summary: Transfer additional documents
+      tags:
+      - PINT
+  /v3/envelopes/{envelopeReference}/finish-transfer:
+    put:
+      consumes:
+      - application/json
+      description: |
+        Use this endpoint after you have finished transferring all additional documents.
+
+        Prior to accepting envelope transfer, the receiving platform ensures that all supporting documents listed in the envelope manifest have been successfully transferred.
+
+        **Success Responses**
+
+        `200 OK` - Transfer accepted (RECE)
+
+        All additional documents have been received and the envelope transfer has been accepted on the platform.
+
+        The payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.
+        (See the `default` response for details of the response payload)
+
+        **retry handling:**
+        when the sender retries a transfer that has already been accepted, the receiver will return a signed response and
+        the payload will contain a struture identical to the original response, but with a response code of DUPE
+        and an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.
+
+        **Notes**
+
+        **Error Responses (signed)**
+
+        `409 Conflict` - Missing documents (MDOC) or disputed envelope (DISE) (signed response)
+        - MDOC: One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
+        - DISE: Envelope contradicts transfer chain knowledge (not yet implemented)
+
+        `422 Unprocessable Entity` - Envelope rejected (BSIG/BENV) (signed response)
+        - BSIG: Signature validation failed
+        - BENV: Envelope validation failed
+
+        see the `default` response for details of the response payload
+
+        **Error Responses (unsigned)**
+
+        `400 Bad Request` - Malformed request - returned as an unsigned error response
+        `500 Internal Server Error` - Internal error - returned as an unsigned error response
+
+        **Note** unsigned responses cannot be verified as originating from the receiving platform -
+        do not assume an unsigned error response means the transfer was rejected.
+        Only determine transfer acceptance/rejection from signed responses.
+      parameters:
+      - description: Envelope reference (UUID)
+        in: path
+        name: envelopeReference
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Signed response - Transfer accepted (RECE/DUPE)
+          schema:
+            $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
+        "409":
+          description: Signed response - Missing documents (MDOC) or disputed (DISE)
+          schema:
+            $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
+        "422":
+          description: Signed response - Envelope rejected (BSIG/BENV)
+          schema:
+            $ref: '#/definitions/pint.SignedEnvelopeTransferFinishedResponse'
+        "500":
+          description: Internal error processing request
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+        default:
+          description: documentation only (not returned directly) - decoded payload
+            of the signed response
+          schema:
+            $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
+      summary: Finish envelope transfer
       tags:
       - PINT
   /version:

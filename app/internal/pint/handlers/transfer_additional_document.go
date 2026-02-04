@@ -69,8 +69,8 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 
 // HandleTransferAdditionalDocument godoc
 //
-//	@Summary		Transfer additional document
-//	@Description	Transfer additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
+//	@Summary		Transfer additional documents
+//	@Description	Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
 //	@Description
 //	@Description	The receiving platform validates:
 //	@Description	- Document was declared in the EnvelopeManifest
@@ -106,7 +106,6 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Tags		PINT
 //
 //	@Accept		json
-//	@Produce	json
 //
 //	@Param		envelopeReference	path	string	true	"Envelope reference (UUID)"
 //	@Param		documentChecksum	path	string	true	"SHA-256 checksum of the document"

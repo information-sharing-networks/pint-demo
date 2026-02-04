@@ -171,17 +171,14 @@ const docTemplate = `{
         },
         "/v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}": {
             "put": {
-                "description": "Transfer additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest\n- SHA-256 checksum matches the URL parameter\n- Document size matches the manifest\n\n**Request Body Format:**\n\nThe request body is a base64-encoded string containing the document content.\nExample: ` + "`" + `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` + "`" + ` (plain base64 string, no JSON structure)\nThe decoded content type is determined by sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform looses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform looses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response**\n\n` + "`" + `204 No Content` + "`" + ` - this is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n` + "`" + `409 Conflict` + "`" + ` - Checksum or size mismatch (INCD response code)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV response code)\n",
+                "description": "Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest\n- SHA-256 checksum matches the URL parameter\n- Document size matches the manifest\n\n**Request Body Format:**\n\nThe request body is a base64-encoded string containing the document content.\nExample: ` + "`" + `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` + "`" + ` (plain base64 string, no JSON structure)\nThe decoded content type is determined by sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform looses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform looses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response**\n\n` + "`" + `204 No Content` + "`" + ` - this is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n` + "`" + `409 Conflict` + "`" + ` - Checksum or size mismatch (INCD response code)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV response code)\n",
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "PINT"
                 ],
-                "summary": "Transfer additional document",
+                "summary": "Transfer additional documents",
                 "parameters": [
                     {
                         "type": "string",
@@ -239,6 +236,59 @@ const docTemplate = `{
                         "description": "Internal error",
                         "schema": {
                             "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v3/envelopes/{envelopeReference}/finish-transfer": {
+            "put": {
+                "description": "Use this endpoint after you have finished transferring all additional documents.\n\nPrior to accepting envelope transfer, the receiving platform ensures that all supporting documents listed in the envelope manifest have been successfully transferred.\n\n**Success Responses**\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (RECE)\n\nAll additional documents have been received and the envelope transfer has been accepted on the platform.\n\nThe payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.\n(See the ` + "`" + `default` + "`" + ` response for details of the response payload)\n\n**retry handling:**\nwhen the sender retries a transfer that has already been accepted, the receiver will return a signed response and\nthe payload will contain a struture identical to the original response, but with a response code of DUPE\nand an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.\n\n**Notes**\n\n**Error Responses (signed)**\n\n` + "`" + `409 Conflict` + "`" + ` - Missing documents (MDOC) or disputed envelope (DISE) (signed response)\n- MDOC: One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)\n- DISE: Envelope contradicts transfer chain knowledge (not yet implemented)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV) (signed response)\n- BSIG: Signature validation failed\n- BENV: Envelope validation failed\n\nsee the ` + "`" + `default` + "`" + ` response for details of the response payload\n\n**Error Responses (unsigned)**\n\n` + "`" + `400 Bad Request` + "`" + ` - Malformed request - returned as an unsigned error response\n` + "`" + `500 Internal Server Error` + "`" + ` - Internal error - returned as an unsigned error response\n\n**Note** unsigned responses cannot be verified as originating from the receiving platform -\ndo not assume an unsigned error response means the transfer was rejected.\nOnly determine transfer acceptance/rejection from signed responses.\n",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PINT"
+                ],
+                "summary": "Finish envelope transfer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Envelope reference (UUID)",
+                        "name": "envelopeReference",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Signed response - Transfer accepted (RECE/DUPE)",
+                        "schema": {
+                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Signed response - Missing documents (MDOC) or disputed (DISE)",
+                        "schema": {
+                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Signed response - Envelope rejected (BSIG/BENV)",
+                        "schema": {
+                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error processing request",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "default": {
+                        "description": "documentation only (not returned directly) - decoded payload of the signed response",
+                        "schema": {
+                            "$ref": "#/definitions/pint.EnvelopeTransferFinishedResponse"
                         }
                     }
                 }

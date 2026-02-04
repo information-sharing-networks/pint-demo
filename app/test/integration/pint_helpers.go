@@ -14,11 +14,11 @@ import (
 // decodeSignedFinishedResponse decodes a SignedEnvelopeTransferFinishedResponse
 // and returns the payload (assumes the signature is valid).
 // the SigneEnvelopeTransferFinishedResponse is returned by the start envelope API when it processes a  DUPE, RECE, BSIG, BENV responses
-func decodeSignedFinishedResponse(t *testing.T, signedResp pint.SignedEnvelopeTransferFinishedResponse) pint.EnvelopeTransferFinishedResponse {
+func decodeSignedFinishedResponse(t *testing.T, SignedResponse pint.SignedEnvelopeTransferFinishedResponse) pint.EnvelopeTransferFinishedResponse {
 	t.Helper()
 
 	// JWS format is header.payload.signature
-	parts := strings.Split(signedResp.SignedContent, ".")
+	parts := strings.Split(SignedResponse.SignedContent, ".")
 	if len(parts) != 3 {
 		t.Fatalf("Invalid JWS format: expected 3 parts, got %d", len(parts))
 	}
