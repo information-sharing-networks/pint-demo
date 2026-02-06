@@ -53,8 +53,8 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 		}
 
 		// Verify provider has required fields
-		if provider.Code != code {
-			t.Errorf("provider %s has wrong Code: got %s, want %s", code, provider.Code, code)
+		if provider.PlatformCode != code {
+			t.Errorf("provider %s has wrong Code: got %s, want %s", code, provider.PlatformCode, code)
 		}
 		if provider.Site != expected.site {
 			t.Errorf("provider %s has wrong Site: got %s, want %s", code, provider.Site, expected.site)
@@ -121,8 +121,8 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	}
 
 	// Verify key metadata
-	if key.Provider.Code != "EBL1" {
-		t.Errorf("expected provider code EBL1, got %s", key.Provider.Code)
+	if key.Provider.PlatformCode != "EBL1" {
+		t.Errorf("expected provider code EBL1, got %s", key.Provider.PlatformCode)
 	}
 
 	// Verify key type

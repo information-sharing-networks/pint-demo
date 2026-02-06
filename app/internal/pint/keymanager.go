@@ -55,8 +55,8 @@ import (
 // this can be a carrier, software provider or other entity that is approved to participate in the PINT network
 type eblSolutionProvider struct {
 
-	// Code is the DCSA code for the platform (e.g., "WAVE", "CARX")
-	Code string
+	// PlatformCode is the DCSA code for the platform (e.g., "WAVE", "CARX")
+	PlatformCode string
 
 	// Site is the URL of the provider's website (e.g., "https://wavebl.com")
 	Site string
@@ -285,7 +285,7 @@ func (k *KeyManager) loadEbLSolutionProviders() error {
 		}
 
 		provider := &eblSolutionProvider{
-			Code:         code,
+			PlatformCode: code,
 			Site:         site,
 			JWKSEndpoint: jwksEndpoint,
 			ManualKeyID:  manualKeyID,
@@ -464,7 +464,7 @@ func (k *KeyManager) loadManualKeys() error {
 		}
 
 		k.logger.Debug("loaded manual key",
-			slog.String("code", eblSolutionProvider.Code),
+			slog.String("code", eblSolutionProvider.PlatformCode),
 			slog.String("kid", keyID))
 	}
 
@@ -491,7 +491,7 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 		// check if the provider has a JWK endpoint configured
 		if provider.JWKSEndpoint == "" {
 			k.logger.Debug("no JWK endpoint configured for provider - skipping",
-				slog.String("code", provider.Code))
+				slog.String("code", provider.PlatformCode))
 			continue
 		}
 
@@ -502,7 +502,7 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 		)
 		if err != nil {
 			k.logger.Warn("failed to register JWK endpoint",
-				slog.String("code", provider.Code),
+				slog.String("code", provider.PlatformCode),
 				slog.String("jwk_url", provider.JWKSEndpoint),
 				slog.String("error", err.Error()))
 			continue
@@ -510,7 +510,7 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 
 		successCount++
 		k.logger.Info("registered JWK endpoint for background fetch",
-			slog.String("code", provider.Code),
+			slog.String("code", provider.PlatformCode),
 			slog.String("jwk_url", provider.JWKSEndpoint))
 	}
 
@@ -561,7 +561,7 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 			keySet, err := k.jwkCache.Lookup(ctx, provider.JWKSEndpoint)
 			if err != nil {
 				k.logger.Debug("failed to lookup JWK set from cache",
-					slog.String("code", provider.Code),
+					slog.String("code", provider.PlatformCode),
 					slog.String("jwk_url", provider.JWKSEndpoint),
 					slog.String("error", err.Error()))
 				continue
@@ -572,7 +572,7 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 			if found {
 				k.logger.Debug("found remote key",
 					slog.String("kid", kid),
-					slog.String("provider", provider.Code))
+					slog.String("provider", provider.PlatformCode))
 
 				sink.Key(alg, key)
 				return nil
@@ -623,7 +623,7 @@ func (k *KeyManager) GetKey(ctx context.Context, keyID string) (*PublicKeyInfo, 
 
 				k.logger.Debug("found remote key",
 					slog.String("kid", keyID),
-					slog.String("provider", provider.Code))
+					slog.String("provider", provider.PlatformCode))
 
 				return keyInfo, nil
 			}
@@ -643,5 +643,5 @@ func (k *KeyManager) LookupPlatformByKeyID(ctx context.Context, keyID string) (s
 		return "", err
 	}
 
-	return keyInfo.Provider.Code, nil
+	return keyInfo.Provider.PlatformCode, nil
 }
