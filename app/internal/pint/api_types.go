@@ -95,5 +95,4 @@ const (
 	ResponseCodeMDOC ResponseCode = "MDOC"
 
 	// ResponseCodeDISE indicates disputed envelope (contradicts transfer chain knowledge)
-	ResponseCodeDISE ResponseCode = "DISE"
 )

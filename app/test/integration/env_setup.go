@@ -8,9 +8,14 @@ package integration
 // Each test creates an empty temporary database and applies all the migrations so the schema reflects the latest code.
 // The database is dropped after each test.
 //
+// the server starts as EBL2 platform (ie uses the EBL2 platform code and ebl2 private key)
+// This is because EBL2 is the receiving platform of the test envelope used for transfer tests (HHL71800000-ebl-envelope-ed25519.json),
+// see serverConfig for other settings
+//
 // By default the server logs are not included in the test output, you can enable them with:
 //
 //	ENABLE_SERVER_LOGS=true go test -tags=integration -v ./test/integration
+//
 
 import (
 	"context"
@@ -103,7 +108,7 @@ var (
 		signingKeyPath:     "../../internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
 		x5cCertPath:        "../../internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
 		x5cCustomRootsPath: "../../internal/crypto/testdata/certs/root-ca.crt",
-		platformCode:       "EBL1",
+		platformCode:       "EBL2", // this is the receiving platform of the test envelope (HHL71800000-ebl-envelope-ed25519.json)
 	}
 )
 

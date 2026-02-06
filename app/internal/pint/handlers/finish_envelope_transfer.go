@@ -82,8 +82,8 @@ func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pi
 //	@Description	(See the `default` response for details of the response payload)
 //	@Description
 //	@Description	**retry handling:**
-//	@Description 	when the sender retries a transfer that has already been accepted, the receiver will return a signed response and
-//	@Description 	the payload will contain a struture identical to the original response, but with a response code of DUPE
+//	@Description	when the sender retries a transfer that has already been accepted, the receiver will return a signed response and
+//	@Description	the payload will contain a struture identical to the original response, but with a response code of DUPE
 //	@Description	and an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.
 //	@Description
 //	@Description	**Notes**
@@ -106,16 +106,16 @@ func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pi
 //	@Description	`500 Internal Server Error` - Internal error - returned as an unsigned error response
 //	@Description
 //	@Description	**Note** unsigned responses cannot be verified as originating from the receiving platform -
-//	@Description 	do not assume an unsigned error response means the transfer was rejected.
+//	@Description	do not assume an unsigned error response means the transfer was rejected.
 //	@Description	Only determine transfer acceptance/rejection from signed responses.
 //	@Description
-//	@Param		envelopeReference	path	string	true	"Envelope reference (UUID)"
+//	@Param		envelopeReference	path		string										true	"Envelope reference (UUID)"
 //
-//	@Success	200	{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted (RECE/DUPE)"
-//	@Failure	409	{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Missing documents (MDOC) or disputed (DISE)"
-//	@Failure	422	{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Envelope rejected (BSIG/BENV)"
-//	@Failure	500	{object}	pint.ErrorResponse							"Internal error processing request"
-//	@Success	default	{object}	pint.EnvelopeTransferFinishedResponse		"documentation only (not returned directly) - decoded payload of the signed response"
+//	@Success	200					{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Transfer accepted (RECE/DUPE)"
+//	@Failure	409					{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Missing documents (MDOC) or disputed (DISE)"
+//	@Failure	422					{object}	pint.SignedEnvelopeTransferFinishedResponse	"Signed response - Envelope rejected (BSIG/BENV)"
+//	@Failure	500					{object}	pint.ErrorResponse							"Internal error processing request"
+//	@Success	default				{object}	pint.EnvelopeTransferFinishedResponse		"documentation only (not returned directly) - decoded payload of the signed response"
 //
 //	@Tags		PINT
 //

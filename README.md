@@ -274,19 +274,23 @@ There is a server implementation in `app/cmd/pint-server/main.go` - this is work
 
 see the http://localhost:8080/docs for the API docs
 
-The pint-server service provides:
+The pint-server implements the following endpoints:
+
+**PINT**
+- `POST /v3/envelopes` - Start envelope transfer (PINT)
+- `PUT /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}` - Add additional documents to a PINT transfer 
+- `PUT /v3/envelopes/{envelopeReference}/finish-transfer` - Finish a PINT transfer 
+
+**Common**
 - `GET /health` - Health check endpoint
 - `GET /.well-known/jwks.json` - JWK set endpoint (public key for this instance of the server)
 - `GET /docs` - API documentation 
 - `GET /swagger.json` - OpenAPI specification
-- `POST /v3/envelopes` - Start envelope transfer (PINT)
 
 Support for the following endpoints is planned but not yet implemented:
-- `PUT /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}` - Add additional documents to a PINT transfer envelope 
-- `PUT /v3/envelopes/{envelopeReference}/finish-transfer` - Finish a PINT transfer envelope
 - `PUT /v3/ebl-issuance-requests` - Receive eBL issuance request
 - `POST /v3/receiver-validation` - Receiver validation
 
-## Testing
-the server is tested using end-2-end tests that start the server in-process and call the HTTP endpoints directly.
+### Server Testing
+the server is tested with end-2-end tests that start the server in-process and call the HTTP endpoints directly.
 see the [README](app/test/integration/README.md) for details

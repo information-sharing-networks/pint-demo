@@ -1,6 +1,8 @@
 package ebl
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Error represents a structured error from the ebl package.
 type Error interface {

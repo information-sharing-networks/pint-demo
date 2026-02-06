@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -153,6 +156,11 @@ func validateConfig(cfg *ServerEnvironment) error {
 			"platforms using custom root CAs must provide their own x5c certificate chain")
 	}
 
+	// Validate platform code exists in registry
+	if err := validatePlatformCodeInRegistry(cfg); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -188,4 +196,51 @@ func validateConfigPath(path, envVarName string) error {
 	}
 
 	return fmt.Errorf("%s must point to a mounted config location in prod/staging (e.g., /etc/*, /config/*), got: %s", envVarName, path)
+}
+
+// validatePlatformCodeInRegistry validates that the configured platform code exists in the registry.
+//
+// IMPORTANT: This check only validates registry membership, not key ownership.
+// Platform impersonation is prevented at runtime - see detailed note below.
+//
+// If a registered platform starts up with the wrong platform code
+// this will not be caught at startup. However, the misconfiguration will prevent transfers:
+//
+// **Sending transfers**
+// The receiving platform extracts the kid from the JWS signature, looks up which platform
+// owns that key in the registry (via KeyManager), and compares it to the eblPlatform field
+// in the last transfer chain entry. If they don't match, the transfer is rejected.
+// This prevents a platform from signing with their own key while claiming the
+// transfer is from a different platform.
+//
+// **Receiving transfers**
+// The misconfigured platform can validate signatures and chain integrity normally.
+// However, if the sender addressed the transfer to the correct platform code (not the
+// misconfigured one), the transfer will fail because the intended recipient
+// won't match the server's configured platform code. This prevents a platform from
+// processing transfers that are not addressed to it.
+//
+// Both checks are performed in ebl.VerifyEnvelopeTransfer.
+func validatePlatformCodeInRegistry(cfg *ServerEnvironment) error {
+	// Load the registry
+	data, err := os.ReadFile(cfg.RegistryPath)
+	if err != nil {
+		return fmt.Errorf("failed to read registry file: %w", err)
+	}
+
+	// Parse the CSV
+	reader := csv.NewReader(bytes.NewReader(data))
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to parse registry CSV: %w", err)
+	}
+
+	// Check if platform code exists in registry
+	for _, record := range records[:] {
+		if len(record) > 0 && record[0] == cfg.PlatformCode {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("PLATFORM_CODE %s not found in registry at %s", cfg.PlatformCode, cfg.RegistryPath)
 }

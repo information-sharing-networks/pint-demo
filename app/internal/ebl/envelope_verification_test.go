@@ -17,20 +17,24 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
-// mockKeyProvider is a simple test helper that implements jws.KeyProvider
+// mockKeyProvider implements KeyProviderWithLookup for testing
 // It returns keys from a map based on the KID in the JWS header
 type mockKeyProvider struct {
-	keys map[string]any // map of KID -> public key
+	keys      map[string]any    // map of KID -> public key
+	platforms map[string]string // map of KID -> platform code
 }
 
 func newMockKeyProvider() *mockKeyProvider {
 	return &mockKeyProvider{
-		keys: make(map[string]any),
+		keys:      make(map[string]any),
+		platforms: make(map[string]string),
 	}
 }
 
-func (m *mockKeyProvider) addKey(kid string, key any) {
+// addKeyWithPlatform adds a key and associates it with a platform code
+func (m *mockKeyProvider) addKeyWithPlatform(kid string, key any, platformCode string) {
 	m.keys[kid] = key
+	m.platforms[kid] = platformCode
 }
 
 func (m *mockKeyProvider) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, msg *jws.Message) error {
@@ -53,6 +57,15 @@ func (m *mockKeyProvider) FetchKeys(ctx context.Context, sink jws.KeySink, sig *
 	return nil
 }
 
+// LookupPlatformByKeyID implements KeyProviderWithLookup interface
+func (m *mockKeyProvider) LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error) {
+	platform, exists := m.platforms[keyID]
+	if !exists {
+		return "", fmt.Errorf("platform not found for key: %s", keyID)
+	}
+	return platform, nil
+}
+
 // TestVerifyValidEnvelopeTransfer tests valid envelopes using different signature algorithms
 // the files used were created independently of the pint-demo code, and is used as a
 // sanity check that the verification code can handle valid envelopes.
@@ -66,6 +79,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 		rootCACertPath        string
 		expectedSenderDomain  string
 		expectedCarrierDomain string
+		recipientPlatformCode string
 	}{
 		{
 			name:                  "valid_Ed25519",
@@ -75,6 +89,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			rootCACertPath:        "../crypto/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
 			expectedSenderDomain:  "ed25519-eblplatform.example.com",
 			expectedCarrierDomain: "ed25519-carrier.example.com",
+			recipientPlatformCode: "EBL2",
 		},
 		{
 			name:                  "valid_RSA",
@@ -84,6 +99,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			rootCACertPath:        "../crypto/testdata/certs/root-ca.crt",
 			expectedSenderDomain:  "rsa-eblplatform.example.com",
 			expectedCarrierDomain: "rsa-carrier.example.com",
+			recipientPlatformCode: "EBL1",
 		},
 	}
 	for _, test := range testData {
@@ -142,19 +158,28 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			// Create mock KeyProvider with both keys
+			// Map KIDs to platform codes based on test data:
+			// - Ed25519 keys: EBL1 (platform), CAR1 (carrier)
+			// - RSA keys: EBL2 (platform), CAR2 (carrier)
 			keyProvider := newMockKeyProvider()
-			keyProvider.addKey(senderHeader.KeyID, publicKey)
-			keyProvider.addKey(carrierHeader.KeyID, carrierPublicKey)
+			if test.name == "valid_Ed25519" {
+				keyProvider.addKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
+				keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
+			} else {
+				keyProvider.addKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL2")
+				keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR2")
+			}
 
 			// Create verification input
 			input := EnvelopeVerificationInput{
-				Envelope:    &envelope,
-				RootCAs:     rootCAs,
-				KeyProvider: keyProvider,
+				Envelope:              &envelope,
+				RootCAs:               rootCAs,
+				KeyProvider:           keyProvider,
+				RecipientPlatformCode: test.recipientPlatformCode,
 			}
 
 			// Verify the envelope
-			result, err := VerifyEnvelopeTransfer(input)
+			result, err := VerifyEnvelope(input)
 			if err != nil {
 				t.Fatalf("Envelope verification failed: %v", err)
 			}
@@ -395,7 +420,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BENV",
-			wantErrContains: "at least one entry",
+			wantErrContains: "envelope transfer chain is empty",
 		},
 	}
 
@@ -450,7 +475,8 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			if len(envelope.EnvelopeManifestSignedContent) > 0 {
 				senderHeader, err := crypto.ParseHeader(string(envelope.EnvelopeManifestSignedContent))
 				if err == nil {
-					keyProvider.addKey(senderHeader.KeyID, publicKey)
+					// Use EBL1 as default platform for error condition tests
+					keyProvider.addKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
 				}
 			}
 
@@ -460,7 +486,8 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					if issuanceManifestRaw, ok := firstEntryPayload["issuanceManifestSignedContent"].(string); ok {
 						carrierHeader, err := crypto.ParseHeader(issuanceManifestRaw)
 						if err == nil {
-							keyProvider.addKey(carrierHeader.KeyID, carrierPublicKey)
+							// Use CAR1 as default carrier platform for error condition tests
+							keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 						}
 					}
 				}
@@ -474,7 +501,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			}
 
 			// Verify the envelope - should fail
-			_, err = VerifyEnvelopeTransfer(input)
+			_, err = VerifyEnvelope(input)
 
 			// Check we got an error
 			if err == nil {
@@ -611,8 +638,8 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	keyProvider := newMockKeyProvider()
-	keyProvider.addKey(senderHeader.KeyID, privateKey.Public())
-	keyProvider.addKey(carrierHeader.KeyID, carrierPublicKey)
+	keyProvider.addKeyWithPlatform(senderHeader.KeyID, privateKey.Public(), "EBL1")
+	keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
@@ -621,7 +648,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		KeyProvider: keyProvider,
 	}
 
-	_, err = VerifyEnvelopeTransfer(input)
+	_, err = VerifyEnvelope(input)
 	if err == nil {
 		t.Fatal("Expected verification to fail for broken chain link, but it succeeded")
 	}
@@ -713,8 +740,8 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 	}
 
 	keyProvider := newMockKeyProvider()
-	keyProvider.addKey(senderHeader.KeyID, privateKey.Public())
-	keyProvider.addKey(carrierHeader.KeyID, carrierPublicKey)
+	keyProvider.addKeyWithPlatform(senderHeader.KeyID, privateKey.Public(), "EBL1")
+	keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
@@ -723,7 +750,7 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		KeyProvider: keyProvider,
 	}
 
-	_, err = VerifyEnvelopeTransfer(input)
+	_, err = VerifyEnvelope(input)
 	if err == nil {
 		t.Fatal("Expected verification to fail for wrong manifest checksum, but it succeeded")
 	}

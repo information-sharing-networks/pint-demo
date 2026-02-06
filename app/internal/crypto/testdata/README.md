@@ -13,11 +13,14 @@ the `transport-documents` directory contains sample JSON that would be used in a
 ## PINT Transfers
 the `pint-transfers` directory contains json that would be used in a PINT transfer.  The json is based on the DCSA openapi v3.0.0 PINT sample data.
 
+use HHL71800000-ebl-envelope-ed25519.json for testing transfers:
 the sample ebl transfer request `HHL71800000-ebl-envelope-ed25519.json` includes 2 additional docs + an ebl visualization.  The response should indicate that 3 additional documents are required. See enelope-manifest.json for the expected checksums and metadata.
+
+This envelope was signed by ebl1 and the receiving platform is EBL2 (rsa-eblplatform.example.com). The test server should be started as EBL2 as per the config in  `app/test/integration/env_setup.go`.
 
 the `HHL71800000-envelope-manifest-no-docs-ed25519.json` file is the same transfer but without any additional documents and no ebl visualization.  
 
-see below for details of the keys used in signing the sample data content
+`HHL71800000-envelope-manifest-rsa.json` is the same transfer but signed by EBL2 (rsa-eblplatform.example.com) and sent to itself - do not use this for transfer testing, unless you are testing self-transfers. The file can also be used for testing the rsa signed envelopes are handled correctly by the ebl verification code, since it is a valid envelope in all other respects.
 
 ## Test Certificates and Keys
 

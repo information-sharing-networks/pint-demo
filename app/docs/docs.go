@@ -823,8 +823,7 @@ const docTemplate = `{
                 "BSIG",
                 "BENV",
                 "INCD",
-                "MDOC",
-                "DISE"
+                "MDOC"
             ],
             "x-enum-varnames": [
                 "ResponseCodeRECE",
@@ -832,8 +831,7 @@ const docTemplate = `{
                 "ResponseCodeBSIG",
                 "ResponseCodeBENV",
                 "ResponseCodeINCD",
-                "ResponseCodeMDOC",
-                "ResponseCodeDISE"
+                "ResponseCodeMDOC"
             ]
         },
         "pint.SignedEnvelopeTransferFinishedResponse": {

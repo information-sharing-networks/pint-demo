@@ -1,4 +1,4 @@
--- name: UpsertTransportDocument :one
+-- name: InsertTransportDocumentIfNew :one
 -- Insert transport document if it doesn't exist, otherwise return existing
 -- This is used when receiving a new envelope transfer
 INSERT INTO transport_documents (

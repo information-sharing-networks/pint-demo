@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/lmittmann/tint"
 )
@@ -129,17 +130,6 @@ func RequestLogging(logger *slog.Logger) func(http.Handler) http.Handler {
 			start := time.Now()
 			requestID := middleware.GetReqID(r.Context())
 
-			// Determine request req_type based on path
-			var req_type string
-			switch {
-			case strings.HasPrefix(r.URL.Path, "/docs"), strings.HasPrefix(r.URL.Path, "/swagger.json"):
-				req_type = "docs"
-			case strings.HasPrefix(r.URL.Path, "/v3/envelope"):
-				req_type = "v3/envelope"
-			default: // ui end-user routes (/login /register etc)
-				req_type = "server"
-			}
-
 			// shared slice for attributes that handlers can modify
 			sharedAttrs := &[]slog.Attr{}
 
@@ -162,6 +152,19 @@ func RequestLogging(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(ww, req)
 
 			duration := time.Since(start)
+
+			rctx := chi.RouteContext(r.Context())
+			var req_type string
+
+			if rctx == nil {
+				req_type = "bug"
+			} else {
+				if rctx.RoutePattern() != "" {
+					req_type = rctx.RoutePattern()
+				} else {
+					req_type = "unmatched"
+				}
+			}
 
 			// add standard http status attributes to log message
 			logAttrs := []slog.Attr{

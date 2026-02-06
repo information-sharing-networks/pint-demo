@@ -55,7 +55,7 @@ import (
 // this can be a carrier, software provider or other entity that is approved to participate in the PINT network
 type eblSolutionProvider struct {
 
-	// Code is the 4-char code for the platform (e.g., "WAVE", "CARX")
+	// Code is the DCSA code for the platform (e.g., "WAVE", "CARX")
 	Code string
 
 	// Site is the URL of the provider's website (e.g., "https://wavebl.com")
@@ -222,12 +222,12 @@ func NewKeyManager(ctx context.Context, config *KeyManagerConfig, logger *slog.L
 //
 // For the demo this is a csv file (code, site, jwks_endpoint, manual_key_id)
 // but in a real deployment this would be served from a secure endpoint
-func (km *KeyManager) loadEbLSolutionProviders() error {
-	km.logger.Info("loading DCSA registry",
-		slog.String("url", km.config.eblSolutionProvidersRegistryPath))
+func (k *KeyManager) loadEbLSolutionProviders() error {
+	k.logger.Info("loading DCSA registry",
+		slog.String("url", k.config.eblSolutionProvidersRegistryPath))
 
 	// Fetch the CSV data
-	data, err := os.ReadFile(km.config.eblSolutionProvidersRegistryPath)
+	data, err := os.ReadFile(k.config.eblSolutionProvidersRegistryPath)
 	if err != nil {
 		return err
 	}
@@ -292,10 +292,10 @@ func (km *KeyManager) loadEbLSolutionProviders() error {
 		}
 
 		// Key by DCSA platform code (e.g., "WAVE", "CARX")
-		if km.eblSolutionProviders[code] != nil {
+		if k.eblSolutionProviders[code] != nil {
 			return NewRegistryError(fmt.Sprintf("duplicate DCSA platform code in registry: %s", code))
 		}
-		km.eblSolutionProviders[code] = provider
+		k.eblSolutionProviders[code] = provider
 	}
 
 	return nil
@@ -307,31 +307,31 @@ func (km *KeyManager) loadEbLSolutionProviders() error {
 // For key rotation, use a JWKS endpoint instead of manual configuration.
 //
 // Supported file extensions: .jwk, .jwks, .jwks.json
-func (km *KeyManager) loadManualKeys() error {
-	km.logger.Info("loading manual keys", slog.String("dir", km.config.ManualKeysDir))
+func (k *KeyManager) loadManualKeys() error {
+	k.logger.Info("loading manual keys", slog.String("dir", k.config.ManualKeysDir))
 
 	// Check if directory exists
-	info, err := os.Stat(km.config.ManualKeysDir)
+	info, err := os.Stat(k.config.ManualKeysDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			km.logger.Error("manual keys directory does not exist", slog.String("dir", km.config.ManualKeysDir))
-			return NewValidationError(fmt.Sprintf("specified manual keys directory (%v) does not exist", km.config.ManualKeysDir))
+			k.logger.Error("manual keys directory does not exist", slog.String("dir", k.config.ManualKeysDir))
+			return NewValidationError(fmt.Sprintf("specified manual keys directory (%v) does not exist", k.config.ManualKeysDir))
 		}
 		return WrapKeyError(err, "failed to stat manual keys directory")
 	}
 
 	if !info.IsDir() {
-		return NewValidationError(fmt.Sprintf("manual keys path is not a directory: %s", km.config.ManualKeysDir))
+		return NewValidationError(fmt.Sprintf("manual keys path is not a directory: %s", k.config.ManualKeysDir))
 	}
 
 	// Read all files in directory
-	entries, err := os.ReadDir(km.config.ManualKeysDir)
+	entries, err := os.ReadDir(k.config.ManualKeysDir)
 	if err != nil {
 		return WrapKeyError(err, "failed to read manual keys directory")
 	}
 
-	km.mu.Lock()
-	defer km.mu.Unlock()
+	k.mu.Lock()
+	defer k.mu.Unlock()
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -346,12 +346,12 @@ func (km *KeyManager) loadManualKeys() error {
 			strings.HasSuffix(filename, ".jwks.json")
 
 		if !isJWKFile {
-			km.logger.Debug("skipping: file non-JWK file", slog.String("file", filename))
+			k.logger.Debug("skipping: file non-JWK file", slog.String("file", filename))
 			continue
 		}
 
 		// Read file
-		root, err := os.OpenRoot(km.config.ManualKeysDir)
+		root, err := os.OpenRoot(k.config.ManualKeysDir)
 		if err != nil {
 			return WrapKeyError(err, "failed to open manual keys directory")
 		}
@@ -360,10 +360,10 @@ func (km *KeyManager) loadManualKeys() error {
 		data, err := root.ReadFile(filename)
 		if err != nil {
 			if os.IsPermission(err) {
-				km.logger.Debug("skipping: file permission denied",
+				k.logger.Debug("skipping: file permission denied",
 					slog.String("file", filename))
 			} else {
-				km.logger.Error("skipping: file failed to read manual key file",
+				k.logger.Error("skipping: file failed to read manual key file",
 					slog.String("file", filename),
 					slog.String("error", err.Error()))
 			}
@@ -373,7 +373,7 @@ func (km *KeyManager) loadManualKeys() error {
 		// Parse as JWK Set
 		keySet, err := jwk.Parse(data)
 		if err != nil {
-			km.logger.Error("skipping: file failed to parse manual key data",
+			k.logger.Error("skipping: file failed to parse manual key data",
 				slog.String("file", filename),
 				slog.String("error", err.Error()))
 			continue
@@ -381,12 +381,12 @@ func (km *KeyManager) loadManualKeys() error {
 
 		// Manual keys must be single JWK files, not JWKS with multiple keys
 		if keySet.Len() == 0 {
-			km.logger.Error("skipping: file manual key file contains no keys",
+			k.logger.Error("skipping: file manual key file contains no keys",
 				slog.String("file", filename))
 			continue
 		}
 		if keySet.Len() > 1 {
-			km.logger.Error("skipping: file manual key file contains multiple keys",
+			k.logger.Error("skipping: file manual key file contains multiple keys",
 				slog.String("file", filename),
 				slog.Int("key_count", keySet.Len()),
 				slog.String("hint", "only single key files are supported for manual configuration - use a JWKS endpoint for key rotation"))
@@ -398,7 +398,7 @@ func (km *KeyManager) loadManualKeys() error {
 		// get key ID
 		keyID, ok := key.KeyID()
 		if !ok || keyID == "" {
-			km.logger.Error("skipping: file manual key missing kid",
+			k.logger.Error("skipping: file manual key missing kid",
 				slog.String("file", filename))
 			continue
 		}
@@ -406,7 +406,7 @@ func (km *KeyManager) loadManualKeys() error {
 		// get the key material
 		var raw any
 		if err := jwk.Export(key, &raw); err != nil {
-			km.logger.Error("skipping: file failed to export manual key from file",
+			k.logger.Error("skipping: file failed to export manual key from file",
 				slog.String("file:", filename),
 				slog.String("error", err.Error()))
 			continue
@@ -428,7 +428,7 @@ func (km *KeyManager) loadManualKeys() error {
 		}
 
 		if !isValidPublicKey {
-			km.logger.Warn("skipping: file does not contain a RSA or ED25519 public key - skipping",
+			k.logger.Warn("skipping: file does not contain a RSA or ED25519 public key - skipping",
 				slog.String("file", filename),
 				slog.String("key_type", keyType))
 			continue
@@ -436,7 +436,7 @@ func (km *KeyManager) loadManualKeys() error {
 
 		// Find registry entry with matching manual key id
 		var eblSolutionProvider *eblSolutionProvider
-		for _, provider := range km.eblSolutionProviders {
+		for _, provider := range k.eblSolutionProviders {
 			if provider.ManualKeyID == keyID {
 				eblSolutionProvider = provider
 				break
@@ -445,25 +445,25 @@ func (km *KeyManager) loadManualKeys() error {
 
 		// if no registry entry found, skip the key
 		if eblSolutionProvider == nil {
-			km.logger.Warn("skipping: kid not found in the platform registry - skipping",
+			k.logger.Warn("skipping: kid not found in the platform registry - skipping",
 				slog.String("file", filename),
 				slog.String("kid", keyID))
 			continue
 		}
 
-		km.logger.Info("public key loaded to keymanager ",
+		k.logger.Info("public key loaded to keymanager ",
 			slog.String("file", filename),
 			slog.String("kid", keyID),
 			slog.String("key_type", keyType))
 
 		// Store key indexed by kid
-		km.manualKeys[keyID] = &PublicKeyInfo{
+		k.manualKeys[keyID] = &PublicKeyInfo{
 			Provider: eblSolutionProvider,
 			Key:      key,
 			KeyID:    keyID,
 		}
 
-		km.logger.Debug("loaded manual key",
+		k.logger.Debug("loaded manual key",
 			slog.String("code", eblSolutionProvider.Code),
 			slog.String("kid", keyID))
 	}
@@ -473,7 +473,7 @@ func (km *KeyManager) loadManualKeys() error {
 
 // initJWKCache initializes the JWK cache and registers all eBL solution provider JWK endpoints.
 // The cache will automatically fetch and refresh JWK sets from each provider in the background.
-func (km *KeyManager) initJWKCache(ctx context.Context) error {
+func (k *KeyManager) initJWKCache(ctx context.Context) error {
 
 	client := httprc.NewClient()
 
@@ -481,27 +481,27 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 	if err != nil {
 		return WrapKeyError(err, "failed to create JWK cache")
 	}
-	km.jwkCache = cache
+	k.jwkCache = cache
 
 	successCount := 0
 
 	// Register each eBL solution provider's JWK endpoint
-	for _, provider := range km.eblSolutionProviders {
+	for _, provider := range k.eblSolutionProviders {
 
 		// check if the provider has a JWK endpoint configured
 		if provider.JWKSEndpoint == "" {
-			km.logger.Debug("no JWK endpoint configured for provider - skipping",
+			k.logger.Debug("no JWK endpoint configured for provider - skipping",
 				slog.String("code", provider.Code))
 			continue
 		}
 
-		err := km.jwkCache.Register(ctx, provider.JWKSEndpoint,
-			jwk.WithMinInterval(km.config.JWKCacheMinRefreshInterval),
-			jwk.WithMaxInterval(km.config.JWKCacheMaxRefreshInterval),
+		err := k.jwkCache.Register(ctx, provider.JWKSEndpoint,
+			jwk.WithMinInterval(k.config.JWKCacheMinRefreshInterval),
+			jwk.WithMaxInterval(k.config.JWKCacheMaxRefreshInterval),
 			jwk.WithWaitReady(false), // Don't block startup - fetch in background
 		)
 		if err != nil {
-			km.logger.Warn("failed to register JWK endpoint",
+			k.logger.Warn("failed to register JWK endpoint",
 				slog.String("code", provider.Code),
 				slog.String("jwk_url", provider.JWKSEndpoint),
 				slog.String("error", err.Error()))
@@ -509,12 +509,12 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 		}
 
 		successCount++
-		km.logger.Info("registered JWK endpoint for background fetch",
+		k.logger.Info("registered JWK endpoint for background fetch",
 			slog.String("code", provider.Code),
 			slog.String("jwk_url", provider.JWKSEndpoint))
 	}
 
-	km.logger.Info("JWK cache initialization complete - keys will be fetched in background",
+	k.logger.Info("JWK cache initialization complete - keys will be fetched in background",
 		slog.Int("endpoints_registered", successCount))
 
 	return nil
@@ -530,7 +530,7 @@ func (km *KeyManager) initJWKCache(ctx context.Context) error {
 //
 // This eliminates the need for manual KID extraction as a separate step
 // and allows us to check both the manual keys and the remote keys in a single location.
-func (km *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, msg *jws.Message) error {
+func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, msg *jws.Message) error {
 	kid, ok := sig.ProtectedHeaders().KeyID()
 	if !ok || kid == "" {
 		return NewValidationError("kid is required in JWS header")
@@ -542,28 +542,25 @@ func (km *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 	}
 
 	// 1. Check manual keys first
-	km.mu.RLock()
-	if keyInfo, exists := km.manualKeys[kid]; exists {
-		km.mu.RUnlock()
-		km.logger.Debug("found manual key",
-			slog.String("kid", kid),
-			slog.String("provider", keyInfo.Provider.Code))
+	k.mu.RLock()
+	if keyInfo, exists := k.manualKeys[kid]; exists {
+		k.mu.RUnlock()
 		sink.Key(alg, keyInfo.Key)
 		return nil
 	}
-	km.mu.RUnlock()
+	k.mu.RUnlock()
 
 	// 2. Check remote keys from jwkCache
-	if km.jwkCache != nil {
-		for _, provider := range km.eblSolutionProviders {
+	if k.jwkCache != nil {
+		for _, provider := range k.eblSolutionProviders {
 			if provider.JWKSEndpoint == "" {
 				continue
 			}
 
 			// Get latest keyset from cache (auto-refreshed by jwx library)
-			keySet, err := km.jwkCache.Lookup(ctx, provider.JWKSEndpoint)
+			keySet, err := k.jwkCache.Lookup(ctx, provider.JWKSEndpoint)
 			if err != nil {
-				km.logger.Debug("failed to lookup JWK set from cache",
+				k.logger.Debug("failed to lookup JWK set from cache",
 					slog.String("code", provider.Code),
 					slog.String("jwk_url", provider.JWKSEndpoint),
 					slog.String("error", err.Error()))
@@ -573,7 +570,7 @@ func (km *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 			// Find key by kid
 			key, found := keySet.LookupKeyID(kid)
 			if found {
-				km.logger.Debug("found remote key",
+				k.logger.Debug("found remote key",
 					slog.String("kid", kid),
 					slog.String("provider", provider.Code))
 
@@ -590,27 +587,27 @@ func (km *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 // This is a convenience method for non-JWS use cases that need access to key metadata.
 //
 // For JWS verification, you will typically want to use FetchKeys (jws.KeyProvider interface) instead
-func (km *KeyManager) GetKey(ctx context.Context, keyID string) (*PublicKeyInfo, error) {
+func (k *KeyManager) GetKey(ctx context.Context, keyID string) (*PublicKeyInfo, error) {
 	if keyID == "" {
 		return nil, NewInternalError("kid is required")
 	}
 
 	// Check manual keys first
-	km.mu.RLock()
-	if keyInfo, exists := km.manualKeys[keyID]; exists {
-		km.mu.RUnlock()
+	k.mu.RLock()
+	if keyInfo, exists := k.manualKeys[keyID]; exists {
+		k.mu.RUnlock()
 		return keyInfo, nil
 	}
-	km.mu.RUnlock()
+	k.mu.RUnlock()
 
 	// For remote keys, check jwkCache to get the latest version
-	if km.jwkCache != nil {
-		for _, provider := range km.eblSolutionProviders {
+	if k.jwkCache != nil {
+		for _, provider := range k.eblSolutionProviders {
 			if provider.JWKSEndpoint == "" {
 				continue
 			}
 
-			keySet, err := km.jwkCache.Lookup(ctx, provider.JWKSEndpoint)
+			keySet, err := k.jwkCache.Lookup(ctx, provider.JWKSEndpoint)
 			if err != nil {
 				continue
 			}
@@ -624,7 +621,7 @@ func (km *KeyManager) GetKey(ctx context.Context, keyID string) (*PublicKeyInfo,
 					KeyID:    keyID,
 				}
 
-				km.logger.Debug("found remote key",
+				k.logger.Debug("found remote key",
 					slog.String("kid", keyID),
 					slog.String("provider", provider.Code))
 
@@ -634,4 +631,17 @@ func (km *KeyManager) GetKey(ctx context.Context, keyID string) (*PublicKeyInfo,
 	}
 
 	return nil, NewKeyError(fmt.Sprintf("key not found: %s", keyID))
+}
+
+// LookupPlatformByKeyID returns the platform code that owns the given key ID.
+// This implements the ebl.KeyLookupPlatformByKeyID interface
+//
+// Returns an error if the key is not found in the registry.
+func (k *KeyManager) LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error) {
+	keyInfo, err := k.GetKey(ctx, keyID)
+	if err != nil {
+		return "", err
+	}
+
+	return keyInfo.Provider.Code, nil
 }

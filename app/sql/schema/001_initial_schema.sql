@@ -5,10 +5,10 @@ CREATE TABLE transport_documents (
     checksum TEXT PRIMARY KEY, -- SHA-256 checksum of canonical JSON (per DCSA spec)
     content JSONB NOT NULL, -- The actual transport document content
     first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    first_received_from_platform_code TEXT NOT NULL -- 4-char DCSA platform code that first sent this eBL to us (e.g., "WAVE", "CARX")
+    first_received_from_platform_code TEXT NOT NULL -- DCSA platform code that first sent this eBL to us (e.g., "WAVE", "CARX")
 );
 
--- envelopes - each row represents a transfer session (envelope transfer) of an eBL.
+-- envelopes - each row represents an transfer of a eBL received by this platform
 -- The same eBL can be transferred multiple times and go back and forth between platforms.
 -- Each transfer has a unique chain of transactions (transfer chain entries) that are cryptographically linked
 -- and uniquely identified by the last_transfer_chain_entry_checksum
@@ -21,7 +21,7 @@ CREATE TABLE envelopes (
     transport_document_checksum TEXT NOT NULL,
 
     -- Transfer metadata
-    sent_by_platform_code TEXT NOT NULL, -- 4-char DCSA platform code of sender (e.g., "WAVE", "CARX")
+    sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
     last_transfer_chain_entry_checksum TEXT NOT NULL UNIQUE, -- Prevents duplicate transfers
 
     -- Signed content (JWS strings - kept for audit trail)

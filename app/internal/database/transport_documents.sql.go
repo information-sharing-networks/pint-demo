@@ -28,7 +28,7 @@ func (q *Queries) GetTransportDocument(ctx context.Context, checksum string) (Tr
 	return i, err
 }
 
-const UpsertTransportDocument = `-- name: UpsertTransportDocument :one
+const InsertTransportDocumentIfNew = `-- name: InsertTransportDocumentIfNew :one
 INSERT INTO transport_documents (
     checksum,
     content,
@@ -44,7 +44,7 @@ ON CONFLICT (checksum) DO NOTHING
 RETURNING checksum, content, first_seen_at, first_received_from_platform_code
 `
 
-type UpsertTransportDocumentParams struct {
+type InsertTransportDocumentIfNewParams struct {
 	Checksum                      string          `json:"checksum"`
 	Content                       json.RawMessage `json:"content"`
 	FirstReceivedFromPlatformCode string          `json:"first_received_from_platform_code"`
@@ -52,8 +52,8 @@ type UpsertTransportDocumentParams struct {
 
 // Insert transport document if it doesn't exist, otherwise return existing
 // This is used when receiving a new envelope transfer
-func (q *Queries) UpsertTransportDocument(ctx context.Context, arg UpsertTransportDocumentParams) (TransportDocument, error) {
-	row := q.db.QueryRow(ctx, UpsertTransportDocument, arg.Checksum, arg.Content, arg.FirstReceivedFromPlatformCode)
+func (q *Queries) InsertTransportDocumentIfNew(ctx context.Context, arg InsertTransportDocumentIfNewParams) (TransportDocument, error) {
+	row := q.db.QueryRow(ctx, InsertTransportDocumentIfNew, arg.Checksum, arg.Content, arg.FirstReceivedFromPlatformCode)
 	var i TransportDocument
 	err := row.Scan(
 		&i.Checksum,

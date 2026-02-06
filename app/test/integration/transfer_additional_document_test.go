@@ -54,7 +54,6 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 	}
 	defer resp.Body.Close()
 
-	// Per DCSA spec:
 	// - 201 Created (unsigned): Transfer pending, documents still needed
 	// - 200 OK (signed): Transfer accepted (RECE) or duplicate of accepted (DUPE)
 	if resp.StatusCode == http.StatusCreated {

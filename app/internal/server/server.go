@@ -40,6 +40,9 @@ type Server struct {
 	// router is the http router
 	router *chi.Mux
 
+	// platformCode is the DCSA platform code for this platform (e.g. "WAVE", "CARX", "EDOX")
+	platformCode string
+
 	// keyManager is the key manager for verifying public keys in JWS signatures
 	// received from other platforms
 	keyManager *pint.KeyManager
@@ -73,11 +76,12 @@ func NewServer(
 	ctx context.Context,
 ) (*Server, error) {
 	server := &Server{
-		pool:    pool,
-		queries: queries,
-		config:  cfg,
-		logger:  logger,
-		router:  chi.NewRouter(),
+		pool:         pool,
+		queries:      queries,
+		config:       cfg,
+		logger:       logger,
+		router:       chi.NewRouter(),
+		platformCode: cfg.PlatformCode,
 	}
 
 	// load signing key
@@ -193,6 +197,7 @@ func (s *Server) registerPintRoutes() {
 	startTransfer := pinthandlers.NewStartTransferHandler(
 		s.queries,
 		s.pool,
+		s.platformCode,
 		s.keyManager,
 		s.signingKey,
 		s.x5cCertChain,

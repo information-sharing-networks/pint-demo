@@ -169,10 +169,6 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	reqLogger.Info("Decoded document content",
-		slog.Int("size_bytes", len(documentContent)),
-	)
-
 	// Step 3: Lookup envelope by reference
 	envelope, err := h.queries.GetEnvelopeByReference(ctx, envelopeRef)
 	if err != nil {
@@ -297,6 +293,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		slog.String("document_checksum", documentChecksum),
 		slog.Int64("size_bytes", actualSize),
 		slog.Bool("is_ebl_visualisation", expectedDoc.IsEblVisualisation),
+		slog.String("envelope_reference", envelopeRefStr),
 	)
 
 	// Step 11: Return 204 No Content (unsigned response per spec)

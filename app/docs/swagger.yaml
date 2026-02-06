@@ -438,7 +438,6 @@ definitions:
     - BENV
     - INCD
     - MDOC
-    - DISE
     type: string
     x-enum-varnames:
     - ResponseCodeRECE
@@ -447,7 +446,6 @@ definitions:
     - ResponseCodeBENV
     - ResponseCodeINCD
     - ResponseCodeMDOC
-    - ResponseCodeDISE
   pint.SignedEnvelopeTransferFinishedResponse:
     properties:
       envelopeTransferFinishedResponseSignedContent:

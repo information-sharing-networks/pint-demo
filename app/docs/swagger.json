@@ -814,8 +814,7 @@
                 "BSIG",
                 "BENV",
                 "INCD",
-                "MDOC",
-                "DISE"
+                "MDOC"
             ],
             "x-enum-varnames": [
                 "ResponseCodeRECE",
@@ -823,8 +822,7 @@
                 "ResponseCodeBSIG",
                 "ResponseCodeBENV",
                 "ResponseCodeINCD",
-                "ResponseCodeMDOC",
-                "ResponseCodeDISE"
+                "ResponseCodeMDOC"
             ]
         },
         "pint.SignedEnvelopeTransferFinishedResponse": {
