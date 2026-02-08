@@ -84,10 +84,10 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Description	The decoded content type is determined by sending platform based on the media type
 //	@Description	declared in the EnvelopeManifest.
 //	@Description
-//	@Description	If the sending platform looses track of the transfer state for a document, it can safely
+//	@Description	If the sending platform loses track of the transfer state for a document, it can safely
 //	@Description	retry the transfer by resending the same document.
 //	@Description
-//	@Description	If the sending platform looses track of which documents have not been received, it can call
+//	@Description	If the sending platform loses track of which documents have not been received, it can call
 //	@Description	the PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.
 //	@Description
 //	@Description	**Success Response**
@@ -152,8 +152,8 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	}
 	defer r.Body.Close()
 
-	// expect a base64-encoded string containing the binary document content and ingore the content-type header
-	// TODO: confir what dcsa expect in the content-type header
+	// expect a base64-encoded string containing the binary document content and ignore the content-type header
+	// TODO: confirm what dcsa expect in the content-type header
 	// (v3.0.0 says 'Content-Type application/json is preferred' but shows a base64 string as the example)
 	base64Content := string(bodyBytes)
 

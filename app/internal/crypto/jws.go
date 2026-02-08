@@ -17,6 +17,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v3/cert"
 	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
@@ -156,24 +157,40 @@ func VerifyJWSWithKeyProvider(
 	// message objects. We extract the KID from the signature headers,
 	// look up the corresponding key, and add it to the sink using sink.Key().
 	// Verify() then uses the key to verify the JWS signature.
-	payload, err = jws.Verify([]byte(jwsString), jws.WithKeyProvider(keyProvider))
+	var keyUsed any
+	payload, err = jws.Verify([]byte(jwsString), jws.WithKeyProvider(keyProvider), jws.WithKeyUsed(&keyUsed))
 	if err != nil {
 		return nil, nil, nil, WrapSignatureError(err, "failed to verify JWS")
 	}
 
-	// Step 2: Extract x5c certificate chain (if present)
+	// Step 2: Extract the raw public key that was used for verification.
+	// keyUsed may be a jwk.Key (from remote JWKS) or a raw key (from manual config),
+	// so we normalise it to a raw key in all cases.
+	if jwkKey, ok := keyUsed.(jwk.Key); ok {
+		if err := jwk.Export(jwkKey, &publicKey); err != nil {
+			return nil, nil, nil, WrapSignatureError(err, "failed to export verification key")
+		}
+	} else {
+		publicKey = keyUsed
+	}
+
+	// Step 3: Extract x5c certificate chain (if present)
 	certChain, err = ParseX5CFromJWS(jwsString)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	// If x5c is present, extract the public key from it and validate
+	// If x5c is present, validate the certificate chain and key match
 	if certChain != nil {
-		// Extract public key from the first certificate in the chain
-		// This is the key that signed the JWS (already verified by jws.Verify above)
-		publicKey = certChain[0].PublicKey
+		// Step 4: Validate x5c public key matches the key used for signing
+		// This prevents an attacker signing with key A but including a valid x5c
+		// certificate chain for organization B, which would cause the verification
+		// result to report the wrong organization.
+		if err := ValidateX5CMatchesKey(certChain, publicKey); err != nil {
+			return nil, nil, nil, err
+		}
 
-		// Step 3: Validate certificate chain (CA trust, expiry, domain)
+		// Step 5: Validate certificate chain (CA trust, expiry, domain)
 		// This checks:
 		// - Certificate chain is valid and trusted by root CAs
 		// - Certificates are not expired

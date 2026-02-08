@@ -43,6 +43,7 @@ type CreateTransferChainEntryParams struct {
 }
 
 // Create a new transfer chain entry
+// NOTE: Caller is responsible for DISE validation before calling this
 func (q *Queries) CreateTransferChainEntry(ctx context.Context, arg CreateTransferChainEntryParams) (TransferChainEntry, error) {
 	row := q.db.QueryRow(ctx, CreateTransferChainEntry,
 		arg.TransportDocumentChecksum,

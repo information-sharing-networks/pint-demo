@@ -2,14 +2,18 @@ package crypto
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
 func TestParseHeader(t *testing.T) {
@@ -716,6 +720,161 @@ func TestSignJSON(t *testing.T) {
 				if extractedCerts != nil {
 					t.Errorf("Expected no x5c cert chain but got %d certs", len(extractedCerts))
 				}
+			}
+		})
+	}
+}
+
+// testKeyProvider is a minimal jws.KeyProvider for unit testing VerifyJWSWithKeyProvider.
+type testKeyProvider struct {
+	keys map[string]any // kid -> raw public key
+}
+
+func (p *testKeyProvider) FetchKeys(_ context.Context, sink jws.KeySink, sig *jws.Signature, _ *jws.Message) error {
+	kid, ok := sig.ProtectedHeaders().KeyID()
+	if !ok || kid == "" {
+		return fmt.Errorf("kid is required")
+	}
+	alg, ok := sig.ProtectedHeaders().Algorithm()
+	if !ok {
+		return fmt.Errorf("alg is required")
+	}
+	key, exists := p.keys[kid]
+	if !exists {
+		return fmt.Errorf("key not found: %s", kid)
+	}
+	sink.Key(alg, key)
+	return nil
+}
+
+func TestVerifyJWSWithKeyProvider(t *testing.T) {
+	// Load platform key + certs (key A)
+	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	if err != nil {
+		t.Fatalf("failed to load platform private key: %v", err)
+	}
+
+	platformPublicKey := platformPrivateKey.Public().(ed25519.PublicKey)
+	platformKeyID, err := GenerateKeyIDFromEd25519Key(platformPublicKey)
+	if err != nil {
+		t.Fatalf("failed to generate platform key ID: %v", err)
+	}
+
+	platformCertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load platform cert chain: %v", err)
+	}
+
+	// Load carrier certs (key B) — different org, different key
+	carrierCertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-carrier.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load carrier cert chain: %v", err)
+	}
+
+	// Root CA pool
+	rootCAs := x509.NewCertPool()
+	rootCABytes, err := os.ReadFile("testdata/certs/root-ca.crt")
+	if err != nil {
+		t.Fatalf("failed to load root CA: %v", err)
+	}
+	if !rootCAs.AppendCertsFromPEM(rootCABytes) {
+		t.Fatalf("failed to parse root CA")
+	}
+
+	// KeyProvider that returns the platform public key
+	provider := &testKeyProvider{
+		keys: map[string]any{platformKeyID: platformPublicKey},
+	}
+
+	tests := []struct {
+		name            string
+		setupJWS        func() string
+		rootCAs         *x509.CertPool
+		expectCertX5C   bool
+		expectError     bool
+		expectedErrCode ErrorCode
+	}{
+		{
+			name: "valid JWS with matching x5c",
+			setupJWS: func() string {
+				jwsStr, _ := SignJSONWithEd25519AndX5C([]byte(`{"test":"data"}`), platformPrivateKey, platformKeyID, platformCertChain)
+				return jwsStr
+			},
+			rootCAs:       rootCAs,
+			expectCertX5C: true,
+			expectError:   false,
+		},
+		{
+			name: "valid JWS without x5c",
+			setupJWS: func() string {
+				jwsStr, _ := SignJSONWithEd25519([]byte(`{"test":"data"}`), platformPrivateKey, platformKeyID)
+				return jwsStr
+			},
+			rootCAs:       nil,
+			expectCertX5C: false,
+			expectError:   false,
+		},
+		{
+			name: "x5c mismatch - signed with platform key but carrier x5c attached",
+			setupJWS: func() string {
+				// Sign with platform key but include carrier's certificate chain.
+				// The signature is valid (KeyProvider returns platform key), but the
+				// x5c certificate chain belongs to a different organization.
+				jwsStr, _ := SignJSONWithEd25519AndX5C([]byte(`{"test":"data"}`), platformPrivateKey, platformKeyID, carrierCertChain)
+				return jwsStr
+			},
+			rootCAs:         rootCAs,
+			expectError:     true,
+			expectedErrCode: ErrCodeCertificate,
+		},
+		{
+			name: "unknown key ID",
+			setupJWS: func() string {
+				// Generate a throwaway key — not registered in the provider
+				otherKey, _ := GenerateEd25519KeyPair()
+				otherPub := otherKey.Public().(ed25519.PublicKey)
+				otherKID, _ := GenerateKeyIDFromEd25519Key(otherPub)
+				jwsStr, _ := SignJSONWithEd25519([]byte(`{"test":"data"}`), otherKey, otherKID)
+				return jwsStr
+			},
+			rootCAs:         nil,
+			expectError:     true,
+			expectedErrCode: ErrCodeInvalidSignature,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, _, certChain, err := VerifyJWSWithKeyProvider(tt.setupJWS(), provider, tt.rootCAs)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				if tt.expectedErrCode != "" {
+					var cryptoErr Error
+					if errors.As(err, &cryptoErr) {
+						if cryptoErr.Code() != tt.expectedErrCode {
+							t.Errorf("expected error code %q, got %q (error: %v)", tt.expectedErrCode, cryptoErr.Code(), err)
+						}
+					} else {
+						t.Errorf("expected CryptoError with code %q, got non-crypto error: %v", tt.expectedErrCode, err)
+					}
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if payload == nil {
+				t.Errorf("expected payload but got nil")
+			}
+			if tt.expectCertX5C && certChain == nil {
+				t.Errorf("expected cert chain but got nil")
+			}
+			if !tt.expectCertX5C && certChain != nil {
+				t.Errorf("expected nil cert chain, got %d certs", len(certChain))
 			}
 		})
 	}

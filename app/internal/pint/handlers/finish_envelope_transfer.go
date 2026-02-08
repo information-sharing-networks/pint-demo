@@ -200,8 +200,9 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
-			ResponseCode:                        pint.ResponseCodeDUPE,
-			ReceivedAdditionalDocumentChecksums: receivedDocs,
+			ResponseCode: pint.ResponseCodeDUPE,
+			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &envelope.LastTransferChainEntrySignedContent,
+			ReceivedAdditionalDocumentChecksums:                        receivedDocs,
 		})
 		if err != nil {
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))

@@ -96,7 +96,7 @@ func (s *StartTransferHandler) createSignedFinishedResponse(response pint.Envelo
 
 // respondWithSignedRejection creates and sends a signed rejection response (422 Unprocessable Entity).
 //
-// The payload in the JWS token is a  DSCA FinshTransferResponse struct that includes the last chain entry
+// The payload in the JWS token is a  DCSA FinshTransferResponse struct that includes the last chain entry
 // signed content checksum, response code and reason description
 func (s *StartTransferHandler) respondWithSignedRejection(w http.ResponseWriter, r *http.Request, lastChainChecksum string, responseCode pint.ResponseCode, reason string) {
 	signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -317,7 +317,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	var reason string
 
-	// Step 2. Envelope verification (signature/envelope errors return 422 with a signed response otherwise 500/unsgined response):w
+	// Step 2. Envelope verification (signature/envelope errors return 422 with a signed response otherwise 500/unsigned response):w
 	verificationResult, err := ebl.VerifyEnvelope(ebl.EnvelopeVerificationInput{
 		Envelope:              &envelope,
 		RootCAs:               s.x5cCustomRoots,
@@ -404,7 +404,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	// Step 6. new transfer received - get the list of expected additional document checksums
-	// - if there are additonal documents required the transfer can be accepted immediately (response will be 201 Created/RECE)
+	// - if there are additional documents required the transfer can be accepted immediately (response will be 201 Created/RECE)
 	// - if there are no additional documents required the response will be 200 OK, and the response will be signed (accepted immediately)
 
 	// Collect all additional documents required for the transfer

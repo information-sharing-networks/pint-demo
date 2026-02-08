@@ -344,7 +344,15 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Errorf("Expected responseCode 'DUPE', got '%s'", payload.ResponseCode)
 		}
 
-		t.Logf("Retry finish-transfer returned DUPE response")
+		// Per DCSA spec: DUPE response must include the accepted version of the last
+		// EnvelopeTransferChainEntrySignedContent from the previously accepted transfer
+		if payload.DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent == nil {
+			t.Error("Expected duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent to be set for DUPE response")
+		} else if *payload.DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent == "" {
+			t.Error("Expected duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent to be non-empty")
+		}
+
+		t.Logf("Retry finish-transfer returned DUPE response with accepted chain entry")
 	})
 }
 

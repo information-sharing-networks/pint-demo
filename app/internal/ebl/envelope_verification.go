@@ -17,7 +17,7 @@ package ebl
 //    (since the manifest and last transfer chain entry checksums must match)
 //  - tampering with the transfer chain by reordering, omitting or substituting entries
 //    (since the hash chain linking entries would be invalidated)
-//  - the sending platform posting ane envelope to the wrong platform
+//  - the sending platform posting an envelope to the wrong platform
 //    (since the recipient platform in the last transfer chain entry must match the current platform)
 //  - platforms signing a transfer chain entry claiming to be from another platform
 //    (since the eblPlatform in each entry must match the platform that owns the signing key)
@@ -37,7 +37,7 @@ package ebl
 // Platform identification is done by looking up the platform in the DCSA registry
 // using the JWS key ID.
 //
-// In production the keystore is populated with public keys retrireved either from the
+// In production the keystore is populated with public keys retrieved either from the
 // platform's JWKS endpoint or from a local key store, depending on how the platform was
 // configured in the platform registry.
 //
@@ -166,9 +166,9 @@ type EnvelopeVerificationResult struct {
 // on an incoming envelope transfer request.
 //
 // Returns;
-//   - Sucessful validation returns a complete EnvelopeVerificationResult, including the trust level and org information, and nil error.
-//   - Interal errors return ebl.InternalError and a nil EnvelopeVerificationResult
-//   - Other erros are returned as either ebl.EnvelopeError or ebl.SignatureError with a non-nil EnvelopeVerificationResult containing partial information.
+//   - Successful validation returns a complete EnvelopeVerificationResult, including the trust level and org information, and nil error.
+//   - Internal errors return ebl.InternalError and a nil EnvelopeVerificationResult
+//   - Other errors are returned as either ebl.EnvelopeError or ebl.SignatureError with a non-nil EnvelopeVerificationResult containing partial information.
 //     (minimally the LastEnvelopeTransferChainEntrySignedContentChecksum is returned to allow the caller to implement duplicate detection)
 func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
@@ -230,10 +230,10 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	// Step 5: Parse and validate the manifest payload
 	manifest := &EnvelopeManifest{}
 	if err := json.Unmarshal(manifestPayload, manifest); err != nil {
-		return result, WrapSignatureError(err, "failed to parse manifest payload")
+		return result, WrapEnvelopeError(err, "failed to parse manifest payload")
 	}
 	if err := manifest.Validate(); err != nil {
-		return result, WrapSignatureError(err, "manifest validation failed")
+		return result, WrapEnvelopeError(err, "manifest validation failed")
 	}
 	result.Manifest = manifest
 
@@ -319,7 +319,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		return result, WrapSignatureError(err, "failed to parse last transfer chain entry header")
 	}
 
-	// Step 10: Verify that the manifest and last transfer chain entry were signed by the same key.
+	// Step 11: Verify that the manifest and last transfer chain entry were signed by the same key.
 	// This prevents the sender substituting a different transfer chain signed by another platform.
 	if manifestHeader.KeyID != lastEntryHeader.KeyID {
 		return result, NewEnvelopeError(fmt.Sprintf(
@@ -332,7 +332,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	result.SenderPlatform = senderPlatform
 	result.SenderKeyID = manifestHeader.KeyID
 
-	// Step 11: Verify the recieving platform in the envelope is the current platform
+	// Step 12: Verify the receiving platform in the envelope is the current platform
 	// This prevents a platform from accepting an envelope that was not addressed to it
 	if result.RecipientPlatform != input.RecipientPlatformCode {
 		return result, NewEnvelopeError(fmt.Sprintf(

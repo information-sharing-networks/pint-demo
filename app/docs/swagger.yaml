@@ -688,10 +688,10 @@ paths:
         The decoded content type is determined by sending platform based on the media type
         declared in the EnvelopeManifest.
 
-        If the sending platform looses track of the transfer state for a document, it can safely
+        If the sending platform loses track of the transfer state for a document, it can safely
         retry the transfer by resending the same document.
 
-        If the sending platform looses track of which documents have not been received, it can call
+        If the sending platform loses track of which documents have not been received, it can call
         the PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.
 
         **Success Response**
