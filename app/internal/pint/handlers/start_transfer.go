@@ -335,19 +335,13 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 				responseCode = pint.ResponseCodeBENV
 			}
 		}
-		if responseCode == "" {
+		if responseCode == "" || verificationResult == nil {
 			// internal error
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to verify envelope"))
 			return
 		}
 
 		lastChainChecksum := verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum
-		if lastChainChecksum == "" {
-			reqLogger.Error("Failed to verify envelope - last chain checksum is empty")
-			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to verify envelope - last chain checksum is empty"))
-			return
-		} // unexpected - valid envelopes should always have a last chain checksum
-
 		s.respondWithSignedRejection(w, r, lastChainChecksum, responseCode, err.Error())
 		return
 	}
@@ -475,8 +469,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	// Step 11. Create transfer chain entries
-	// TODO: DISE valiation -it should be possible to do some basic double-spend checks here if
-	// the envelope has been transferred in the past (not yet implemented)
 	for i, entryJWS := range envelope.EnvelopeTransferChain {
 
 		entryChecksum, err := crypto.Hash([]byte(entryJWS))

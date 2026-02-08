@@ -94,5 +94,5 @@ const (
 	// ResponseCodeMDOC indicates missing additional documents (not rejected)
 	ResponseCodeMDOC ResponseCode = "MDOC"
 
-	// ResponseCodeDISE indicates disputed envelope (contradicts transfer chain knowledge)
+	//ResponseCodeDISE indicates disputed envelope (contradicts transfer chain knowledge)
 )

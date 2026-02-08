@@ -16,7 +16,7 @@ func TestParseHeader(t *testing.T) {
 	// { "alg": "HS256", "typ": "JWT" } (unexpected header: typ)
 	invalidJwsString := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
 
-	header, err := ParseHeader(invalidJwsString)
+	header, err := ParseJWSHeader(invalidJwsString)
 	if err == nil {
 		t.Errorf("ParseHeader failed to reject an invalid header - got: %v", header)
 	}

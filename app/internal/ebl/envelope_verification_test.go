@@ -1,9 +1,7 @@
 package ebl
 
 import (
-	"context"
 	"crypto/ed25519"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -14,57 +12,8 @@ import (
 	"testing"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
-	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/information-sharing-networks/pint-demo/app/internal/ebl/testutil"
 )
-
-// mockKeyProvider implements KeyProviderWithLookup for testing
-// It returns keys from a map based on the KID in the JWS header
-type mockKeyProvider struct {
-	keys      map[string]any    // map of KID -> public key
-	platforms map[string]string // map of KID -> platform code
-}
-
-func newMockKeyProvider() *mockKeyProvider {
-	return &mockKeyProvider{
-		keys:      make(map[string]any),
-		platforms: make(map[string]string),
-	}
-}
-
-// addKeyWithPlatform adds a key and associates it with a platform code
-func (m *mockKeyProvider) addKeyWithPlatform(kid string, key any, platformCode string) {
-	m.keys[kid] = key
-	m.platforms[kid] = platformCode
-}
-
-func (m *mockKeyProvider) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, msg *jws.Message) error {
-	kid, ok := sig.ProtectedHeaders().KeyID()
-	if !ok || kid == "" {
-		return fmt.Errorf("kid is required in JWS header")
-	}
-
-	alg, ok := sig.ProtectedHeaders().Algorithm()
-	if !ok {
-		return fmt.Errorf("alg is required in JWS header")
-	}
-
-	key, exists := m.keys[kid]
-	if !exists {
-		return fmt.Errorf("key not found for kid: %s", kid)
-	}
-
-	sink.Key(alg, key)
-	return nil
-}
-
-// LookupPlatformByKeyID implements KeyProviderWithLookup interface
-func (m *mockKeyProvider) LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error) {
-	platform, exists := m.platforms[keyID]
-	if !exists {
-		return "", fmt.Errorf("platform not found for key: %s", keyID)
-	}
-	return platform, nil
-}
 
 // TestVerifyValidEnvelopeTransfer tests valid envelopes using different signature algorithms
 // the files used were created independently of the pint-demo code, and is used as a
@@ -129,19 +78,19 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			// get public key from root CA cert
-			rootCAs, err := LoadTestRootCA(test.rootCACertPath)
+			rootCAs, err := testutil.LoadTestRootCA(test.rootCACertPath)
 			if err != nil {
 				t.Fatalf("Failed to load root CA: %v", err)
 			}
 
 			// Extract KIDs from the JWS headers to populate the mock KeyProvider
-			senderHeader, err := crypto.ParseHeader(string(envelope.EnvelopeManifestSignedContent))
+			senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
 			if err != nil {
 				t.Fatalf("Failed to parse sender JWS header: %v", err)
 			}
 
 			// Extract carrier KID from first transfer chain entry
-			firstEntryPayload, err := decodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
+			firstEntryPayload, err := testutil.DecodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
 			if err != nil {
 				t.Fatalf("Failed to decode first transfer chain entry: %v", err)
 			}
@@ -152,7 +101,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 				t.Fatalf("issuanceManifestSignedContent not found in first transfer chain entry")
 			}
 
-			carrierHeader, err := crypto.ParseHeader(issuanceManifestRaw)
+			carrierHeader, err := crypto.ParseJWSHeader(issuanceManifestRaw)
 			if err != nil {
 				t.Fatalf("Failed to parse carrier JWS header: %v", err)
 			}
@@ -161,13 +110,13 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			// Map KIDs to platform codes based on test data:
 			// - Ed25519 keys: EBL1 (platform), CAR1 (carrier)
 			// - RSA keys: EBL2 (platform), CAR2 (carrier)
-			keyProvider := newMockKeyProvider()
+			keyProvider := testutil.NewMockKeyProvider()
 			if test.name == "valid_Ed25519" {
-				keyProvider.addKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
-				keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
+				keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
+				keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 			} else {
-				keyProvider.addKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL2")
-				keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR2")
+				keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL2")
+				keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR2")
 			}
 
 			// Create verification input
@@ -327,7 +276,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BENV",
-			wantErrContains: "checksum mismatch",
+			wantErrContains: "last transfer chain entry checksum does not match the manifest",
 		},
 		{
 			name: "tampered transport document",
@@ -459,7 +408,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				t.Fatalf("Failed to read carrier public key: %v", err)
 			}
 
-			rootCAs, err := LoadTestRootCA(validRootCAPath)
+			rootCAs, err := testutil.LoadTestRootCA(validRootCAPath)
 			if err != nil {
 				t.Fatalf("Failed to load root CA: %v", err)
 			}
@@ -468,26 +417,26 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			}
 
 			// Extract KIDs and create mock KeyProvider
-			keyProvider := newMockKeyProvider()
+			keyProvider := testutil.NewMockKeyProvider()
 
 			// Only extract KIDs if the envelope has the required fields
 			// (some tests intentionally create invalid envelopes)
 			if len(envelope.EnvelopeManifestSignedContent) > 0 {
-				senderHeader, err := crypto.ParseHeader(string(envelope.EnvelopeManifestSignedContent))
+				senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
 				if err == nil {
 					// Use EBL1 as default platform for error condition tests
-					keyProvider.addKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
+					keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
 				}
 			}
 
 			if len(envelope.EnvelopeTransferChain) > 0 {
-				firstEntryPayload, err := decodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
+				firstEntryPayload, err := testutil.DecodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
 				if err == nil {
 					if issuanceManifestRaw, ok := firstEntryPayload["issuanceManifestSignedContent"].(string); ok {
-						carrierHeader, err := crypto.ParseHeader(issuanceManifestRaw)
+						carrierHeader, err := crypto.ParseJWSHeader(issuanceManifestRaw)
 						if err == nil {
 							// Use CAR1 as default carrier platform for error condition tests
-							keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
+							keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 						}
 					}
 				}
@@ -550,7 +499,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	// Load the valid envelope
-	envelope, err := loadValidTestEnvelope()
+	envelope, err := loadEnvelopeFromFile(t, validEnvelopePath)
 	if err != nil {
 		t.Fatalf("failed to load valid envelope: %v", err)
 	}
@@ -560,7 +509,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	// Decode the second entry's payload
-	secondEntryPayload, err := decodeJWSPayload(string(envelope.EnvelopeTransferChain[1]))
+	secondEntryPayload, err := testutil.DecodeJWSPayload(string(envelope.EnvelopeTransferChain[1]))
 	if err != nil {
 		t.Fatalf("failed to decode second entry payload: %v", err)
 	}
@@ -605,7 +554,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	envelope.EnvelopeManifestSignedContent = envelopeManifestJWS
 
 	// Load root CA
-	rootCAs, err := LoadTestRootCA(validRootCAPath)
+	rootCAs, err := testutil.LoadTestRootCA(validRootCAPath)
 	if err != nil {
 		t.Fatalf("Failed to load root CA: %v", err)
 	}
@@ -617,12 +566,12 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	// Extract KIDs and create mock KeyProvider
-	senderHeader, err := crypto.ParseHeader(string(envelope.EnvelopeManifestSignedContent))
+	senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
 	if err != nil {
 		t.Fatalf("Failed to parse sender JWS header: %v", err)
 	}
 
-	firstEntryPayload, err := decodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
+	firstEntryPayload, err := testutil.DecodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
 	if err != nil {
 		t.Fatalf("Failed to decode first transfer chain entry: %v", err)
 	}
@@ -632,14 +581,14 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		t.Fatalf("issuanceManifestSignedContent not found in first transfer chain entry")
 	}
 
-	carrierHeader, err := crypto.ParseHeader(issuanceManifestRaw)
+	carrierHeader, err := crypto.ParseJWSHeader(issuanceManifestRaw)
 	if err != nil {
 		t.Fatalf("Failed to parse carrier JWS header: %v", err)
 	}
 
-	keyProvider := newMockKeyProvider()
-	keyProvider.addKeyWithPlatform(senderHeader.KeyID, privateKey.Public(), "EBL1")
-	keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
+	keyProvider := testutil.NewMockKeyProvider()
+	keyProvider.AddKeyWithPlatform(senderHeader.KeyID, privateKey.Public(), "EBL1")
+	keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
@@ -659,10 +608,9 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 }
 
-// TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry tests that verification detects
-// when the manifest's lastEnvelopeTransferChainEntrySignedContentChecksum does not
-// match the final entry in the transfer chain.
-func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
+// TestVerifyEnvelopeTransfer_TamperedTransferChain tests that verification
+// detects when the transfer chain has been tampered with.
+func TestVerifyEnvelopeTransfer_TamperedTransferChain(t *testing.T) {
 
 	// Load test keys and certs
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
@@ -675,7 +623,7 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("Failed to read cert chain: %v", err)
 	}
 
-	envelope, err := loadValidTestEnvelope()
+	envelope, err := loadEnvelopeFromFile(t, validEnvelopePath)
 	if err != nil {
 		t.Fatalf("failed to load valid envelope: %v", err)
 	}
@@ -684,15 +632,18 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("test envelope must have at least 2 transfer chain entries")
 	}
 
-	// Create a new manifest pointing to the wrong entry (first instead of last)
+	// get the transport document
 	transportDocJSON, err := json.Marshal(envelope.TransportDocument)
 	if err != nil {
 		t.Fatalf("failed to marshal transport document: %v", err)
 	}
 
+	// Create a new manifest with the wrong last transfer chain entry
+	issuanceTransferChainEntry := envelope.EnvelopeTransferChain[0] // this is the issuance entry created by CAR1
+
 	envelopeManifest, err := NewEnvelopeManifestBuilder().
 		WithTransportDocument(transportDocJSON).
-		WithLastTransferChainEntry(envelope.EnvelopeTransferChain[0]). // should be [1]
+		WithLastTransferChainEntry(issuanceTransferChainEntry).
 		Build()
 	if err != nil {
 		t.Fatalf("failed to create envelope manifest: %v", err)
@@ -707,7 +658,7 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 	envelope.EnvelopeManifestSignedContent = envelopeManifestJWS
 
 	// Load root CA
-	rootCAs, err := LoadTestRootCA(validRootCAPath)
+	rootCAs, err := testutil.LoadTestRootCA(validRootCAPath)
 	if err != nil {
 		t.Fatalf("Failed to load root CA: %v", err)
 	}
@@ -719,12 +670,12 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 	}
 
 	// Extract KIDs and create mock KeyProvider
-	senderHeader, err := crypto.ParseHeader(string(envelope.EnvelopeManifestSignedContent))
+	senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
 	if err != nil {
 		t.Fatalf("Failed to parse sender JWS header: %v", err)
 	}
 
-	firstEntryPayload, err := decodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
+	firstEntryPayload, err := testutil.DecodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
 	if err != nil {
 		t.Fatalf("Failed to decode first transfer chain entry: %v", err)
 	}
@@ -734,14 +685,14 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 		t.Fatalf("issuanceManifestSignedContent not found in first transfer chain entry")
 	}
 
-	carrierHeader, err := crypto.ParseHeader(issuanceManifestRaw)
+	carrierHeader, err := crypto.ParseJWSHeader(issuanceManifestRaw)
 	if err != nil {
 		t.Fatalf("Failed to parse carrier JWS header: %v", err)
 	}
 
-	keyProvider := newMockKeyProvider()
-	keyProvider.addKeyWithPlatform(senderHeader.KeyID, privateKey.Public(), "EBL1")
-	keyProvider.addKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
+	keyProvider := testutil.NewMockKeyProvider()
+	keyProvider.AddKeyWithPlatform(senderHeader.KeyID, privateKey.Public(), "EBL1")
+	keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
 
 	// Verify the envelope - should fail
 	input := EnvelopeVerificationInput{
@@ -756,15 +707,108 @@ func TestVerifyEnvelopeTransfer_ManifestPointsToWrongEntry(t *testing.T) {
 	}
 
 	// Check for expected error
-	if !strings.Contains(err.Error(), "last transfer chain entry checksum mismatch") {
+	if !strings.Contains(err.Error(), "the last transfer chain entry checksum does not match the manifest") {
 		t.Errorf("Expected error about last transfer chain entry checksum mismatch, but got: %v", err)
 	}
 
 }
 
+// TestVerifyEnvelope_SenderPlatformMismatch tests that transfer chain entries signed by a platform
+// claiming to be a different platform are rejected.
+// This test verifies that the platform validation in verifyEnvelopeTransferChain correctly detects
+// when a platform signs an entry but claims a different eblPlatform.
+func TestVerifyEnvelope_SenderPlatformMismatch(t *testing.T) {
+	// Load the valid test envelope (Ed25519: sender claims to be EBL1, recipient=EBL2)
+	envelope, err := loadEnvelopeFromFile(t, validEnvelopePath)
+	if err != nil {
+		t.Fatalf("Failed to load test envelope: %v", err)
+	}
+
+	// Load keys
+	publicKey, err := crypto.ReadPublicKeyFromJWKFile(validPublicKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read public key: %v", err)
+	}
+
+	carrierPublicKey, err := crypto.ReadPublicKeyFromJWKFile(validCarrierPublicKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read carrier public key: %v", err)
+	}
+
+	rootCAs, err := testutil.LoadTestRootCA(validRootCAPath)
+	if err != nil {
+		t.Fatalf("Failed to load root CA: %v", err)
+	}
+
+	// Extract KIDs from all transfer chain entries
+	entry0Header, err := crypto.ParseJWSHeader(string(envelope.EnvelopeTransferChain[0]))
+	if err != nil {
+		t.Fatalf("Failed to parse entry 0 header: %v", err)
+	}
+
+	entry1Header, err := crypto.ParseJWSHeader(string(envelope.EnvelopeTransferChain[1]))
+	if err != nil {
+		t.Fatalf("Failed to parse entry 1 header: %v", err)
+	}
+
+	// Extract carrier KID from issuanceManifestSignedContent
+	firstEntryPayload, err := testutil.DecodeJWSPayload(string(envelope.EnvelopeTransferChain[0]))
+	if err != nil {
+		t.Fatalf("Failed to decode first entry: %v", err)
+	}
+
+	issuanceManifestRaw, ok := firstEntryPayload["issuanceManifestSignedContent"].(string)
+	if !ok {
+		t.Fatal("issuanceManifestSignedContent not found")
+	}
+
+	carrierHeader, err := crypto.ParseJWSHeader(issuanceManifestRaw)
+	if err != nil {
+		t.Fatalf("Failed to parse carrier header: %v", err)
+	}
+
+	// Create mock key provider that returns the wrong platform for the last transfer chain entry
+	// Both entries claim eblPlatform=EBL1, but we tell the mock that entry 1 was signed by EBL2
+	// This simulates a platform trying to impersonate another platform
+	keyProvider := testutil.NewMockKeyProvider()
+	keyProvider.AddKeyWithPlatform(entry0Header.KeyID, publicKey, "EBL1")         // Correct
+	keyProvider.AddKeyWithPlatform(entry1Header.KeyID, publicKey, "EBL2")         // WRONG - entry claims EBL1
+	keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1") // Correct
+
+	// Verify - should fail during transfer chain validation
+	input := EnvelopeVerificationInput{
+		Envelope:              envelope,
+		RootCAs:               rootCAs,
+		KeyProvider:           keyProvider,
+		RecipientPlatformCode: "EBL2", // Correct recipient
+	}
+
+	result, err := VerifyEnvelope(input)
+
+	// Should get an error about platform mismatch in the transfer chain
+	if err == nil {
+		t.Fatal("Expected error about sender platform mismatch, got nil")
+	}
+
+	expectedErr := "entry 1 was signed by platform EBL2"
+	if !strings.Contains(err.Error(), expectedErr) {
+		t.Errorf("Expected error containing %q, got: %v", expectedErr, err)
+	}
+
+	// Should still return partial result for duplicate detection
+	if result == nil {
+		t.Error("Expected partial result even on error, got nil")
+	} else if result.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
+		t.Error("Expected LastEnvelopeTransferChainEntrySignedContentChecksum to be set in partial result")
+	}
+
+	t.Logf("Sender platform mismatch correctly detected: %v", err)
+}
+
 // loadValidTestEnvelope loads the valid test envelope from the test data file
-func loadValidTestEnvelope() (*EblEnvelope, error) {
-	envelopeBytes, err := os.ReadFile(validEnvelopePath)
+func loadEnvelopeFromFile(t *testing.T, filePath string) (*EblEnvelope, error) {
+	t.Helper()
+	envelopeBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read envelope file: %w", err)
 	}
@@ -775,43 +819,4 @@ func loadValidTestEnvelope() (*EblEnvelope, error) {
 	}
 
 	return &envelope, nil
-}
-
-// decodeJWSPayload decodes the payload from a JWS string (header.payload.signature)
-func decodeJWSPayload(jws string) (map[string]any, error) {
-	parts := strings.Split(jws, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
-	}
-
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode payload: %w", err)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return nil, fmt.Errorf("failed to parse payload: %w", err)
-	}
-
-	return payload, nil
-}
-
-func LoadTestRootCA(certPath string) (*x509.CertPool, error) {
-
-	// get public key from root CA cert
-	certChain, err := crypto.ReadCertChainFromPEMFile(certPath)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read test certificate chain: %v", err)
-	}
-
-	if len(certChain) == 0 {
-		return nil, fmt.Errorf("empty certificate chain")
-	}
-
-	// Create a root cert pool contain the test root CA
-	rootCAs := x509.NewCertPool()
-	rootCAs.AddCert(certChain[0]) // the root CA is the only cert in root-ca.pem
-	return rootCAs, nil
 }

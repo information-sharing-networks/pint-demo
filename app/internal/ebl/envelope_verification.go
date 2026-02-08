@@ -2,43 +2,44 @@ package ebl
 
 // envelope_verification.go provides high-level functions for verifying DCSA EBL_PINT API envelope transfers.
 //
-// the verification process is as follows:
-// 1. Check envelope structure for required fields
-// 2. Verify JWS signature and validate x5c certificate chain (if present)
-// 3. store verified organisation information from the x5c certificate chain
-// 4. Determine trust level based on x5c certificate type
-// 5. Parse and validate manifest payload
-// 6. Verify transport document JSON checksum matches the manifest
-// 7. Verify transfer chain integrity
-// 8. Verify carrier's issuance manifest signature and document checksum
-// 9. Verify manifest checksum matches last transfer chain entry
-// 10. Verify the signing key belongs to the claimed sender platform
-// 11. Verify the manifest and last transfer chain entry were signed by the same key.
-// 12. Verify the platform code claimed in the evelope matches the plaform that owns the key that signed the envelope
-// 13. Verify the recieving platform in the envelope is the current platform
-//
-// Note these functions just validate the integrity of the envelope and transfer chain.
-// See the start_transfer.go handler for the other runtime checks needed to validate the transfer request.
-//
 // # Signature Verification Process
 //
-// The carrier and sender public keys used for verification are provided as input. In production
-// they should be fetched from the carrier/sender's JWKS endpoint (looked up by kid from JWS header)
-// or - if keys were exchanged out of band - obtained from the services' local key store.
+// Each envelope includes the following signatures:
 //
-// All signatures in the envelope (manifest + all transfer chain entries) must be
-// signed by the sending platform.
+//	- The issuanceManifestSignedContent (inside the first transfer chain entry) is signed by the carrier.
+// 	- Each transfer chain entry is signed by the platform that created it (identified by the eblPlatform field).
+//	- The envelope manifest is also signed by the platform that created the last transfer chain entry.
 //
-// The issuanceManifestSignedContent (inside the first transfer chain entry) is signed
-// by the carrier and should be verified to ensure the transport document JSON
-// and issueTo party JSON have not been tampered with and came from the expected carrier.
+// The signature verification logic prevents:
+//  - the sending platform tampering with a transfer chain entry created by another platform
+//    (since they don't have the private key to re-sign it)
+//  - substituting a transfer chain from another eBL
+//    (since the manifest and last transfer chain entry checksums must match)
+//  - tampering with the transfer chain by reordering, omitting or substituting entries
+//    (since the hash chain linking entries would be invalidated)
+//  - the sending platform posting ane envelope to the wrong platform
+//    (since the recipient platform in the last transfer chain entry must match the current platform)
+//  - platforms signing a transfer chain entry claiming to be from another platform
+//    (since the eblPlatform in each entry must match the platform that owns the signing key)
+//	- a non-approved platform creating a transfer chain entry
+//    (since the key ID in the signature must belong to a platform in the platform registry).
 //
-// see crypto.JwsVerify for details on the signature verification process.
+// Note: This verification cannot detect "double-spend" transfers (where a platform creates
+// multiple valid but conflicting transfer chains). External validation via a Control
+// Tracking Registry (CTR) is required to detect this.
+//
+// TODO: Some level of DISE (dispute) detection is possible by comparing the transfer
+// chain history from multiple transfers of the same eBL to detect forks (conflicting
+// histories). This is not yet implemented.
 //
 // # Platform Identification
 //
 // Platform identification is done by looking up the platform in the DCSA registry
-// using the JWS key ID (see app/internal/pint/keymanager.go)
+// using the JWS key ID.
+//
+// In production the keystore is populated with public keys retrireved either from the
+// platform's JWKS endpoint or from a local key store, depending on how the platform was
+// configured in the platform registry.
 //
 // # Key ID (kid) Usage
 // This app uses the JWK thumbprint of the signing public key as the key ID.
@@ -182,11 +183,14 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	if err != nil {
 		return nil, WrapInternalError(err, "failed to retrieve last entry checksum")
 	}
+
+	// always return a result struct from this point - the only required field is the last entry checksum.
+	// If verification fails later, the result struct will contain additional information about the failure
 	result.LastEnvelopeTransferChainEntrySignedContentChecksum = lastEntryChecksum
 
 	// Step 1: Validate envelope structure (required fields)
 	if err := input.Envelope.Validate(); err != nil {
-		return nil, WrapEnvelopeError(err, "envelope validation failed")
+		return result, WrapEnvelopeError(err, "envelope validation failed")
 	}
 
 	// Step 2: Verify JWS signature and validate x5c certificate chain (if present)
@@ -196,7 +200,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		input.RootCAs,
 	)
 	if err != nil {
-		return nil, WrapSignatureError(err, "JWS verification failed")
+		return result, WrapSignatureError(err, "JWS verification failed")
 	}
 
 	// Step 3: extract the domain from the leaf (platform) certificate if the x5c header was present
@@ -219,17 +223,17 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	// Step 4: Determine trust level
 	trustLevel, err := crypto.DetermineTrustLevel(string(input.Envelope.EnvelopeManifestSignedContent))
 	if err != nil {
-		return nil, WrapSignatureError(err, "failed to determine trust level")
+		return result, WrapSignatureError(err, "failed to determine trust level")
 	}
 	result.TrustLevel = trustLevel
 
 	// Step 5: Parse and validate the manifest payload
 	manifest := &EnvelopeManifest{}
 	if err := json.Unmarshal(manifestPayload, manifest); err != nil {
-		return nil, WrapSignatureError(err, "failed to parse manifest payload")
+		return result, WrapSignatureError(err, "failed to parse manifest payload")
 	}
 	if err := manifest.Validate(); err != nil {
-		return nil, WrapSignatureError(err, "manifest validation failed")
+		return result, WrapSignatureError(err, "manifest validation failed")
 	}
 	result.Manifest = manifest
 
@@ -241,7 +245,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		manifest.TransportDocumentChecksum,
 	)
 	if err != nil {
-		return nil, WrapEnvelopeError(err, "transport document verification failed")
+		return result, WrapEnvelopeError(err, "transport document verification failed")
 	}
 	result.TransportDocumentChecksum = manifest.TransportDocumentChecksum
 	result.TransportDocumentReference = transportDocumentResult.TransportDocumentReference
@@ -255,7 +259,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		input.RootCAs,
 	)
 	if err != nil {
-		return nil, WrapEnvelopeError(err, "transfer chain verification failed")
+		return result, WrapEnvelopeError(err, "transfer chain verification failed")
 	}
 	result.TransferChain = transferChain
 
@@ -269,7 +273,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		input.KeyProvider,
 		input.RootCAs,
 	); err != nil {
-		return nil, WrapEnvelopeError(err, "issuance manifest verification failed")
+		return result, WrapEnvelopeError(err, "issuance manifest verification failed")
 	}
 
 	// Step 9: verify manifest checksum matches last transfer chain entry
@@ -281,46 +285,44 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	}
 
 	// Step 10: Extract and validate recipient platform from last transaction
-	// (the recipient in the last transaction identifies the intended receiving platform)
+	// (the recipient in the latest transaction identifies the intended receiving platform)
 	lastEntry := result.LastTransferChainEntry
 	if len(lastEntry.Transactions) == 0 {
-		return nil, NewEnvelopeError("last transfer chain entry must have at least one transaction")
+		return result, NewEnvelopeError("last transfer chain entry must have at least one transaction")
 	}
 
 	lastTransaction := lastEntry.Transactions[len(lastEntry.Transactions)-1]
 	if lastTransaction.Recipient == nil {
-		return nil, NewEnvelopeError("recipient is required in last transaction")
+		return result, NewEnvelopeError("recipient is required in last transaction")
 	}
 
 	recipientPlatform := lastTransaction.Recipient.EblPlatform
 	if recipientPlatform == "" {
-		return nil, NewEnvelopeError("recipient.eblPlatform is required")
+		return result, NewEnvelopeError("recipient.eblPlatform is required")
 	}
 
 	// Extract sender platform from last entry
 	senderPlatform := lastEntry.EblPlatform
 	if senderPlatform == "" {
-		return nil, NewEnvelopeError("eblPlatform is required in last transfer chain entry")
+		return result, NewEnvelopeError("eblPlatform is required in last transfer chain entry")
 	}
 
 	// Extract the key ID (kid) from the envelope manifest signature header
-	manifestHeader, err := crypto.ParseHeader(string(input.Envelope.EnvelopeManifestSignedContent))
+	manifestHeader, err := crypto.ParseJWSHeader(string(input.Envelope.EnvelopeManifestSignedContent))
 	if err != nil {
-		return nil, WrapSignatureError(err, "failed to parse manifest header")
+		return result, WrapSignatureError(err, "failed to parse manifest header")
 	}
 
 	// Extract the key ID (kid) from the last transfer chain entry signature header
-	lastEntryHeader, err := crypto.ParseHeader(string(input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]))
+	lastEntryHeader, err := crypto.ParseJWSHeader(string(input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]))
 	if err != nil {
-		return nil, WrapSignatureError(err, "failed to parse last transfer chain entry header")
+		return result, WrapSignatureError(err, "failed to parse last transfer chain entry header")
 	}
 
-	// Step 11: Verify that the manifest and last transfer chain entry were signed by the same key.
-	//
-	// TODO: this assume that the manifest and last transfer chain entry are signed by the same key.
-	// (logical but not expicit in the spec - need to check)
+	// Step 10: Verify that the manifest and last transfer chain entry were signed by the same key.
+	// This prevents the sender substituting a different transfer chain signed by another platform.
 	if manifestHeader.KeyID != lastEntryHeader.KeyID {
-		return nil, NewEnvelopeError(fmt.Sprintf(
+		return result, NewEnvelopeError(fmt.Sprintf(
 			"envelope manifest and last transfer chain entry must be signed by the same key: "+
 				"manifest kid=%s, last entry kid=%s",
 			manifestHeader.KeyID, lastEntryHeader.KeyID))
@@ -330,20 +332,10 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	result.SenderPlatform = senderPlatform
 	result.SenderKeyID = manifestHeader.KeyID
 
-	// Step 12: Verify the platform code claimed in the evelope matches the plaform that owns the key that signed the envelope
-	// This prevents a platform from signing with their own key but claiming to be a different platform
-	actualPlatform, err := input.KeyProvider.LookupPlatformByKeyID(context.Background(), result.SenderKeyID)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to lookup platform for key %s", result.SenderKeyID))
-	}
-	if result.SenderPlatform != actualPlatform {
-		return nil, NewEnvelopeError(fmt.Sprintf(
-			"the envelope was signed by platform %s (kid=%s) but the last transfer chain entry claims eblPlatform %s",
-			actualPlatform, result.SenderKeyID, result.SenderPlatform))
-	}
-	// Step 13: Verify the recieving platform in the envelope is the current platform
+	// Step 11: Verify the recieving platform in the envelope is the current platform
+	// This prevents a platform from accepting an envelope that was not addressed to it
 	if result.RecipientPlatform != input.RecipientPlatformCode {
-		return nil, NewEnvelopeError(fmt.Sprintf(
+		return result, NewEnvelopeError(fmt.Sprintf(
 			"the envelope is addressed to platform %s but this platform is %s",
 			result.RecipientPlatform, input.RecipientPlatformCode))
 	}
@@ -466,12 +458,17 @@ func verifyIssuanceManifest(
 
 // verifyEnvelopeTransferChain verifies the transfer chain integrity and returns all verified entries.
 //
-// This function verifies the last entry checksum matches the manifest and checks the integrity of the transfer chain.
-//
-// Note: All transfer chain entries are signed by the sending platform.
+// This function verifies:
+//  1. The last entry checksum matches the manifest
+//  2. Each entry's JWS signature is valid
+//  3. The platform that signed each entry matches the eblPlatform claimed in that entry.
+//  4. The chain links are intact (each entry references the previous entry's checksum)
 //
 // The issuanceManifestSignedContent (inside the first entry) is signed by the carrier
 // and is verified separately in verifyIssuanceManifest().
+//
+// **Note** this function cannot detect double spends (where the same eBL is sent twice with different transfer chains)
+// this will need a CTR lookup to detect.
 //
 // Returns all verified transfer chain entries in order (first to last)
 func verifyEnvelopeTransferChain(
@@ -486,6 +483,7 @@ func verifyEnvelopeTransferChain(
 	}
 
 	// Step 1: Verify last entry checksum matches the checksum in the manifest
+	// this prevents an attacker from replacing the last entry with a valid one from a different transfer.
 	lastEntryJWS := envelopeTransferChain[len(envelopeTransferChain)-1]
 	lastEntryChecksum, err := crypto.Hash([]byte(lastEntryJWS))
 	if err != nil {
@@ -493,7 +491,7 @@ func verifyEnvelopeTransferChain(
 	}
 
 	if lastEntryChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
-		return nil, NewEnvelopeError(fmt.Sprintf("last transfer chain entry checksum mismatch: expected %s, got %s",
+		return nil, NewEnvelopeError(fmt.Sprintf("the last transfer chain entry checksum does not match the manifest: expected %s, got %s",
 			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryChecksum))
 	}
 
@@ -501,12 +499,13 @@ func verifyEnvelopeTransferChain(
 	// We allocate the slice with the exact size needed
 	allEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
 
-	// Start from the last entry and work backwards
+	// Start from the last entry and walk backwards to the first entry
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
 		currentEntryJWS := envelopeTransferChain[i]
 
-		// Verify current entry signature using KeyProvider
-		// The KeyProvider will extract the KID from each entry's JWS header and fetch the appropriate key
+		// Step 2a: Verify signature of the entry
+		// Each entry in the chain is signed by the platform that created it.
+		// This prevents a platform from tampering with an entry created by another platform (since they don't have the private key)
 		currentPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
 			string(currentEntryJWS),
 			keyProvider,
@@ -527,11 +526,40 @@ func verifyEnvelopeTransferChain(
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
+		// Step 2b: Verify that the platform that signed this entry matches the eblPlatform claimed in the entry payload.
+		// This blocks transfers if any of the chain entries were signed by a different platform than
+		// the platform claimed in the transfer chain entry (envelopeTransferChainEntry.eblPlatform)
+		// If previous receiving platforms are functioning correctly they will not accept incorrectly addresssed envelopes
+		// so this problem should only ever be detected in the latest transfer chain entry
+		// (we check them all just in case).
+		kp, ok := keyProvider.(KeyProviderWithLookup)
+		if !ok {
+			return nil, NewEnvelopeError("keyProvider must implement KeyProviderWithLookup for platform validation")
+		}
+
+		// Extract the key ID from the JWS header
+		entryHeader, err := crypto.ParseJWSHeader(string(currentEntryJWS))
+		if err != nil {
+			return nil, WrapSignatureError(err, fmt.Sprintf("failed to parse entry %d header", i))
+		}
+
+		signingPlatform, err := kp.LookupPlatformByKeyID(context.Background(), entryHeader.KeyID)
+		if err != nil {
+			return nil, WrapSignatureError(err, fmt.Sprintf("failed to lookup platform for key %s in entry %d", entryHeader.KeyID, i))
+		}
+
+		if currentEntry.EblPlatform != signingPlatform {
+			return nil, NewEnvelopeError(fmt.Sprintf(
+				"entry %d was signed by platform %s (kid=%s) but claims eblPlatform %s",
+				i, signingPlatform, entryHeader.KeyID, currentEntry.EblPlatform))
+		}
+
 		// Store the entry in the result slice
 		allEntries[i] = &currentEntry
 
+		// Step 2c: verify the chain link from this entry to the previous entry (if not the first entry)
+		// this prevents an attacker from replacing a valid entry with a valid one from a different transfer.
 		if i > 0 {
-			// verify the link to the previous entry
 			previousEntryJWS := envelopeTransferChain[i-1]
 
 			// Compute checksum of previous entry
@@ -558,7 +586,7 @@ func verifyEnvelopeTransferChain(
 	firstChecksum := allEntries[0].TransportDocumentChecksum
 
 	if firstChecksum != manifest.TransportDocumentChecksum {
-		return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum mismatch: expected %s, got %s",
+		return nil, NewEnvelopeError(fmt.Sprintf("transport doc checksum in first transfer chain entry does not match manifest: expected %s, got %s",
 			manifest.TransportDocumentChecksum, firstChecksum))
 	}
 

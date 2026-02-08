@@ -5,9 +5,6 @@ package ebl
 // The transfer chain represents the complete history of an eBL document, including issuance,
 // transfers, endorsements, and surrenders across different eBL platforms.
 // each entry in the transfer chain represents a batch of transactions that happened on a single platform.
-//
-// TODO improve validation using DCSA reference data to confirm valid ebl platforms, action codes etc.
-
 import (
 	"crypto/x509"
 	"encoding/json"

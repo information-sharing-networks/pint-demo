@@ -3,7 +3,6 @@
 package integration
 
 import (
-	"context"
 	"crypto/ed25519"
 	"crypto/rsa"
 	"fmt"
@@ -17,14 +16,7 @@ import (
 
 func TestJWKSEndpoint(t *testing.T) {
 
-	// note the the JWKS returned in this test is configured by the env vars set in startInProcessServer
-	// currently the jwks is for ed25519-eblplatform.example.com.private.jwk which has the public key thumbprint (key id) ea8904dc74e9395a
-
-	ctx := context.Background()
-	testDB := setupCleanDatabase(t, ctx)
-	testEnv := setupTestEnvironment(testDB)
-	testDatabaseURL := getDatabaseURL()
-	baseURL, stopServer := startInProcessServer(t, ctx, testEnv.dbConn, testDatabaseURL)
+	testEnv := startInProcessServer(t, "EBL1")
 	testDomain := "ed25519-eblplatform.example.com"
 
 	// the jwk returned by the endpoint should match with the manually configured key for the testDomain
@@ -55,9 +47,9 @@ func TestJWKSEndpoint(t *testing.T) {
 		t.Fatalf("failed to get key id from public key file: %v", err)
 	}
 
-	defer stopServer()
+	defer testEnv.shutdown()
 
-	jwksURL := baseURL + "/.well-known/jwks.json"
+	jwksURL := testEnv.baseURL + "/.well-known/jwks.json"
 
 	resp, err := http.Get(jwksURL)
 	if err != nil {

@@ -95,12 +95,9 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 // note don't run the subtests individually since they rely on the previous state
 func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	ctx := context.Background()
-	testDB := setupCleanDatabase(t, ctx)
-	testEnv := setupTestEnvironment(testDB)
-	testDatabaseURL := getDatabaseURL()
-	baseURL, stopServer := startInProcessServer(t, ctx, testEnv.dbConn, testDatabaseURL)
-	envelopesURL := baseURL + "/v3/envelopes"
-	defer stopServer()
+	testEnv := startInProcessServer(t, "EBL2")
+	envelopesURL := testEnv.baseURL + "/v3/envelopes"
+	defer testEnv.shutdown()
 
 	// Load test envelope and manifest
 	envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
@@ -212,7 +209,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Upload the document
-			url := baseURL + "/v3/envelopes/" + envelopeRef + "/additional-documents/" + tt.documentChecksum
+			url := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/additional-documents/" + tt.documentChecksum
 			base64Content := base64.StdEncoding.EncodeToString(tt.documentContent)
 
 			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader([]byte(base64Content)))
@@ -253,7 +250,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			}
 
 			// Check the envelope status by POSTing the envelope again
-			state := getAdditionalDocumentsState(t, baseURL, testEnvelopeWithDocsPath)
+			state := getAdditionalDocumentsState(t, testEnv.baseURL, testEnvelopeWithDocsPath)
 
 			if len(state.missingDocs) != tt.expectedMissingCount {
 				t.Errorf("Expected %d missing documents, got %d: %v", tt.expectedMissingCount, len(state.missingDocs), state.missingDocs)
@@ -264,13 +261,13 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 				t.Errorf("Expected document %s not to be in missing list", tt.documentChecksum)
 			}
 
-			t.Logf("✓ %s (missing: %d)", tt.name, len(state.missingDocs))
+			t.Logf("%s (missing: %d)", tt.name, len(state.missingDocs))
 		})
 	}
 
 	// After all documents are uploaded, call finish-transfer endpoint to complete the transfer
 	t.Run("6. Finish transfer (expect RECE)", func(t *testing.T) {
-		finishURL := baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
+		finishURL := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
 		req, err := http.NewRequest(http.MethodPut, finishURL, nil)
 		if err != nil {
 			t.Fatalf("Failed to create finish-transfer request: %v", err)
@@ -311,12 +308,12 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Errorf("Expected 0 missing documents, got %d", len(payload.MissingAdditionalDocumentChecksums))
 		}
 
-		t.Logf("✓ Transfer finished with RECE response (received: %d)", len(payload.ReceivedAdditionalDocumentChecksums))
+		t.Logf("Transfer finished with RECE response (received: %d)", len(payload.ReceivedAdditionalDocumentChecksums))
 	})
 
 	// Retry finish-transfer to verify DUPE response
 	t.Run("7. Retry finish transfer (expect DUPE)", func(t *testing.T) {
-		finishURL := baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
+		finishURL := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
 		req, err := http.NewRequest(http.MethodPut, finishURL, nil)
 		if err != nil {
 			t.Fatalf("Failed to create finish-transfer request: %v", err)
@@ -347,20 +344,16 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Errorf("Expected responseCode 'DUPE', got '%s'", payload.ResponseCode)
 		}
 
-		t.Logf("✓ Retry finish-transfer returned DUPE response")
+		t.Logf("Retry finish-transfer returned DUPE response")
 	})
 }
 
 // TestTransferAdditionalDocument_ErrorCases tests various error scenarios
 // These tests are independent and don't rely on sequential state
 func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
-	ctx := context.Background()
-	testDB := setupCleanDatabase(t, ctx)
-	testEnv := setupTestEnvironment(testDB)
-	testDatabaseURL := getDatabaseURL()
-	baseURL, stopServer := startInProcessServer(t, ctx, testEnv.dbConn, testDatabaseURL)
-	envelopesURL := baseURL + "/v3/envelopes"
-	defer stopServer()
+	testEnv := startInProcessServer(t, "EBL2")
+	envelopesURL := testEnv.baseURL + "/v3/envelopes"
+	defer testEnv.shutdown()
 
 	// Load test envelope and manifest
 	envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
@@ -469,7 +462,7 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url := baseURL + "/v3/envelopes/" + tt.envelopeRef + "/additional-documents/" + tt.documentChecksum
+			url := testEnv.baseURL + "/v3/envelopes/" + tt.envelopeRef + "/additional-documents/" + tt.documentChecksum
 
 			// Encode content as base64 unless it's already invalid base64 test
 			var body []byte
@@ -513,10 +506,10 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 					t.Error("Expected reason to be populated")
 				}
 
-				t.Logf("✓ %s (response code: %s)", tt.name, payload.ResponseCode)
+				t.Logf("%s (response code: %s)", tt.name, payload.ResponseCode)
 			} else {
 				// For non-PINT errors, just verify we got an error response
-				t.Logf("✓ %s", tt.name)
+				t.Logf("%s", tt.name)
 			}
 		})
 	}

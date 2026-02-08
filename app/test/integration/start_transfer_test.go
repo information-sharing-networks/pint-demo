@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -17,14 +18,10 @@ import (
 
 // TestStartTransfer does an end-2-end test of the POST /v3/envelopes endpointd
 func TestStartTransfer(t *testing.T) {
-	ctx := context.Background()
-	testDB := setupCleanDatabase(t, ctx)
-	testEnv := setupTestEnvironment(testDB)
-	testDatabaseURL := getDatabaseURL()
-	baseURL, stopServer := startInProcessServer(t, ctx, testEnv.dbConn, testDatabaseURL)
-	defer stopServer()
+	testEnv := startInProcessServer(t, "EBL2")
+	defer testEnv.shutdown()
 
-	envelopesURL := baseURL + "/v3/envelopes"
+	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	// the test envelope with additional documents (1 ebl visualization, 2 supporting documents)
 	testEnvelopeWithDocsPath := "../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
 
@@ -75,9 +72,10 @@ func TestStartTransfer(t *testing.T) {
 	}
 	for _, test := range testData {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
 			if test.resetDatabase {
 				t.Log("Resetting database for test")
-				cleanupDatabase(t, testDB)
+				cleanupDatabase(t, testEnv.pool)
 			}
 
 			// Load valid test envelope
@@ -158,7 +156,7 @@ func TestStartTransfer(t *testing.T) {
 				if len(payload.ReceivedAdditionalDocumentChecksums) != test.expectedReceivedDocs {
 					t.Errorf("Expected %d received additional documents, got %d", test.expectedReceivedDocs, len(payload.ReceivedAdditionalDocumentChecksums))
 				}
-				t.Logf("✓ transfer accepted with 200/%v response", payload.ResponseCode)
+				t.Logf("transfer accepted with 200/%v response", payload.ResponseCode)
 
 				// get the envelope reference from the last transfer chain entry checksum (the response does not contain the envelope reference)
 				envelope, err := testEnv.queries.GetEnvelopeByLastChainEntryChecksum(ctx, expectedLastChainChecksum)
@@ -286,13 +284,12 @@ func TestStartTransfer(t *testing.T) {
 					t.Errorf("Expected %d missing additional documents, got %d", test.expectedMissingDocs, len(parsedResponse.MissingAdditionalDocumentChecksums))
 				}
 
-				t.Logf("✓ transfer started but docs outstanding (201 response)")
+				t.Logf("transfer started but docs outstanding (201 response)")
 			}
 		})
 
 	}
 	t.Run("malformed JSON returns 400 Bad Request", func(t *testing.T) {
-		t.Skip("Skipping malformed JSON test")
 		malformedJSON := []byte(`{"invalid": json}`)
 
 		resp, err := http.Post(envelopesURL, "application/json", bytes.NewReader(malformedJSON))
@@ -319,12 +316,11 @@ func TestStartTransfer(t *testing.T) {
 		if len(errorResp.Errors) == 0 {
 			t.Error("Expected errors array to be populated")
 		}
-		t.Logf("✓ Malformed JSON: Received error response: %s", errorResp.Errors[0].ErrorCodeText)
+		t.Logf("Malformed JSON: Received error response: %s", errorResp.Errors[0].ErrorCodeText)
 	})
 
 	// skip this test
 	t.Run("tampered envelope returns 422 Unprocessable Entity", func(t *testing.T) {
-		t.Skip("Skipping tampered envelope test")
 		// Load valid test envelope
 		envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
 		if err != nil {
@@ -384,6 +380,90 @@ func TestStartTransfer(t *testing.T) {
 			t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
 		}
 
-		t.Logf("✓ Tampered envelope: Received BENV response")
+		t.Logf("Tampered envelope: Received BENV response")
 	})
+}
+
+// TestStartTransfer_RecipientPlatformValidation tests that envelopes addressed to the wrong platform are rejected
+func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
+	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
+	testEnvelopePath := "../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+
+	tests := []struct {
+		name            string
+		serverPlatform  string // What platform code to start the server as
+		expectedStatus  int
+		expectedCode    pint.ResponseCode
+		wantErrContains string
+	}{
+		{
+			name:           "correct_recipient_platform",
+			serverPlatform: "EBL2",
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:            "wrong_recipient_platform",
+			serverPlatform:  "EBL1",
+			expectedStatus:  http.StatusUnprocessableEntity,
+			expectedCode:    pint.ResponseCodeBENV,
+			wantErrContains: "envelope is addressed to platform EBL2 but this platform is EBL1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Start server as the specified platform
+			env := startInProcessServer(t, tt.serverPlatform)
+			defer env.shutdown()
+
+			envelopesURL := env.baseURL + "/v3/envelopes"
+
+			// Load and POST the envelope
+			envelopeData, err := os.ReadFile(testEnvelopePath)
+			if err != nil {
+				t.Fatalf("Failed to read test envelope: %v", err)
+			}
+
+			resp, err := http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+			if err != nil {
+				t.Fatalf("Failed to POST envelope: %v", err)
+			}
+			defer resp.Body.Close()
+
+			// Verify status code
+			if resp.StatusCode != tt.expectedStatus {
+				t.Fatalf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)
+			}
+
+			if tt.expectedStatus == http.StatusUnprocessableEntity {
+				// Decode the signed error response
+				var signedResponse pint.SignedEnvelopeTransferFinishedResponse
+				if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
+					t.Fatalf("Failed to decode signed response: %v", err)
+				}
+
+				// Decode the JWS payload
+				payload := decodeSignedFinishedResponse(t, signedResponse)
+
+				// Verify the response code is BENV
+				if payload.ResponseCode != tt.expectedCode {
+					t.Errorf("Expected responseCode %q, got %q", tt.expectedCode, payload.ResponseCode)
+				}
+
+				// Verify the reason contains expected error
+				if payload.Reason == nil || !strings.Contains(*payload.Reason, tt.wantErrContains) {
+					t.Errorf("Expected reason to contain %q, got %v", tt.wantErrContains, payload.Reason)
+				}
+
+				// Verify lastEnvelopeTransferChainEntrySignedContentChecksum is set
+				if payload.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
+					t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
+				}
+
+				t.Logf("Wrong recipient platform: Received BENV response with reason: %s", *payload.Reason)
+			} else {
+				t.Logf("Correct recipient platform: Transfer accepted")
+			}
+		})
+	}
 }

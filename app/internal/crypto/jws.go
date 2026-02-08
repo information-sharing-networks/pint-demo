@@ -418,9 +418,10 @@ func SignJSONWithRSA(payload []byte, privateKey *rsa.PrivateKey, keyID string) (
 	return string(signed), nil
 }
 
-// ParseHeader extracts the header from a JWS without verifying
+// ParseJWSHeader extracts the header from a JWS without verifying
+// use this function if you need to extract the key ID (JWSHeader.KeyID)
 // The function returns an error if the header contains something other than the fields in JWSHeader
-func ParseHeader(jwsString string) (JWSHeader, error) {
+func ParseJWSHeader(jwsString string) (JWSHeader, error) {
 	// Parse the JWS message
 	msg, err := jws.Parse([]byte(jwsString))
 	if err != nil {
