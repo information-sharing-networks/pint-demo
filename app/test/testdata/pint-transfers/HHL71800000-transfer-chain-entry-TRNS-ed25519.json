@@ -2,6 +2,7 @@
   "eblPlatform": "EBL1",
   "transportDocumentChecksum": "bba562710b3f15a6ae91b9d834f08c32f32f964776807d0b116a846bbf3c4238",
   "previousEnvelopeTransferChainEntrySignedContentChecksum": "57414f20083d98c50a00152a7517e9c6cdd5ec76b02074f4280529dd321758aa",
+  
   "transactions": [
     {
       "actionCode": "TRANSFER",
