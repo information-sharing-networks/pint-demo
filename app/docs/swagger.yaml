@@ -9,6 +9,44 @@ definitions:
           type: object
         type: array
     type: object
+  commonhandlers.PartyIdentifyingCodeRequest:
+    properties:
+      code_list_name:
+        type: string
+      code_list_provider:
+        type: string
+      party_code:
+        type: string
+    type: object
+  commonhandlers.PartyIdentifyingCodeResponse:
+    properties:
+      code_list_name:
+        type: string
+      code_list_provider:
+        type: string
+      id:
+        type: string
+      party_code:
+        type: string
+      party_id:
+        type: string
+    type: object
+  commonhandlers.PartyRequest:
+    properties:
+      active:
+        type: boolean
+      party_name:
+        type: string
+    type: object
+  commonhandlers.PartyResponse:
+    properties:
+      active:
+        type: boolean
+      id:
+        type: string
+      party_name:
+        type: string
+    type: object
   commonhandlers.VersionResponse:
     properties:
       build_time:
@@ -508,6 +546,173 @@ paths:
       summary: Get JWK set
       tags:
       - Common
+  /admin/parties:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Party details
+        in: body
+        name: party
+        required: true
+        schema:
+          $ref: '#/definitions/commonhandlers.PartyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/commonhandlers.PartyResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+      summary: Create a new party
+      tags:
+      - Admin
+  /admin/parties/:
+    get:
+      parameters:
+      - description: Code list provider
+        in: query
+        name: code_list_provider
+        required: true
+        type: string
+      - description: Party code
+        in: query
+        name: party_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/commonhandlers.PartyResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "404":
+          description: Party not found
+          schema:
+            type: string
+      summary: Get party by party code
+      tags:
+      - Admin
+  /admin/parties/{partyID}:
+    get:
+      parameters:
+      - description: Party ID
+        in: path
+        name: partyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/commonhandlers.PartyResponse'
+        "400":
+          description: Invalid party ID
+          schema:
+            type: string
+        "404":
+          description: Party not found
+          schema:
+            type: string
+      summary: Get party by ID
+      tags:
+      - Admin
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Party ID
+        in: path
+        name: partyID
+        required: true
+        type: string
+      - description: Party details
+        in: body
+        name: party
+        required: true
+        schema:
+          $ref: '#/definitions/commonhandlers.PartyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/commonhandlers.PartyResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "404":
+          description: Party not found
+          schema:
+            type: string
+      summary: Update an existing party
+      tags:
+      - Admin
+  /admin/parties/{partyID}/codes:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Party ID
+        in: path
+        name: partyID
+        required: true
+        type: string
+      - description: Code details
+        in: body
+        name: code
+        required: true
+        schema:
+          $ref: '#/definitions/commonhandlers.PartyIdentifyingCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/commonhandlers.PartyIdentifyingCodeResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+      summary: Add an identifying code to a party
+      tags:
+      - Admin
+  /admin/parties/{partyName}:
+    get:
+      parameters:
+      - description: Party name
+        in: path
+        name: partyName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/commonhandlers.PartyResponse'
+        "404":
+          description: Party not found
+          schema:
+            type: string
+      summary: Get party by party name
+      tags:
+      - Admin
   /health/live:
     get:
       description: Check if the signalsd http service is alive and responding.
@@ -775,9 +980,8 @@ paths:
 
         **Error Responses (signed)**
 
-        `409 Conflict` - Missing documents (MDOC) or disputed envelope (DISE) (signed response)
-        - MDOC: One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
-        - DISE: Envelope contradicts transfer chain knowledge (not yet implemented)
+        `409 Conflict` - Missing documents (MDOC)
+        - One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
 
         `422 Unprocessable Entity` - Envelope rejected (BSIG/BENV) (signed response)
         - BSIG: Signature validation failed
@@ -848,3 +1052,6 @@ tags:
   name: PINT
 - description: Server API endpoints (jwks, health, readiness, version, etc.)
   name: Common
+- description: Manage the adminstration creation of parties (legal entities). These
+    endpoints are unprotected and for use in development and testing only.
+  name: Admin

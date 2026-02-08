@@ -41,6 +41,262 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/parties": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Create a new party",
+                "parameters": [
+                    {
+                        "description": "Party details",
+                        "name": "party",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/parties/": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get party by party code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Code list provider",
+                        "name": "code_list_provider",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Party code",
+                        "name": "party_code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Party not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/parties/{partyID}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get party by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Party ID",
+                        "name": "partyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid party ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Party not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Update an existing party",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Party ID",
+                        "name": "partyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Party details",
+                        "name": "party",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Party not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/parties/{partyID}/codes": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Add an identifying code to a party",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Party ID",
+                        "name": "partyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Code details",
+                        "name": "code",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyIdentifyingCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyIdentifyingCodeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/parties/{partyName}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get party by party name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Party name",
+                        "name": "partyName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Party not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/health/live": {
             "get": {
                 "description": "Check if the signalsd http service is alive and responding.",
@@ -243,7 +499,7 @@ const docTemplate = `{
         },
         "/v3/envelopes/{envelopeReference}/finish-transfer": {
             "put": {
-                "description": "Use this endpoint after you have finished transferring all additional documents.\n\nPrior to accepting envelope transfer, the receiving platform ensures that all supporting documents listed in the envelope manifest have been successfully transferred.\n\n**Success Responses**\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (RECE)\n\nAll additional documents have been received and the envelope transfer has been accepted on the platform.\n\nThe payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.\n(See the ` + "`" + `default` + "`" + ` response for details of the response payload)\n\n**retry handling:**\nwhen the sender retries a transfer that has already been accepted, the receiver will return a signed response and\nthe payload will contain a struture identical to the original response, but with a response code of DUPE\nand an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.\n\n**Notes**\n\n**Error Responses (signed)**\n\n` + "`" + `409 Conflict` + "`" + ` - Missing documents (MDOC) or disputed envelope (DISE) (signed response)\n- MDOC: One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)\n- DISE: Envelope contradicts transfer chain knowledge (not yet implemented)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV) (signed response)\n- BSIG: Signature validation failed\n- BENV: Envelope validation failed\n\nsee the ` + "`" + `default` + "`" + ` response for details of the response payload\n\n**Error Responses (unsigned)**\n\n` + "`" + `400 Bad Request` + "`" + ` - Malformed request - returned as an unsigned error response\n` + "`" + `500 Internal Server Error` + "`" + ` - Internal error - returned as an unsigned error response\n\n**Note** unsigned responses cannot be verified as originating from the receiving platform -\ndo not assume an unsigned error response means the transfer was rejected.\nOnly determine transfer acceptance/rejection from signed responses.\n",
+                "description": "Use this endpoint after you have finished transferring all additional documents.\n\nPrior to accepting envelope transfer, the receiving platform ensures that all supporting documents listed in the envelope manifest have been successfully transferred.\n\n**Success Responses**\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (RECE)\n\nAll additional documents have been received and the envelope transfer has been accepted on the platform.\n\nThe payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.\n(See the ` + "`" + `default` + "`" + ` response for details of the response payload)\n\n**retry handling:**\nwhen the sender retries a transfer that has already been accepted, the receiver will return a signed response and\nthe payload will contain a struture identical to the original response, but with a response code of DUPE\nand an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.\n\n**Notes**\n\n**Error Responses (signed)**\n\n` + "`" + `409 Conflict` + "`" + ` - Missing documents (MDOC)\n- One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV) (signed response)\n- BSIG: Signature validation failed\n- BENV: Envelope validation failed\n\nsee the ` + "`" + `default` + "`" + ` response for details of the response payload\n\n**Error Responses (unsigned)**\n\n` + "`" + `400 Bad Request` + "`" + ` - Malformed request - returned as an unsigned error response\n` + "`" + `500 Internal Server Error` + "`" + ` - Internal error - returned as an unsigned error response\n\n**Note** unsigned responses cannot be verified as originating from the receiving platform -\ndo not assume an unsigned error response means the transfer was rejected.\nOnly determine transfer acceptance/rejection from signed responses.\n",
                 "consumes": [
                     "application/json"
                 ],
@@ -325,6 +581,65 @@ const docTemplate = `{
                         "type": "object",
                         "additionalProperties": {}
                     }
+                }
+            }
+        },
+        "commonhandlers.PartyIdentifyingCodeRequest": {
+            "type": "object",
+            "properties": {
+                "code_list_name": {
+                    "type": "string"
+                },
+                "code_list_provider": {
+                    "type": "string"
+                },
+                "party_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "commonhandlers.PartyIdentifyingCodeResponse": {
+            "type": "object",
+            "properties": {
+                "code_list_name": {
+                    "type": "string"
+                },
+                "code_list_provider": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "party_code": {
+                    "type": "string"
+                },
+                "party_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "commonhandlers.PartyRequest": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "party_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "commonhandlers.PartyResponse": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "party_name": {
+                    "type": "string"
                 }
             }
         },
@@ -853,6 +1168,10 @@ const docTemplate = `{
         {
             "description": "Server API endpoints (jwks, health, readiness, version, etc.)",
             "name": "Common"
+        },
+        {
+            "description": "Manage the adminstration creation of parties (legal entities). These endpoints are unprotected and for use in development and testing only.",
+            "name": "Admin"
         }
     ]
 }`

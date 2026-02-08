@@ -139,6 +139,10 @@ func NewServer(
 	server.registerCommonRoutes()
 	server.registerApiDocoRoutes()
 	server.registerPintRoutes()
+	// admin routes are for development and testing only
+	if cfg.Environment != "prod" && cfg.Environment != "staging" {
+		server.registerAdminRoutes()
+	}
 
 	return server, nil
 }
@@ -245,6 +249,20 @@ func (s *Server) registerApiDocoRoutes() {
 		r.Get("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "./docs/swagger.json")
 		})
+	})
+}
+
+// registerAdminRoutes registers admin API routes for managing parties
+func (s *Server) registerAdminRoutes() {
+	s.router.Route("/admin", func(r chi.Router) {
+		// Party management
+		r.Post("/parties", commonhandlers.HandleCreateParty(s.queries))
+		r.Get("/parties/{partyID}", commonhandlers.HandleGetPartyByID(s.queries))
+		r.Put("/parties/{partyID}", commonhandlers.HandleUpdateParty(s.queries))
+		r.Get("/parties/{partyName}", commonhandlers.HandleGetPartyByPartyName(s.queries))
+
+		// Party identifying codes management
+		r.Post("/parties/{partyID}/codes", commonhandlers.HandleCreatePartyIdentifyingCode(s.queries))
 	})
 }
 

@@ -90,9 +90,8 @@ func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pi
 //	@Description
 //	@Description	**Error Responses (signed)**
 //	@Description
-//	@Description	`409 Conflict` - Missing documents (MDOC) or disputed envelope (DISE) (signed response)
-//	@Description	- MDOC: One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
-//	@Description	- DISE: Envelope contradicts transfer chain knowledge (not yet implemented)
+//	@Description	`409 Conflict` - Missing documents (MDOC)
+//	@Description	- One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
 //	@Description
 //	@Description	`422 Unprocessable Entity` - Envelope rejected (BSIG/BENV) (signed response)
 //	@Description	- BSIG: Signature validation failed

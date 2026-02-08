@@ -42,6 +42,24 @@ type Envelope struct {
 	TrustLevel     int32   `json:"trust_level"`
 }
 
+type Party struct {
+	ID        uuid.UUID          `json:"id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	PartyName string             `json:"party_name"`
+	Active    bool               `json:"active"`
+}
+
+type PartyIdentifyingCode struct {
+	ID               uuid.UUID          `json:"id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	PartyID          uuid.UUID          `json:"party_id"`
+	CodeListProvider string             `json:"code_list_provider"`
+	PartyCode        string             `json:"party_code"`
+	CodeListName     *string            `json:"code_list_name"`
+}
+
 // Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_checksum
 type TransferChainEntry struct {
 	ID                        uuid.UUID          `json:"id"`

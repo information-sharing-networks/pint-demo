@@ -19,7 +19,6 @@ ORDER BY sequence ASC;
 
 -- name: CreateTransferChainEntry :one
 -- Create a new transfer chain entry
--- NOTE: Caller is responsible for DISE validation before calling this
 INSERT INTO transfer_chain_entries (
     id,
     created_at,
