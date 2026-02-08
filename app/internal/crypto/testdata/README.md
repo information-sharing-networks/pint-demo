@@ -79,7 +79,7 @@ to regenerate the signatures in the sample data, use the `recompute-signatures.s
 cd /path/to/pint-demo
 ./app/internal/crypto/testdata/scripts/recompute-signatures.sh -d project_root_dir
 ```
-... you will need to manually add the signatures to the sample data.
 
+the script will replace the signed content and manifests in the existing ebl envelope files.  It will not create new files.
 if you alter the json content in the sample data, you will need to regenerate the signatures and checksums.
 

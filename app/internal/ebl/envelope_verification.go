@@ -495,7 +495,27 @@ func verifyEnvelopeTransferChain(
 			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryChecksum))
 	}
 
-	// Step 2: verify the chain and collect all entries
+	// Step 2: The first [`EnvelopeTransferChainEntry`](#/EnvelopeTransferChainEntry) in the `envelopeTransferChain[]` list should contain the `ISSUE` (issuance) transaction as the first transaction in the [`EnvelopeTransferChainEntry.transactions[]`](#/EnvelopeTransferChainEntry) list.
+	firstEntryJWS := envelopeTransferChain[0]
+	firstEntryPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
+		string(firstEntryJWS),
+		keyProvider,
+		rootCAs,
+	)
+	if err != nil {
+		return nil, WrapSignatureError(err, "first entry JWS verification failed")
+	}
+
+	// Step 3: Check the first entry contains an ISSUE transaction
+	var firstEntry EnvelopeTransferChainEntry
+	if err := json.Unmarshal(firstEntryPayloadBytes, &firstEntry); err != nil {
+		return nil, WrapEnvelopeError(err, "failed to parse first entry payload")
+	}
+	if firstEntry.Transactions[0].ActionCode != "ISSUE" {
+		return nil, NewEnvelopeError("first entry should contain an ISSUE transaction")
+	}
+
+	// Step 4: verify the chain and collect all entries
 	// We allocate the slice with the exact size needed
 	allEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
 
@@ -503,7 +523,7 @@ func verifyEnvelopeTransferChain(
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
 		currentEntryJWS := envelopeTransferChain[i]
 
-		// Step 2a: Verify signature of the entry
+		// Step 4a: Verify signature of the entry
 		// Each entry in the chain is signed by the platform that created it.
 		// This prevents a platform from tampering with an entry created by another platform (since they don't have the private key)
 		currentPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
@@ -526,7 +546,7 @@ func verifyEnvelopeTransferChain(
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
-		// Step 2b: Verify that the platform that signed this entry matches the eblPlatform claimed in the entry payload.
+		// Step 4b: Verify that the platform that signed this entry matches the eblPlatform claimed in the entry payload.
 		// This blocks transfers if any of the chain entries were signed by a different platform than
 		// the platform claimed in the transfer chain entry (envelopeTransferChainEntry.eblPlatform)
 		// If previous receiving platforms are functioning correctly they will not accept incorrectly addresssed envelopes
@@ -557,7 +577,7 @@ func verifyEnvelopeTransferChain(
 		// Store the entry in the result slice
 		allEntries[i] = &currentEntry
 
-		// Step 2c: verify the chain link from this entry to the previous entry (if not the first entry)
+		// Step 4c: verify the chain link from this entry to the previous entry (if not the first entry)
 		// this prevents an attacker from replacing a valid entry with a valid one from a different transfer.
 		if i > 0 {
 			previousEntryJWS := envelopeTransferChain[i-1]
@@ -581,7 +601,7 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 3: Verify transport document checksum matches the manifest and is consistent across all entries
+	// Step 5: Verify transport document checksum matches the manifest and is consistent across all entries
 	// All entries must reference the same transport document - it cannot change during transfers
 	firstChecksum := allEntries[0].TransportDocumentChecksum
 
