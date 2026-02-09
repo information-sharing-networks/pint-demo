@@ -28,17 +28,17 @@ If you plan to make changes to the code (or want to run the go tests) you will a
 #### 1. create a .env file in the root of the project:
 ```bash
 # Path to CSV file containing the registry of all approved eBL PINT participants
-REGISTRY_PATH="internal/crypto/testdata/platform-registry/eblsolutionproviders.csv"
+REGISTRY_PATH="test/testdata/platform-registry/eblsolutionproviders.csv"
 
 # Path to private key JWK file used for signing PINT messages
-SIGNING_KEY_PATH="internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+SIGNING_KEY_PATH="test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
 
 # Directory containing manually configured public keys from other PINT participants in JWK format
 # The keymanager will load any public key in the directory that has a matching kid in the registry
 # (other keys will be ignored).
 # Supported file extensions: .jwk, .jwks, .jwks.json
 # The keymanager expects one key per file.
-MANUAL_KEYS_DIR="internal/crypto/testdata/keys"
+MANUAL_KEYS_DIR="test/testdata/keys"
 
 # DCSA Code of the platform this instance represents (from the registry)
 PLATFORM_CODE="EBL1"
@@ -47,14 +47,14 @@ PLATFORM_CODE="EBL1"
 # When set, certificate(s) are included in the JWS x5c header for non-repudiation purposes
 # Can be a single leaf certificate or a full chain (leaf + intermediates)
 # The leaf certificate's public key must match the private key at SIGNING_KEY_PATH
-X5C_CERT_PATH="internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+X5C_CERT_PATH="test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
 
 # Path to custom root CA certificate(s) in PEM format (optional)
 # Use this when certificates are issued by a private PKI
 # Leave unset to validate against system root CAs
 # Note: if specifying a custom root, all participants in the PINT network must share the same root CA
 # x5c headers from other participants will be validated against this root CA
-X5C_CUSTOM_ROOTS_PATH="internal/crypto/testdata/certs/root-ca.crt"
+X5C_CUSTOM_ROOTS_PATH="test/testdata/certs/root-ca.crt"
 
 # Database connection string (docker db container for dev)
 DATABASE_URL="postgres://pint-dev:@db:5432/pint_demo?sslmode=disable"
@@ -143,7 +143,7 @@ The registry is used for two purposes:
 
 This list is configured via the `DCSA_REGISTRY_PATH` environment variable.
 
-For the purpose of this demo the registry is based on a local file (`app/internal/crypto/testdata/platform-registry/eblsolutionproviders.csv`),
+For the purpose of this demo the registry is based on a local file (`app/test/testdata/platform-registry/eblsolutionproviders.csv`),
  but in a real deployment the registry would be served from a secure endpoint and cover all participants in the PINT network.
 
 ### Trust model and non-repudiation
@@ -231,7 +231,7 @@ By default the platform uses the system's default root CAs for x5c verification.
 **Note** the public key in the certificate must match the key pair used by platform to sign the JWS.
 This means you must use your eBL platform signing private key to sign the certificate request that is sent to the CA.
 
-This app does not support cert generation, but some certs are provided in `app/internal/crypto/testdata/certs` for testing purposes.
+This app does not support cert generation, but some certs are provided in `app/test/testdata/certs` for testing purposes.
 
 ## Using the ebl package
 the `ebl` package provides high-level functions that can be used to create and validate the data used in *PINT Transfers*.
@@ -257,14 +257,14 @@ To verify a PINT transfer envelope that is received by an ebl platform (`POST /v
 See `app/internal/ebl/envelope_verification_test.go` for example usage. 
 
 ### Testing
-In addition to the unit tests, there is a set of reference data in `app/internal/crypto/testdata/` that is used in the automated tests. This includes:
+In addition to the unit tests, there is a set of reference data in `app/test/testdata/` that is used in the automated tests. This includes:
 - Test certificates and keys (Ed25519 and RSA)
 - Test transport documents
 - Test PINT transfer data
 
 The signatures in the test data were computed out of band using the test keys.
 
-See `app/internal/crypto/testdata/README.md` for details on how to regenerate the test keys and certificates if needed.
+See `app/test/testdata/README.md` for details on how to regenerate the test keys and certificates if needed.
 
 ## Client
 a demo CLI client is provided in `app/cmd/pint-client/main.go` - this is work-in-progress
