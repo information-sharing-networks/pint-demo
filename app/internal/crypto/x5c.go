@@ -162,7 +162,7 @@ func ParseCertificateChain(pemData []byte) ([]*x509.Certificate, error) {
 // The certificates are returned in the order they appear in the PEM file.
 //
 // Parameters:
-//   - path: The file path (e.g., "./certs/cert.pem" or "testdata/certs/fullchain.crt")
+//   - path: The file path (e.g., "./certs/cert.pem" or "../../test/testdata/certs/fullchain.crt")
 func ReadCertChainFromPEMFile(path string) ([]*x509.Certificate, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)

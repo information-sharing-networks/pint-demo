@@ -20,7 +20,7 @@ func TestJWKSEndpoint(t *testing.T) {
 	testDomain := "ed25519-eblplatform.example.com"
 
 	// the jwk returned by the endpoint should match with the manually configured key for the testDomain
-	testKeyPath := fmt.Sprintf("../../internal/crypto/testdata/keys/%s.public.jwk", testDomain)
+	testKeyPath := fmt.Sprintf("../testdata/keys/%s.public.jwk", testDomain)
 
 	// Note: this will need updating when the app is updated to support key rotation (currently only one key is supported)
 	// get the first (only) key from the test key file

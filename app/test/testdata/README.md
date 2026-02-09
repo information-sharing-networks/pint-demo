@@ -1,4 +1,4 @@
-# Test Data for Crypto Package
+# Test Data for PINT Demo
 
 ## Platform Registry
 
@@ -7,7 +7,7 @@ The `platform-registry.csv` file contains a test registry of platforms for use i
 the servers used in testing are:
 - EBL1: ed25519-eblplatform.example.com (uses ed25519 keys)
 - EBL2: rsa-eblplatform.example.com (uses rsa keys)
-- Carrier: ed25519-carrier.example.com
+- CAR1: ed25519-carrier.example.com
 
 ## Transport Documents
 the `transport-documents` directory contains sample JSON that would be used in a issuance request. 
@@ -58,28 +58,28 @@ If you regenerate the keys and/or certificates, you will need to regenerate the 
 
 ### Regenerating Test Keys and Certificates
 
-The `scripts/` directory contains scripts to generate the test certificates and keys.  You should not need to run these scripts unless you need to regenerate the test keys and certificates.
+The `scripts/` directory contains scripts to generate the test certificates and keys.  You should not need to run these scripts unless you need new keys or you have altered the transport document or transfer chain entries.
 
-**Note**  regenerating the keys and certificates will cause the existing sample data to fail tests until the signatures are recomputed. The tests **should** all rely on the data from the testdata directory, but you will need to double check for any hard-coded values.
+**Note**  regenerating the keys and certificates will cause the existing sample data to fail tests until the signatures are recomputed. The tests **should** all rely on the data from the testdata directory, but if you get failures after regenerating/recomputing the signatures you should check for any hard-coded values.
 
 To regenerate all test keys and certificates:
 
 ```bash
 cd /path/to/pint-demo
-./app/internal/crypto/testdata/scripts/generate-test-keys-and-certs.sh -d project_root_dir
+./app/test/testdata/scripts/generate-test-keys-and-certs.sh -d /path/to/pint-demo
 ```
 
 This script:
 1. Generates key pairs using `keygen` (outputs JWK and PEM formats)
 2. Outputs test certificates for testing
 
-to regenerate the signatures in the sample data, use the `recompute-signatures.sh` script:
+to recompute the signatures and checksums and update the test data, use the `recompute-signatures.sh` script:
 
 ```bash
-cd /path/to/pint-demo
-./app/internal/crypto/testdata/scripts/recompute-signatures.sh -d project_root_dir
+cd  /path/to/pint-demo
+./app/test/testdata/scripts/recompute-signatures.sh -d /path/to/pint-demo
 ```
 
-the script will replace the signed content and manifests in the existing ebl envelope files.  It will not create new files.
-if you alter the json content in the sample data, you will need to regenerate the signatures and checksums.
+the script will replace the signed content and checksums in the existing ebl envelope files.  It will not create new files.
+
 

@@ -14,7 +14,7 @@ import (
 
 func TestParseX5CFromJWS(t *testing.T) {
 
-	certs, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certs, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -146,12 +146,12 @@ func TestParseX5CFromJWS(t *testing.T) {
 // TestValidateCertificateChain tests certificate chain validation
 func TestValidateCertificateChain(t *testing.T) {
 
-	certs, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certs, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
 
-	invalidCerts, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform-invalid.example.com-fullchain.crt")
+	invalidCerts, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform-invalid.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestValidateCertificateChain(t *testing.T) {
 // TestValidateCertificateChain_ExpiredCert tests that expired certificates are rejected
 // because of the hacky way we create expired certificates we need to skip if the cert has not expired yet (they expire in 1 day)
 func TestValidateCertificateChain_ExpiredCert(t *testing.T) {
-	certPEM, err := os.ReadFile("testdata/certs/ed25519-eblplatform-expired.example.com.crt")
+	certPEM, err := os.ReadFile("../../test/testdata/certs/ed25519-eblplatform-expired.example.com.crt")
 	if err != nil {
 		t.Fatalf("failed to read expired cert: %v", err)
 	}

@@ -32,20 +32,20 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 	}{
 		{
 			name:                  "valid_Ed25519",
-			eblEnvelopePath:       "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
-			publicKeyJWKPath:      "../crypto/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
-			carrierPublicKeyPath:  "../crypto/testdata/keys/ed25519-carrier.example.com.public.jwk",
-			rootCACertPath:        "../crypto/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
+			eblEnvelopePath:       "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
+			publicKeyJWKPath:      "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
+			carrierPublicKeyPath:  "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk",
+			rootCACertPath:        "../../test/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
 			expectedSenderDomain:  "ed25519-eblplatform.example.com",
 			expectedCarrierDomain: "ed25519-carrier.example.com",
 			recipientPlatformCode: "EBL2",
 		},
 		{
 			name:                  "valid_RSA",
-			eblEnvelopePath:       "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
-			publicKeyJWKPath:      "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk",
-			carrierPublicKeyPath:  "../crypto/testdata/keys/rsa-carrier.example.com.public.jwk",
-			rootCACertPath:        "../crypto/testdata/certs/root-ca.crt",
+			eblEnvelopePath:       "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
+			publicKeyJWKPath:      "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk",
+			carrierPublicKeyPath:  "../../test/testdata/keys/rsa-carrier.example.com.public.jwk",
+			rootCACertPath:        "../../test/testdata/certs/root-ca.crt",
 			expectedSenderDomain:  "rsa-eblplatform.example.com",
 			expectedCarrierDomain: "rsa-carrier.example.com",
 			recipientPlatformCode: "EBL1",
@@ -198,14 +198,14 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 }
 
 var (
-	validEnvelopePath         = "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-	validPublicKeyPath        = "../crypto/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
-	validCarrierPublicKeyPath = "../crypto/testdata/keys/ed25519-carrier.example.com.public.jwk"
-	validPrivateKeyPath       = "../crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-	validFullChainPath        = "../crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
-	validRootCAPath           = "../crypto/testdata/certs/root-ca.crt"
+	validEnvelopePath         = "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	validPublicKeyPath        = "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
+	validCarrierPublicKeyPath = "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk"
+	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
 	validDomain               = "ed25519-eblplatform.example.com"
-	wrongPublicKeyPath        = "../crypto/testdata/keys/rsa-eblplatform.example.com.public.jwk"
+	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
 )
 
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {

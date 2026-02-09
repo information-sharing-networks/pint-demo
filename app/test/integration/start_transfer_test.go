@@ -23,10 +23,10 @@ func TestStartTransfer(t *testing.T) {
 
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	// the test envelope with additional documents (1 ebl visualization, 2 supporting documents)
-	testEnvelopeWithDocsPath := "../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testEnvelopeWithDocsPath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
 
 	// test envelope with no additional documents
-	testEnvelopeNoDocsPath := "../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
+	testEnvelopeNoDocsPath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
 
 	testData := []struct {
 		name                 string
@@ -387,7 +387,7 @@ func TestStartTransfer(t *testing.T) {
 // TestStartTransfer_RecipientPlatformValidation tests that envelopes addressed to the wrong platform are rejected
 func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
-	testEnvelopePath := "../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
 
 	tests := []struct {
 		name            string

@@ -12,10 +12,34 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-// TODO: end2end test with jwk endpoint
+// getKeyIDFromJWKFile reads a JWK file and returns the kid of the first key
+func getKeyIDFromJWKFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read JWK file %s: %v", path, err)
+	}
+
+	keySet, err := jwk.Parse(data)
+	if err != nil {
+		t.Fatalf("failed to parse JWK file %s: %v", path, err)
+	}
+
+	key, ok := keySet.Key(0)
+	if !ok {
+		t.Fatalf("no keys found in JWK file %s", path)
+	}
+
+	kid, ok := key.KeyID()
+	if !ok || kid == "" {
+		t.Fatalf("key ID not found in JWK file %s", path)
+	}
+	return kid
+}
+
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
-	url := "../crypto/testdata/platform-registry/eblsolutionproviders.csv"
+	url := "../../test/testdata/platform-registry/eblsolutionproviders.csv"
 	config := NewKeymanagerConfig(url, "", 30*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	// Create a test logger that discards output
@@ -33,15 +57,20 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 		t.Fatalf("expected %d eBL solution providers, got %d", expectedProviderCount, len(km.eblSolutionProviders))
 	}
 
+	// Read actual key IDs from the test key files
+	ebl1KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk")
+	car1KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk")
+	ebl2KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk")
+
 	// Check for expected providers (based on the CSV file)
 	expectedProviders := map[string]struct {
 		site         string
 		jwksEndpoint string
 		manualKeyID  string
 	}{
-		"EBL1": {"https://ed25519-eblplatform.example.com/", "", "ea8904dc74e9395a"},
-		"CAR1": {"https://ed25519-carrier.example.com/", "", "90c692d328071e01"},
-		"EBL2": {"https://rsa-eblplatform.example.com/", "", "7f6dc8fe0df74997"},
+		"EBL1": {"https://ed25519-eblplatform.example.com/", "", ebl1KeyID},
+		"CAR1": {"https://ed25519-carrier.example.com/", "", car1KeyID},
+		"EBL2": {"https://rsa-eblplatform.example.com/", "", ebl2KeyID},
 		"CAR2": {"https://rsa-carrier.example.com/", "https://rsa-carrier.example.com/.well-known/jwks.json", ""},
 	}
 
@@ -74,9 +103,10 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 
 	jwkName := "ed25519-eblplatform.example.com.public.jwk"
 
-	publicKeyPath := "../crypto/testdata/keys/" + jwkName
+	publicKeyPath := "../../test/testdata/keys/" + jwkName
 
-	keyID := "ea8904dc74e9395a"
+	// Read the actual key ID from the JWK file
+	keyID := getKeyIDFromJWKFile(t, publicKeyPath)
 
 	// Copy the public key to the temp dir (don't move it!)
 	publicKeyDest := tempDir + "/" + jwkName
@@ -99,7 +129,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	// Create a KeyManager with that will load the public key we just saved
 	// Testing keys without certificates
 	ctx := context.Background()
-	RegistryPath := "../crypto/testdata/platform-registry/eblsolutionproviders.csv"
+	RegistryPath := "../../test/testdata/platform-registry/eblsolutionproviders.csv"
 	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{

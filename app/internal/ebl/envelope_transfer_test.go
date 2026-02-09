@@ -24,19 +24,19 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 	}{
 		{
 			name:                                 "eblEnvelope_Ed25519",
-			privateKeyJWKPath:                    "../crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
-			certChainFilePath:                    "../crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
-			sampleTransferChainEntryIssuePath:    "../crypto/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json",
-			sampleEblEnvelopePath:                "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
-			sampleTransferChainEntryTransferPath: "../crypto/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json",
+			privateKeyJWKPath:                    "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
+			certChainFilePath:                    "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
+			sampleTransferChainEntryIssuePath:    "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json",
+			sampleEblEnvelopePath:                "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
+			sampleTransferChainEntryTransferPath: "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json",
 		},
 		{
 			name:                                 "eblEnvelope_RSA",
-			privateKeyJWKPath:                    "../crypto/testdata/keys/rsa-eblplatform.example.com.private.jwk",
-			certChainFilePath:                    "../crypto/testdata/certs/rsa-eblplatform.example.com-fullchain.crt",
-			sampleTransferChainEntryIssuePath:    "../crypto/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-rsa.json",
-			sampleEblEnvelopePath:                "../crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
-			sampleTransferChainEntryTransferPath: "../crypto/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-rsa.json",
+			privateKeyJWKPath:                    "../../test/testdata/keys/rsa-eblplatform.example.com.private.jwk",
+			certChainFilePath:                    "../../test/testdata/certs/rsa-eblplatform.example.com-fullchain.crt",
+			sampleTransferChainEntryIssuePath:    "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-rsa.json",
+			sampleEblEnvelopePath:                "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
+			sampleTransferChainEntryTransferPath: "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-rsa.json",
 		},
 	}
 	for _, test := range testData {
@@ -126,10 +126,10 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 					signedIssueEntry,
 					signedTransferEntry,
 				},
-				EBLVisualizationFilePath: "../crypto/testdata/transport-documents/HHL71800000.pdf",
+				EBLVisualizationFilePath: "../../test/testdata/transport-documents/HHL71800000.pdf",
 				SupportingDocumentFilePaths: []string{
-					"../crypto/testdata/pint-transfers/HHL71800000-invoice.pdf",
-					"../crypto/testdata/pint-transfers/HHL71800000-packing-list.pdf",
+					"../../test/testdata/pint-transfers/HHL71800000-invoice.pdf",
+					"../../test/testdata/pint-transfers/HHL71800000-packing-list.pdf",
 				},
 			}, privateKey, certChain)
 			if err != nil {

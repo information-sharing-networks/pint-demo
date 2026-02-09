@@ -143,10 +143,10 @@ if [ ! -d "$PROJECT_ROOT_DIR" ]; then
     echo "could not open test data dir: $PROJECT_ROOT_DIR" >&2
     exit 1
 fi 
-TRANSPORT_DOCS_DIR="$PROJECT_ROOT_DIR/app/internal/crypto/testdata/transport-documents"
-PINT_TRANSFERS_DIR="$PROJECT_ROOT_DIR/app/internal/crypto/testdata/pint-transfers"
-KEY_DIR="$PROJECT_ROOT_DIR/app/internal/crypto/testdata/keys"
-CERT_DIR="$PROJECT_ROOT_DIR/app/internal/crypto/testdata/certs"
+TRANSPORT_DOCS_DIR="$PROJECT_ROOT_DIR/app/test/testdata/transport-documents"
+PINT_TRANSFERS_DIR="$PROJECT_ROOT_DIR/app/test/testdata/pint-transfers"
+KEY_DIR="$PROJECT_ROOT_DIR/app/test/testdata/keys"
+CERT_DIR="$PROJECT_ROOT_DIR/app/test/testdata/certs"
 
 # Check dependencies
 for cmd in jq openssl step; do
@@ -155,6 +155,41 @@ for cmd in jq openssl step; do
         exit 1
     fi
 done
+
+# stage 0: update platform registry CSV with current key thumbprints
+# This ensures the CSV file is in sync with the actual keys.
+# This stage should be run whenever keys are regenerated.
+#
+function stage0() {
+    echo "Updating platform registry with key thumbprints..."
+    echo
+
+    REGISTRY_FILE="$PROJECT_ROOT_DIR/app/test/testdata/platform-registry/eblsolutionproviders.csv"
+
+    # Get thumbprints from the actual key files
+    ebl1_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/ed25519-eblplatform.example.com.public.jwk")
+    car1_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/ed25519-carrier.example.com.public.jwk")
+    ebl2_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/rsa-eblplatform.example.com.public.jwk")
+
+    echo "✓ Key thumbprints:"
+    echo "  EBL1 (ed25519-eblplatform): $ebl1_kid"
+    echo "  CAR1 (ed25519-carrier):     $car1_kid"
+    echo "  EBL2 (rsa-eblplatform):     $ebl2_kid"
+    echo
+
+    # Update the CSV file
+    # Header: Code,Site,jwks_endpoint,manual_key_id
+    cat > "$REGISTRY_FILE" << EOF
+Code,Site,jwks_endpoint,manual_key_id
+EBL1,https://ed25519-eblplatform.example.com/,,${ebl1_kid}
+CAR1,https://ed25519-carrier.example.com/,,${car1_kid}
+EBL2,https://rsa-eblplatform.example.com/,,${ebl2_kid}
+CAR2,https://rsa-carrier.example.com/,https://rsa-carrier.example.com/.well-known/jwks.json,
+EOF
+
+    echo "  Updated: eblsolutionproviders.csv"
+    echo
+}
 
 # stage 1: compute base checksums
 # These are checksums of raw files (transport document, PDFs) that don't depend on any signatures.
@@ -197,7 +232,7 @@ function stage1() {
 
 # stage 2: compute issuance manifest signatures
 # The issuance manifest is signed by the carrier and contains checksums from stage 1.
-# This stage automatically updates the transfer chain ISSU entries with the signed manifests.
+# This stage automatically updates the transfer chain ISSU entries and transport documents with the signed manifests.
 #
 function stage2() {
     echo "Signing issuance manifests..."
@@ -207,6 +242,13 @@ function stage2() {
     json_file="$TRANSPORT_DOCS_DIR/HHL71800000-issuance-manifest.json"
     jws_ed25519=$(sign_json_ed25519 carrier < "$json_file")
     echo "✓ Ed25519 issuanceManifestSignedContent generated"
+
+    # Update transport document with Ed25519 signature
+    transport_doc="$TRANSPORT_DOCS_DIR/HHL71800000-ed25519.json"
+    jq --arg jws "$jws_ed25519" \
+       '.issuanceManifestSignedContent = $jws' \
+       "$transport_doc" > "$transport_doc.tmp" && mv "$transport_doc.tmp" "$transport_doc"
+    echo "  Updated: $(basename $transport_doc)"
 
     # Update ISSU entry with Ed25519 signature
     issu_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
@@ -219,6 +261,13 @@ function stage2() {
     # RSA issuance manifest
     jws_rsa=$(sign_json_rsa carrier < "$json_file")
     echo "✓ RSA issuanceManifestSignedContent generated"
+
+    # Update transport document with RSA signature
+    transport_doc="$TRANSPORT_DOCS_DIR/HHL71800000-rsa.json"
+    jq --arg jws "$jws_rsa" \
+       '.issuanceManifestSignedContent = $jws' \
+       "$transport_doc" > "$transport_doc.tmp" && mv "$transport_doc.tmp" "$transport_doc"
+    echo "  Updated: $(basename $transport_doc)"
 
     # Update ISSU entry with RSA signature
     issu_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-rsa.json"
@@ -379,6 +428,11 @@ function stage4() {
 
 # steps to run
 
+
+echo "========================================="
+echo "Stage 0: Update platform registry"
+echo "========================================="
+stage0
 
 echo "========================================="
 echo "Stage 1: Compute base checksums"

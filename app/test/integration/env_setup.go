@@ -63,9 +63,9 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 		rateLimitRPS       = 0
 		enviornment        = "test"
 		logLevel           = logger.ParseLogLevel("none")
-		x5cCustomRootsPath = "../../internal/crypto/testdata/certs/root-ca.crt"
-		registryPath       = "../../internal/crypto/testdata/platform-registry/eblsolutionproviders.csv"
-		manualKeysDir      = "../../internal/crypto/testdata/keys"
+		x5cCustomRootsPath = "../testdata/certs/root-ca.crt"
+		registryPath       = "../testdata/platform-registry/eblsolutionproviders.csv"
+		manualKeysDir      = "../testdata/keys"
 		signingKeyPath     string
 		x5cCertPath        string
 	)
@@ -77,14 +77,14 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 	}
 	switch platformCode {
 	case "EBL1":
-		signingKeyPath = "../../internal/crypto/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-		x5cCertPath = "../../internal/crypto/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+		signingKeyPath = "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+		x5cCertPath = "../testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
 	case "EBL2":
-		signingKeyPath = "../../internal/crypto/testdata/keys/rsa-eblplatform.example.com.private.jwk"
-		x5cCertPath = "../../internal/crypto/testdata/certs/rsa-eblplatform.example.com-fullchain.crt"
+		signingKeyPath = "../testdata/keys/rsa-eblplatform.example.com.private.jwk"
+		x5cCertPath = "../testdata/certs/rsa-eblplatform.example.com-fullchain.crt"
 	case "CAR1":
-		signingKeyPath = "../../internal/crypto/testdata/keys/ed25519-carrier.example.com.private.jwk"
-		x5cCertPath = "../../internal/crypto/testdata/certs/ed25519-carrier.example.com-fullchain.crt"
+		signingKeyPath = "../testdata/keys/ed25519-carrier.example.com.private.jwk"
+		x5cCertPath = "../testdata/certs/ed25519-carrier.example.com-fullchain.crt"
 	default:
 		t.Fatalf("platform code: %s not supported (use EBL1, EBL2 or CAR1)", platformCode)
 	}

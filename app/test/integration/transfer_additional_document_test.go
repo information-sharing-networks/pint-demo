@@ -20,14 +20,14 @@ import (
 
 var (
 	// test envelope
-	testEnvelopeWithDocsPath = "../../internal/crypto/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testEnvelopeWithDocsPath = "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
 	// unsigned manifest (the signed version is in the test envelope - read it here for convenient access to doc checksums)
-	testEnvelopeManifest = "../../internal/crypto/testdata/pint-transfers/HHL71800000-envelope-manifest-ed25519.json"
+	testEnvelopeManifest = "../testdata/pint-transfers/HHL71800000-envelope-manifest-ed25519.json"
 
 	//expectedTotalDocs := 3 // the test envelope has 1 ebl visualization and 2 supporting documents
-	eblVisualizationPath = "../../internal/crypto/testdata/transport-documents/HHL71800000.pdf"
-	invoicePath          = "../../internal/crypto/testdata/pint-transfers/HHL71800000-invoice.pdf"
-	packingListPath      = "../../internal/crypto/testdata/pint-transfers/HHL71800000-packing-list.pdf"
+	eblVisualizationPath = "../testdata/transport-documents/HHL71800000.pdf"
+	invoicePath          = "../testdata/pint-transfers/HHL71800000-invoice.pdf"
+	packingListPath      = "../testdata/pint-transfers/HHL71800000-packing-list.pdf"
 )
 
 type additionalDocumentsState struct {

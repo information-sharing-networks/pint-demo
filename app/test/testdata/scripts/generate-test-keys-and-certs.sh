@@ -211,7 +211,7 @@ if  [ ! -f $PROJECT_ROOT_DIR/app/go.mod ]; then
     echo "could not find $PROJECT_ROOT_DIR/app/go.mod" >&2
     exit 1
 fi  
-TEST_DATA_DIR="$PROJECT_ROOT_DIR/app/internal/crypto/testdata"
+TEST_DATA_DIR="$PROJECT_ROOT_DIR/app/test/testdata"
 
 mkdir -p "$TEST_DATA_DIR"
 if [ $? -ne 0 ]; then

@@ -243,11 +243,11 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 // TestSignRSAWithX5C tests RSA signing with x5c certificate chain
 func TestSignRSAWithX5C(t *testing.T) {
 	// Use existing RSA test data
-	privateKey, err := ReadRSAPrivateKeyFromPEMFile("testdata/keys/rsa-eblplatform.example.com.private.pem")
+	privateKey, err := ReadRSAPrivateKeyFromPEMFile("../../test/testdata/keys/rsa-eblplatform.example.com.private.pem")
 	if err != nil {
 		t.Fatalf("failed to load test private key: %v", err)
 	}
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -325,11 +325,11 @@ func TestSignRSAWithX5C(t *testing.T) {
 // TestSignEd25519WithX5C tests Ed25519 signing with x5c certificate chain
 func TestSignEd25519WithX5C(t *testing.T) {
 	// Use existing test data
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load test private key: %v", err)
 	}
-	certChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	certChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestGenerateKeyIDFromRSAKey(t *testing.T) {
 // test the wrapper function that handles all the JWS checks
 func TestVerifyJWS(t *testing.T) {
 	// Use testdata certificates and keys
-	validPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	validPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load test private key: %v", err)
 	}
@@ -462,14 +462,14 @@ func TestVerifyJWS(t *testing.T) {
 		t.Fatalf("failed to generate key ID: %v", err)
 	}
 
-	validCertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	validCertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load test certificates: %v", err)
 	}
 
 	// Load root CA for validation
 	rootCAs := x509.NewCertPool()
-	rootCABytes, err := os.ReadFile("testdata/certs/root-ca.crt")
+	rootCABytes, err := os.ReadFile("../../test/testdata/certs/root-ca.crt")
 	if err != nil {
 		t.Fatalf("failed to load root CA: %v", err)
 	}
@@ -596,24 +596,24 @@ func TestVerifyJWS(t *testing.T) {
 // TestSignJSON tests the convenience SignJSON function with both Ed25519 and RSA keys
 func TestSignJSON(t *testing.T) {
 	// Load test keys and certificates
-	ed25519PrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	ed25519PrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load Ed25519 private key: %v", err)
 	}
 	ed25519PublicKey := ed25519PrivateKey.Public().(ed25519.PublicKey)
 
-	ed25519CertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	ed25519CertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load Ed25519 cert chain: %v", err)
 	}
 
-	rsaPrivateKey, err := ReadRSAPrivateKeyFromJWKFile("testdata/keys/rsa-eblplatform.example.com.private.jwk")
+	rsaPrivateKey, err := ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/rsa-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load RSA private key: %v", err)
 	}
 	rsaPublicKey := &rsaPrivateKey.PublicKey
 
-	rsaCertChain, err := ReadCertChainFromPEMFile("testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	rsaCertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load RSA cert chain: %v", err)
 	}
@@ -749,7 +749,7 @@ func (p *testKeyProvider) FetchKeys(_ context.Context, sink jws.KeySink, sig *jw
 
 func TestVerifyJWSWithKeyProvider(t *testing.T) {
 	// Load platform key + certs (key A)
-	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load platform private key: %v", err)
 	}
@@ -760,20 +760,20 @@ func TestVerifyJWSWithKeyProvider(t *testing.T) {
 		t.Fatalf("failed to generate platform key ID: %v", err)
 	}
 
-	platformCertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	platformCertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load platform cert chain: %v", err)
 	}
 
 	// Load carrier certs (key B) — different org, different key
-	carrierCertChain, err := ReadCertChainFromPEMFile("testdata/certs/ed25519-carrier.example.com-fullchain.crt")
+	carrierCertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-carrier.example.com-fullchain.crt")
 	if err != nil {
 		t.Fatalf("failed to load carrier cert chain: %v", err)
 	}
 
 	// Root CA pool
 	rootCAs := x509.NewCertPool()
-	rootCABytes, err := os.ReadFile("testdata/certs/root-ca.crt")
+	rootCABytes, err := os.ReadFile("../../test/testdata/certs/root-ca.crt")
 	if err != nil {
 		t.Fatalf("failed to load root CA: %v", err)
 	}
