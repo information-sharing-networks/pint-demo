@@ -371,6 +371,104 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrCode:     "BENV",
 			wantErrContains: "envelope transfer chain is empty",
 		},
+		{
+			name: "invalid state transition - SURRENDER_FOR_DELIVERY followed by TRANSFER",
+			tamperEnvelope: func(env *EblEnvelope) error {
+				// Decode the last transfer chain entry (which has a TRANSFER transaction)
+				lastIdx := len(env.EnvelopeTransferChain) - 1
+				lastEntryPayload, err := testutil.DecodeJWSPayload(string(env.EnvelopeTransferChain[lastIdx]))
+				if err != nil {
+					return fmt.Errorf("failed to decode last entry: %w", err)
+				}
+
+				// Get the existing transactions
+				transactions, ok := lastEntryPayload["transactions"].([]any)
+				if !ok {
+					return fmt.Errorf("transactions field is not an array")
+				}
+
+				if len(transactions) == 0 {
+					return fmt.Errorf("no transactions in last entry")
+				}
+
+				// Keep the existing TRANSFER transaction, but add SURRENDER_FOR_DELIVERY and then another TRANSFER
+				firstTx := transactions[0].(map[string]any)
+
+				// Create a SURRENDER_FOR_DELIVERY transaction
+				surrenderTx := make(map[string]any)
+				surrenderTx["actionCode"] = "SURRENDER_FOR_DELIVERY"
+				surrenderTx["actionDateTime"] = "2024-01-17T14:22:00.000Z"
+				surrenderTx["actor"] = firstTx["actor"]
+
+				// Create a TRANSFER transaction
+				transferTx := make(map[string]any)
+				transferTx["actionCode"] = "TRANSFER"
+				transferTx["actionDateTime"] = "2024-01-17T15:22:00.000Z"
+				transferTx["actor"] = firstTx["actor"]
+				transferTx["recipient"] = firstTx["recipient"]
+
+				// Add both new transactions
+				transactions = append(transactions, surrenderTx, transferTx)
+				lastEntryPayload["transactions"] = transactions
+
+				// Re-sign the modified entry
+				modifiedPayloadJSON, err := json.Marshal(lastEntryPayload)
+				if err != nil {
+					return fmt.Errorf("failed to marshal modified payload: %w", err)
+				}
+
+				privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
+				if err != nil {
+					return fmt.Errorf("failed to read private key: %w", err)
+				}
+
+				certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
+				if err != nil {
+					return fmt.Errorf("failed to read cert chain: %w", err)
+				}
+
+				publicKey := privateKey.Public().(ed25519.PublicKey)
+				keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
+				if err != nil {
+					return fmt.Errorf("failed to compute key ID: %w", err)
+				}
+
+				modifiedEntryJWS, err := crypto.SignJSONWithEd25519AndX5C(modifiedPayloadJSON, privateKey, keyID, certChain)
+				if err != nil {
+					return fmt.Errorf("failed to sign modified entry: %w", err)
+				}
+
+				// Replace the last entry
+				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+
+				// Update the manifest to point to the new last entry
+				transportDocJSON, err := json.Marshal(env.TransportDocument)
+				if err != nil {
+					return fmt.Errorf("failed to marshal transport document: %w", err)
+				}
+
+				envelopeManifest, err := NewEnvelopeManifestBuilder().
+					WithTransportDocument(transportDocJSON).
+					WithLastTransferChainEntry(env.EnvelopeTransferChain[lastIdx]).
+					Build()
+				if err != nil {
+					return fmt.Errorf("failed to create envelope manifest: %w", err)
+				}
+
+				envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, certChain)
+				if err != nil {
+					return fmt.Errorf("failed to sign envelope manifest: %w", err)
+				}
+
+				env.EnvelopeManifestSignedContent = envelopeManifestJWS
+				return nil
+			},
+			publicKeyPath:   validPublicKeyPath,
+			domain:          validDomain,
+			useWrongCAPath:  false,
+			wantErrCode:     "BENV",
+			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
+		},
 	}
 
 	for _, tt := range tests {

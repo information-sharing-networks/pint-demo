@@ -55,6 +55,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"slices"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/lestrrat-go/jwx/v3/jws"
@@ -68,6 +70,41 @@ import (
 type KeyProviderWithLookup interface {
 	jws.KeyProvider
 	LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error)
+}
+
+// EnvelopeState is used to ensure that transfer chain actionCodes are sequenced correctly.
+type EnvelopeState string
+
+const (
+	EnvelopeStateUnset                 EnvelopeState = ""
+	EnvelopeStateIssue                 EnvelopeState = "ISSUE"
+	EnvelopeStateTransfer              EnvelopeState = "TRANSFER"
+	EnvelopeStateEndorse               EnvelopeState = "ENDORSE"
+	EnvelopeStateEndorseToOrder        EnvelopeState = "ENDORSE_TO_ORDER"
+	EnvelopeStateBlankEndorse          EnvelopeState = "BLANK_ENDORSE"
+	EnvelopeStateSign                  EnvelopeState = "SIGN"
+	EnvelopeStateSurrenderForAmendment EnvelopeState = "SURRENDER_FOR_AMENDMENT"
+	EnvelopeStateSurrenderForDelivery  EnvelopeState = "SURRENDER_FOR_DELIVERY"
+)
+
+var validEnvelopeStateTransitions = map[EnvelopeState][]EnvelopeState{
+	EnvelopeStateIssue:                 {EnvelopeStateTransfer, EnvelopeStateEndorse},
+	EnvelopeStateTransfer:              {EnvelopeStateTransfer, EnvelopeStateEndorse, EnvelopeStateEndorseToOrder, EnvelopeStateBlankEndorse, EnvelopeStateSign, EnvelopeStateSurrenderForAmendment, EnvelopeStateSurrenderForDelivery},
+	EnvelopeStateEndorse:               {EnvelopeStateTransfer, EnvelopeStateEndorse, EnvelopeStateEndorseToOrder, EnvelopeStateBlankEndorse, EnvelopeStateSign, EnvelopeStateSurrenderForAmendment, EnvelopeStateSurrenderForDelivery},
+	EnvelopeStateSurrenderForAmendment: {}, // terminal state
+	EnvelopeStateSurrenderForDelivery:  {}, // terminal state
+}
+
+// isValidEnvelopeStateTransition checks if a transition from currentState to nextState is valid
+// according to the DCSA specification.
+//
+// Returns true if the transition is allowed, false otherwise.
+func isValidEnvelopeStateTransition(currentState, nextState EnvelopeState) bool {
+	validTransitions, ok := validEnvelopeStateTransitions[currentState]
+	if !ok {
+		return false
+	}
+	return slices.Contains(validTransitions, nextState)
 }
 
 // EnvelopeVerificationInput contains the data needed to verify an envelope transfer.
@@ -97,6 +134,10 @@ type EnvelopeVerificationInput struct {
 	// recipientPlatformCode is the platform code of the current platform.
 	// This is used to verify the envelope transfer is addressed to the correct platform.
 	RecipientPlatformCode string
+
+	// Logger is an optional logger for warnings about unknown action codes.
+	// If nil, warnings will not be logged.
+	Logger *slog.Logger
 }
 
 // EnvelopeVerificationResult contains the results of envelope verification.
@@ -257,6 +298,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		manifest,
 		input.KeyProvider,
 		input.RootCAs,
+		input.Logger,
 	)
 	if err != nil {
 		return result, WrapEnvelopeError(err, "transfer chain verification failed")
@@ -456,26 +498,21 @@ func verifyIssuanceManifest(
 	return nil
 }
 
-// verifyEnvelopeTransferChain verifies the transfer chain integrity and returns all verified entries.
-//
-// This function verifies:
-//  1. The last entry checksum matches the manifest
-//  2. Each entry's JWS signature is valid
-//  3. The platform that signed each entry matches the eblPlatform claimed in that entry.
-//  4. The chain links are intact (each entry references the previous entry's checksum)
+// verifyEnvelopeTransferChain verifies transfer chain entry signatures and checksums and ensures that the transaction sequence is valid.
 //
 // The issuanceManifestSignedContent (inside the first entry) is signed by the carrier
 // and is verified separately in verifyIssuanceManifest().
 //
 // **Note** this function cannot detect double spends (where the same eBL is sent twice with different transfer chains)
-// this will need a CTR lookup to detect.
+// this will need a CTR lookup to detect or for the platforms to share a common database.
 //
-// Returns all verified transfer chain entries in order (first to last)
+// Returns all verified and decoded transfer chain entries in order (first to last)
 func verifyEnvelopeTransferChain(
 	envelopeTransferChain []EnvelopeTransferChainEntrySignedContent,
 	manifest *EnvelopeManifest,
 	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,
+	logger *slog.Logger,
 ) ([]*EnvelopeTransferChainEntry, error) {
 
 	if len(envelopeTransferChain) == 0 {
@@ -617,5 +654,39 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
+	// Step 6: Validate transaction sequence follows valid state transitions
+	currentState := EnvelopeStateUnset
+	for entryIdx, entry := range allEntries {
+		for txIdx, tx := range entry.Transactions {
+			nextState := EnvelopeState(tx.ActionCode)
+
+			// Log warning if action code is not recognized (DCSA uses PseudoEnum for forward compatibility)
+			if logger != nil && nextState != EnvelopeStateUnset {
+				if _, ok := validEnvelopeStateTransitions[nextState]; !ok {
+					logger.Warn("Unknown action code - envelope will be rejected", slog.String("action_code", tx.ActionCode))
+				}
+			}
+
+			// First transaction must be ISSUE
+			if currentState == EnvelopeStateUnset {
+				if nextState != EnvelopeStateIssue {
+					return nil, NewEnvelopeError(fmt.Sprintf(
+						"first transaction must be ISSUE, got %s (entry %d, transaction %d)",
+						tx.ActionCode, entryIdx, txIdx))
+				}
+				currentState = nextState
+				continue
+			}
+
+			// Validate the transition is allowed (no transitions are allowed after SURRENDER_FOR_AMENDMENT or SURRENDER_FOR_DELIVERY)
+			if !isValidEnvelopeStateTransition(currentState, nextState) {
+				return nil, NewEnvelopeError(fmt.Sprintf(
+					"invalid state transition from %s to %s (entry %d, transaction %d)",
+					currentState, nextState, entryIdx, txIdx))
+			}
+
+			currentState = nextState
+		}
+	}
 	return allEntries, nil
 }
