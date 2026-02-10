@@ -141,7 +141,7 @@ func HandleUpdateParty(queries *database.Queries) http.HandlerFunc {
 			return
 		}
 
-		if req.Active != nil {
+		if req.Active == nil {
 			req.Active = &existingParty.Active
 		}
 
