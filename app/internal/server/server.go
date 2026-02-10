@@ -19,6 +19,7 @@ import (
 	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
 	commonhandlers "github.com/information-sharing-networks/pint-demo/app/internal/server/handlers"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server/middleware"
+	"github.com/information-sharing-networks/pint-demo/app/internal/services"
 	"github.com/information-sharing-networks/pint-demo/app/internal/version"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -66,6 +67,9 @@ type Server struct {
 	// Note: if using a custom root, the server expects all participants in the PINT network that are using x5c headers
 	// for non-repudation to share the same root CA
 	x5cCustomRoots *x509.CertPool // Custom root CAs for x5c verification (optional, nil = system roots)
+
+	// services aggregates external service integrations (party validation, CTR, audit, etc.)
+	services *services.Services
 }
 
 func NewServer(
@@ -131,6 +135,15 @@ func NewServer(
 		return nil, fmt.Errorf("failed to create JWK set: %w", err)
 	}
 	server.signingJWKSet = jwkSet
+
+	// initialize services (party validation, etc)
+	server.services, err = services.NewServices(cfg, queries)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize services: %w", err)
+	}
+	logger.Info("initialized services",
+		slog.String("party_service_name", cfg.PartyServiceName),
+		slog.String("party_service_base_url", cfg.PartyServiceBaseURL))
 
 	// setup middleware
 	server.setupMiddleware()
@@ -198,6 +211,10 @@ func (s *Server) registerCommonRoutes() {
 }
 
 func (s *Server) registerPintRoutes() {
+	receiverValidation := pinthandlers.NewReceiverValidationHandler(
+		s.services.PartyValidator,
+	)
+
 	startTransfer := pinthandlers.NewStartTransferHandler(
 		s.queries,
 		s.pool,
@@ -224,7 +241,7 @@ func (s *Server) registerPintRoutes() {
 	)
 
 	s.router.Route("/v3", func(r chi.Router) {
-		r.Post("/receiver-validation", s.handleReceiverValidation)
+		r.Post("/receiver-validation", receiverValidation.HandleReceiverValidation)
 		r.Post("/envelopes", startTransfer.HandleStartTransfer)
 		r.Put("/envelopes/{envelopeReference}/additional-documents/{documentChecksum}", transferAdditionalDocument.HandleTransferAdditionalDocument)
 		r.Put("/envelopes/{envelopeReference}/finish-transfer", finishEnvelopeTransfer.HandleFinishEnvelopeTransfer)
@@ -260,9 +277,9 @@ func (s *Server) registerAdminRoutes() {
 		r.Get("/parties/{partyID}", commonhandlers.HandleGetPartyByID(s.queries))
 		r.Put("/parties/{partyID}", commonhandlers.HandleUpdateParty(s.queries))
 		r.Get("/parties/{partyName}", commonhandlers.HandleGetPartyByPartyName(s.queries))
-
-		// Party identifying codes management
 		r.Post("/parties/{partyID}/codes", commonhandlers.HandleCreatePartyIdentifyingCode(s.queries))
+		// Party lookup by code (used by local party validator)
+		r.Get("/parties", commonhandlers.HandleGetPartyByPartyCode(s.queries))
 	})
 }
 
@@ -351,8 +368,4 @@ func (s *Server) createJWKSet() (jwk.Set, error) {
 	}
 
 	return jwkSet, nil
-}
-
-func (s *Server) handleReceiverValidation(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
 }

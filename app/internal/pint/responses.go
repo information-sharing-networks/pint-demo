@@ -20,7 +20,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, err error) {
 
 	// Log the full error details server-side
 	reqLogger := logger.ContextRequestLogger(r.Context())
-	reqLogger.Error("Request failed",
+	reqLogger.Warn("Request failed",
 		slog.String("error", err.Error()),
 		slog.Int("status_code", errorResponse.StatusCode),
 		slog.String("error_code_text", errorResponse.StatusCodeMessage),

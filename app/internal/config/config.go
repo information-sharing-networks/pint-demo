@@ -80,6 +80,14 @@ type ServerEnvironment struct {
 	// Leave unset to validate against system root CAs
 	// In prod/staging, this should point to a mounted config (e.g., /etc/pint/custom-roots.pem)
 	X5CCustomRootsPath string `env:"X5C_CUSTOM_ROOTS_PATH"`
+
+	// PartyServiceName selects which party validation implementation to use
+	//
+	// See app/internal/services/party_validator.go for implementation details
+	PartyServiceName string `env:"PARTY_SERVICE_NAME,default=local"`
+
+	// PartyServiceBaseURL is the base URL of the party management service
+	PartyServiceBaseURL string `env:"PARTY_SERVICE_BASE_URL,default=http://localhost:8080/admin/parties"`
 }
 
 var validEnvs = map[string]bool{

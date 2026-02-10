@@ -75,6 +75,9 @@ const (
 	// - this is only used in the middleware
 	ErrCodeRequestTooLarge ErrorCode = 7010
 
+	// ErrCodeNotFound is used when a requested resource is not found (e.g., party not found in receiver validation)
+	ErrCodeNotFound ErrorCode = 7011
+
 	// ErrCodeUnknownParty is used when a platform is not recognized or not registered
 	ErrCodeUnknownParty ErrorCode = 8001
 
@@ -171,6 +174,14 @@ func WrapInternalError(err error, msg string) error {
 // The returned error will have code ErrCodeRateLimitExceeded.
 func NewRateLimitError(msg string) error {
 	return &PintError{code: ErrCodeRateLimitExceeded, message: msg}
+}
+
+// NewUnknownPartyError creates a party (legal entity) not found error.
+// Use this when a party is not found or inactive.
+//
+// The returned error will have code ErrCodeUnknownParty.
+func NewUnknownPartyError(msg string) error {
+	return &PintError{code: ErrCodeUnknownParty, message: msg}
 }
 
 // NewRequestTooLargeError creates a request too large error.

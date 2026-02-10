@@ -39,6 +39,7 @@ import (
 // testEnv provides access to test db and server for integration tests
 type testEnv struct {
 	baseURL  string
+	cfg      *config.ServerEnvironment
 	pool     *pgxpool.Pool
 	queries  *database.Queries
 	shutdown func()
@@ -56,18 +57,20 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 
 	// server config
 	var (
-		ctx                = context.Background()
-		host               = "localhost"
-		port               = findFreePort(t)
-		skipJWKCache       = true
-		rateLimitRPS       = 0
-		enviornment        = "test"
-		logLevel           = logger.ParseLogLevel("none")
-		x5cCustomRootsPath = "../testdata/certs/root-ca.crt"
-		registryPath       = "../testdata/platform-registry/eblsolutionproviders.csv"
-		manualKeysDir      = "../testdata/keys"
-		signingKeyPath     string
-		x5cCertPath        string
+		ctx                 = context.Background()
+		host                = "localhost"
+		port                = findFreePort(t)
+		skipJWKCache        = true
+		rateLimitRPS        = 0
+		enviornment         = "test"
+		logLevel            = logger.ParseLogLevel("none")
+		x5cCustomRootsPath  = "../testdata/certs/root-ca.crt"
+		registryPath        = "../testdata/platform-registry/eblsolutionproviders.csv"
+		manualKeysDir       = "../testdata/keys"
+		signingKeyPath      string
+		x5cCertPath         string
+		partyServiceName    = "local"
+		partyServiceBaseURL = "http://localhost" + fmt.Sprintf(":%d", port) + "/admin/parties"
 	)
 
 	enableServerLogs := false
@@ -104,12 +107,14 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 		"LOG_LEVEL":    logLevel.String(),
 		"PORT":         fmt.Sprintf("%d", port),
 
-		"REGISTRY_PATH":         registryPath,
-		"MANUAL_KEYS_DIR":       manualKeysDir,
-		"SIGNING_KEY_PATH":      signingKeyPath,
-		"X5C_CERT_PATH":         x5cCertPath,
-		"X5C_CUSTOM_ROOTS_PATH": x5cCustomRootsPath,
-		"PLATFORM_CODE":         platformCode,
+		"REGISTRY_PATH":          registryPath,
+		"MANUAL_KEYS_DIR":        manualKeysDir,
+		"SIGNING_KEY_PATH":       signingKeyPath,
+		"X5C_CERT_PATH":          x5cCertPath,
+		"X5C_CUSTOM_ROOTS_PATH":  x5cCustomRootsPath,
+		"PLATFORM_CODE":          platformCode,
+		"PARTY_SERVICE_NAME":     partyServiceName,
+		"PARTY_SERVICE_BASE_URL": partyServiceBaseURL,
 	}
 
 	// Save original env vars and set test values
@@ -191,6 +196,8 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 
 	testEnv.baseURL = fmt.Sprintf("http://localhost:%d", port)
 	t.Logf("Starting in-process server at %s", testEnv.baseURL)
+
+	testEnv.cfg = cfg
 
 	// Wait for server to be ready
 	if !waitForServer(t, testEnv.baseURL+"/health/live", 30*time.Second) {

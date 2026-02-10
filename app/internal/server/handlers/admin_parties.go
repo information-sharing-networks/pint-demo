@@ -67,9 +67,15 @@ func HandleCreateParty(queries *database.Queries) http.HandlerFunc {
 			return
 		}
 
+		// Default active to true if not specified
+		active := true
+		if req.Active != nil {
+			active = *req.Active
+		}
+
 		party, err := queries.CreateParty(r.Context(), database.CreatePartyParams{
-			ID:        uuid.New(),
 			PartyName: req.PartyName,
+			Active:    active,
 		})
 		if err != nil {
 			returnErr := fmt.Errorf("failed to create party - internal error")
@@ -276,7 +282,6 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 		}
 
 		code, err := queries.CreatePartyIdentifyingCode(r.Context(), database.CreatePartyIdentifyingCodeParams{
-			ID:               uuid.New(),
 			PartyID:          partyID,
 			CodeListProvider: req.CodeListProvider,
 			PartyCode:        req.PartyCode,
@@ -312,6 +317,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 //	@Tags		Admin
 //	@Produce	json
 //	@Param		code_list_provider	query		string	true	"Code list provider"
+//	@Param		code_list_name		query		string	false	"Code list name (optional)"
 //	@Param		party_code			query		string	true	"Party code"
 //	@Success	200					{object}	PartyResponse
 //	@Failure	400					{string}	string	"Invalid request"
@@ -328,9 +334,16 @@ func HandleGetPartyByPartyCode(queries *database.Queries) http.HandlerFunc {
 			return
 		}
 
+		// Handle optional code_list_name
+		var codeListName *string
+		if name := r.URL.Query().Get("code_list_name"); name != "" {
+			codeListName = &name
+		}
+
 		party, err := queries.GetPartyByPartyCode(r.Context(), database.GetPartyByPartyCodeParams{
 			CodeListProvider: codeListProvider,
 			PartyCode:        partyCode,
+			CodeListName:     codeListName,
 		})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {

@@ -136,6 +136,9 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 	case ErrCodeMalformedRequest:
 		statusCode = http.StatusBadRequest
 		errorCodeText = "Malformed request"
+	case ErrCodeNotFound:
+		statusCode = http.StatusNotFound
+		errorCodeText = "Not found"
 	case ErrCodeRateLimitExceeded:
 		statusCode = http.StatusTooManyRequests
 		errorCodeText = "Rate limit exceeded"
@@ -143,7 +146,7 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 		statusCode = http.StatusRequestEntityTooLarge
 		errorCodeText = "Request too large"
 	case ErrCodeUnknownParty:
-		statusCode = http.StatusBadRequest
+		statusCode = http.StatusNotFound
 		errorCodeText = "Unknown party"
 	default:
 		statusCode = http.StatusInternalServerError

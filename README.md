@@ -27,6 +27,9 @@ If you plan to make changes to the code (or want to run the go tests) you will a
 
 #### 1. create a .env file in the root of the project:
 ```bash
+# PORT 
+PORT=8080
+
 # Path to CSV file containing the registry of all approved eBL PINT participants
 REGISTRY_PATH="test/testdata/platform-registry/eblsolutionproviders.csv"
 
@@ -58,6 +61,12 @@ X5C_CUSTOM_ROOTS_PATH="test/testdata/certs/root-ca.crt"
 
 # Database connection string (docker db container for dev)
 DATABASE_URL="postgres://pint-dev:@db:5432/pint_demo?sslmode=disable"
+
+# Party (legal entity) validation configuration - this services is used to check
+# the legal entity exists on the receiver before sending a transfer.
+# use the local service for development and testing:
+PARTY_SERVICE_NAME="local"
+PARTY_SERVICE_BASE_URL="http://localhost:${PORT}/admin/parties"
 ```
 
 
@@ -168,7 +177,15 @@ DCSA do not specify which algorithms should be used for signing. This implementa
 ### Validation
 This app implements all the cryptographic validation steps outlined in the DCSA *Digital Signatures Implementation Guide* and associated standards. It only does basic validation of the contents of the transport document JSON - schema validation is not implemented.
 
-## Project Layout
+### Party (Legal Entity) Validation
+The PINT receiver validation endpoint (`POST /v3/receiver-validation`) validates party identifying codes to ensure that the recipient party exists and is active before accepting a transfer.
+
+For development/testing, the server calls its own admin endpoints at `http://{host}:{port}/admin/parties`. 
+
+For production deployments, the party validation service can call a remote service (the service is selected via the `PARTY_SERVICE_NAME` environment variable).
+New services can be added by creating a new type that implements the `PartyValidator` interface (this will need to be customised for each production environment, taking into account authentication requirenents, API contracts etc). There is a sample implementation in `app/internal/services/party_validator.go`).  
+
+ ## Project Layout
 ```sh
 pint-demo/
 ├── app/
@@ -187,7 +204,8 @@ pint-demo/
 │   │   ├── issuance/        # Issuance API handlers
 │   │   ├── logger/          # Logging
 │   │   ├── pint/            # PINT API handlers
-│   │   └── server/          # HTTP server
+│   │   ├── server/          # HTTP server
+│   │   └── services/        # External service integrations
 │   ├── sql/
 │   │   ├── schema/          # Database migrations
 │   │   └── queries/         # SQL queries
@@ -277,9 +295,21 @@ see the http://localhost:8080/docs for the API docs
 The pint-server implements the following endpoints:
 
 **PINT**
+- `POST /v3/receiver-validation` - Receiver validation
 - `POST /v3/envelopes` - Start envelope transfer (PINT)
 - `PUT /v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}` - Add additional documents to a PINT transfer 
 - `PUT /v3/envelopes/{envelopeReference}/finish-transfer` - Finish a PINT transfer 
+
+**Admin**
+The party (legal entity) admin endpoints are unprotected and for use in development and testing only.
+Use a properly protected party management system in production.
+
+- `POST /admin/parties` - Create a new party (legal entity)
+- `PUT /admin/parties/{partyID}` - Update an existing party
+- `GET /admin/parties/{partyID}` - Get party by ID
+- `GET /admin/parties/{partyName}` - Get party by party name
+- `POST /admin/parties/{partyID}/codes` - Add an identifying code to a party
+- `GET /admin/parties/{partyID}/codes` - Get a party by identifying code
 
 **Common**
 - `GET /health` - Health check endpoint
@@ -289,7 +319,6 @@ The pint-server implements the following endpoints:
 
 Support for the following endpoints is planned but not yet implemented:
 - `PUT /v3/ebl-issuance-requests` - Receive eBL issuance request
-- `POST /v3/receiver-validation` - Receiver validation
 
 ### Server Testing
 the server is tested with end-2-end tests that start the server in-process and call the HTTP endpoints directly.

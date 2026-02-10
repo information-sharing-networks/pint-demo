@@ -99,6 +99,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Code list name (optional)",
+                        "name": "code_list_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Party code",
                         "name": "party_code",
                         "in": "query",
@@ -545,6 +551,58 @@ const docTemplate = `{
                         "description": "documentation only (not returned directly) - decoded payload of the signed response",
                         "schema": {
                             "$ref": "#/definitions/pint.EnvelopeTransferFinishedResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v3/receiver-validation": {
+            "post": {
+                "description": "Request the name of a party given a party code. This enables the sending user to validate\nthe receiver information (similar to how bank transfers enable users to confirm the receiver\nbefore confirming the transfer).\n\nA successful response asserts that the platform will accept an eBL for the account or user\ndenoted by the provided identifying code and that said account or user is \"active and able\nto accept interoperable eBLs\" as defined by the platform hosting the account or user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PINT"
+                ],
+                "summary": "Validate a receiver party",
+                "parameters": [
+                    {
+                        "description": "Party identifying code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pint.ReceiverValidationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Party found and active",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ReceiverValidationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Party not found or inactive",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/pint.ErrorResponse"
                         }
                     }
                 }
@@ -1054,6 +1112,7 @@ const docTemplate = `{
                 7008,
                 7009,
                 7010,
+                7011,
                 8001,
                 8002
             ],
@@ -1073,6 +1132,7 @@ const docTemplate = `{
                 "",
                 "",
                 "",
+                "",
                 "Trust level below minimum required"
             ],
             "x-enum-varnames": [
@@ -1086,6 +1146,7 @@ const docTemplate = `{
                 "ErrCodeRegistryError",
                 "ErrCodeRateLimitExceeded",
                 "ErrCodeRequestTooLarge",
+                "ErrCodeNotFound",
                 "ErrCodeUnknownParty",
                 "ErrCodeInsufficientTrust"
             ]
@@ -1127,6 +1188,36 @@ const docTemplate = `{
                 "statusCodeText": {
                     "description": "A standard short description corresponding to the HTTP status code",
                     "type": "string"
+                }
+            }
+        },
+        "pint.ReceiverValidationRequest": {
+            "type": "object",
+            "properties": {
+                "codeListName": {
+                    "description": "CodeListName is optional - the name of the code list (e.g., \"DID\", \"LEI\", \"DUNS\")",
+                    "type": "string",
+                    "example": "DID"
+                },
+                "codeListProvider": {
+                    "description": "CodeListProvider is the provider of the code list (e.g., \"WAVE\", \"CARX\", \"GLEIF\", \"W3C\")",
+                    "type": "string",
+                    "example": "W3C"
+                },
+                "partyCode": {
+                    "description": "PartyCode is the code to identify the party as provided by the code list provider",
+                    "type": "string",
+                    "example": "did:web:example.com:party:12345"
+                }
+            }
+        },
+        "pint.ReceiverValidationResponse": {
+            "type": "object",
+            "properties": {
+                "partyName": {
+                    "description": "PartyName is the name of the party that was validated",
+                    "type": "string",
+                    "example": "Globeteam"
                 }
             }
         },

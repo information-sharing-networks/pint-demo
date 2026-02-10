@@ -13,17 +13,17 @@ import (
 
 const CreateParty = `-- name: CreateParty :one
 INSERT INTO parties (id, created_at, updated_at, party_name, active)
-VALUES ($1, NOW(), NOW(), $2, true)
+VALUES (gen_random_uuid(), NOW(), NOW(), $1, $2)
 RETURNING id, created_at, updated_at, party_name, active
 `
 
 type CreatePartyParams struct {
-	ID        uuid.UUID `json:"id"`
-	PartyName string    `json:"party_name"`
+	PartyName string `json:"party_name"`
+	Active    bool   `json:"active"`
 }
 
 func (q *Queries) CreateParty(ctx context.Context, arg CreatePartyParams) (Party, error) {
-	row := q.db.QueryRow(ctx, CreateParty, arg.ID, arg.PartyName)
+	row := q.db.QueryRow(ctx, CreateParty, arg.PartyName, arg.Active)
 	var i Party
 	err := row.Scan(
 		&i.ID,
@@ -37,12 +37,11 @@ func (q *Queries) CreateParty(ctx context.Context, arg CreatePartyParams) (Party
 
 const CreatePartyIdentifyingCode = `-- name: CreatePartyIdentifyingCode :one
 INSERT INTO party_identifying_codes (id, created_at,updated_at, party_id, code_list_provider, party_code, code_list_name)
-VALUES ($1, NOW(), NOW(), $2, $3, $4, $5)
+VALUES (gen_random_uuid(), NOW(), NOW(), $1, $2, $3, $4)
 RETURNING id, created_at, updated_at, party_id, code_list_provider, party_code, code_list_name
 `
 
 type CreatePartyIdentifyingCodeParams struct {
-	ID               uuid.UUID `json:"id"`
 	PartyID          uuid.UUID `json:"party_id"`
 	CodeListProvider string    `json:"code_list_provider"`
 	PartyCode        string    `json:"party_code"`
@@ -51,7 +50,6 @@ type CreatePartyIdentifyingCodeParams struct {
 
 func (q *Queries) CreatePartyIdentifyingCode(ctx context.Context, arg CreatePartyIdentifyingCodeParams) (PartyIdentifyingCode, error) {
 	row := q.db.QueryRow(ctx, CreatePartyIdentifyingCode,
-		arg.ID,
 		arg.PartyID,
 		arg.CodeListProvider,
 		arg.PartyCode,
@@ -94,19 +92,22 @@ FROM parties p
 INNER JOIN party_identifying_codes pic ON p.id = pic.party_id
 WHERE pic.code_list_provider = $1
   AND pic.party_code = $2
+  AND ($3::text IS NULL OR pic.code_list_name = $3::text)
   AND p.active = TRUE
 LIMIT 1
 `
 
 type GetPartyByPartyCodeParams struct {
-	CodeListProvider string `json:"code_list_provider"`
-	PartyCode        string `json:"party_code"`
+	CodeListProvider string  `json:"code_list_provider"`
+	PartyCode        string  `json:"party_code"`
+	CodeListName     *string `json:"code_list_name"`
 }
 
 // Lookup a party by their identifying code (for receiver validation endpoint)
 // Only returns active parties
+// code_list_name is optional - if NULL, it matches any code_list_name
 func (q *Queries) GetPartyByPartyCode(ctx context.Context, arg GetPartyByPartyCodeParams) (Party, error) {
-	row := q.db.QueryRow(ctx, GetPartyByPartyCode, arg.CodeListProvider, arg.PartyCode)
+	row := q.db.QueryRow(ctx, GetPartyByPartyCode, arg.CodeListProvider, arg.PartyCode, arg.CodeListName)
 	var i Party
 	err := row.Scan(
 		&i.ID,

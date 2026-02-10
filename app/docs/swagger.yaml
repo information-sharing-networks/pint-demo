@@ -404,6 +404,7 @@ definitions:
     - 7008
     - 7009
     - 7010
+    - 7011
     - 8001
     - 8002
     type: integer
@@ -422,6 +423,7 @@ definitions:
     - ""
     - ""
     - ""
+    - ""
     - Trust level below minimum required
     x-enum-varnames:
     - ErrCodeBadSignature
@@ -434,6 +436,7 @@ definitions:
     - ErrCodeRegistryError
     - ErrCodeRateLimitExceeded
     - ErrCodeRequestTooLarge
+    - ErrCodeNotFound
     - ErrCodeUnknownParty
     - ErrCodeInsufficientTrust
   pint.ErrorResponse:
@@ -466,6 +469,31 @@ definitions:
       statusCodeText:
         description: A standard short description corresponding to the HTTP status
           code
+        type: string
+    type: object
+  pint.ReceiverValidationRequest:
+    properties:
+      codeListName:
+        description: CodeListName is optional - the name of the code list (e.g., "DID",
+          "LEI", "DUNS")
+        example: DID
+        type: string
+      codeListProvider:
+        description: CodeListProvider is the provider of the code list (e.g., "WAVE",
+          "CARX", "GLEIF", "W3C")
+        example: W3C
+        type: string
+      partyCode:
+        description: PartyCode is the code to identify the party as provided by the
+          code list provider
+        example: did:web:example.com:party:12345
+        type: string
+    type: object
+  pint.ReceiverValidationResponse:
+    properties:
+      partyName:
+        description: PartyName is the name of the party that was validated
+        example: Globeteam
         type: string
     type: object
   pint.ResponseCode:
@@ -578,6 +606,10 @@ paths:
         in: query
         name: code_list_provider
         required: true
+        type: string
+      - description: Code list name (optional)
+        in: query
+        name: code_list_name
         type: string
       - description: Party code
         in: query
@@ -1026,6 +1058,47 @@ paths:
           schema:
             $ref: '#/definitions/pint.EnvelopeTransferFinishedResponse'
       summary: Finish envelope transfer
+      tags:
+      - PINT
+  /v3/receiver-validation:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Request the name of a party given a party code. This enables the sending user to validate
+        the receiver information (similar to how bank transfers enable users to confirm the receiver
+        before confirming the transfer).
+
+        A successful response asserts that the platform will accept an eBL for the account or user
+        denoted by the provided identifying code and that said account or user is "active and able
+        to accept interoperable eBLs" as defined by the platform hosting the account or user.
+      parameters:
+      - description: Party identifying code
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pint.ReceiverValidationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Party found and active
+          schema:
+            $ref: '#/definitions/pint.ReceiverValidationResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+        "404":
+          description: Party not found or inactive
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/pint.ErrorResponse'
+      summary: Validate a receiver party
       tags:
       - PINT
   /version:
