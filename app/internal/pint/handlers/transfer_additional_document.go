@@ -192,7 +192,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 			return
 		}
-		pint.RespondWithPayload(w, http.StatusUnprocessableEntity, signedResponse)
+		pint.RespondWithSignedRejection(w, r, http.StatusUnprocessableEntity, signedResponse, pint.ResponseCodeBENV, reason)
 		return
 	}
 
@@ -213,7 +213,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 				pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 				return
 			}
-			pint.RespondWithPayload(w, http.StatusUnprocessableEntity, signedResponse)
+			pint.RespondWithSignedRejection(w, r, http.StatusUnprocessableEntity, signedResponse, pint.ResponseCodeBENV, reason)
 			return
 		}
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to lookup expected document"))
@@ -240,10 +240,6 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	// Step 8: Verify checksum matches URL parameter
 	if actualChecksum != documentChecksum {
 		reason := fmt.Sprintf("document checksum mismatch: expected %s, got %s", documentChecksum, actualChecksum)
-		reqLogger.Warn("Checksum mismatch",
-			slog.String("expected", documentChecksum),
-			slog.String("actual", actualChecksum),
-		)
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
 			ResponseCode: pint.ResponseCodeINCD,
@@ -253,7 +249,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
 			return
 		}
-		pint.RespondWithPayload(w, http.StatusConflict, signedResponse)
+		pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeINCD, reason)
 		return
 	}
 
@@ -261,10 +257,6 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	actualSize := int64(len(documentContent))
 	if actualSize != expectedDoc.ExpectedSize {
 		reason := fmt.Sprintf("document size mismatch: expected %d bytes, got %d bytes", expectedDoc.ExpectedSize, actualSize)
-		reqLogger.Warn("Size mismatch",
-			slog.Int64("expected", expectedDoc.ExpectedSize),
-			slog.Int64("actual", actualSize),
-		)
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
 			ResponseCode: pint.ResponseCodeINCD,
@@ -274,7 +266,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
 			return
 		}
-		pint.RespondWithPayload(w, http.StatusConflict, signedResponse)
+		pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeINCD, reason)
 		return
 	}
 

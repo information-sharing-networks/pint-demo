@@ -533,12 +533,12 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, msg *jws.Message) error {
 	kid, ok := sig.ProtectedHeaders().KeyID()
 	if !ok || kid == "" {
-		return NewValidationError("kid is required in JWS header")
+		return NewValidationError("JWS header does not contain a key id (required for signature verification)")
 	}
 
 	alg, ok := sig.ProtectedHeaders().Algorithm()
 	if !ok {
-		return NewValidationError("alg is required in JWS header")
+		return NewValidationError("JWS header does not contain an algorithm (alg is required for signature verification)")
 	}
 
 	// 1. Check manual keys first

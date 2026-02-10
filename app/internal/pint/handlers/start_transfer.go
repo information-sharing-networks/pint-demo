@@ -109,7 +109,7 @@ func (s *StartTransferHandler) respondWithSignedRejection(w http.ResponseWriter,
 		return
 	}
 
-	pint.RespondWithPayload(w, http.StatusUnprocessableEntity, signedResponse)
+	pint.RespondWithSignedRejection(w, r, http.StatusUnprocessableEntity, signedResponse, responseCode, reason)
 }
 
 // getAdditionalDocumentList extracts a list of all the expected additional document checksums from the manifest

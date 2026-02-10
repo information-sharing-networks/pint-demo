@@ -57,3 +57,27 @@ func RespondWithPayload(w http.ResponseWriter, statusCode int, payload any) {
 func RespondWithStatusCodeOnly(w http.ResponseWriter, statusCode int) {
 	w.WriteHeader(statusCode)
 }
+
+// RespondWithSignedRejection sends a signed DCSA rejection response and logs the rejection details.
+//
+// Use this function when returning a signed rejection response (BSIG, BENV, MDOC, INCD, DISE)
+// to ensure proper logging of the rejection for monitoring and debugging.
+func RespondWithSignedRejection(w http.ResponseWriter, r *http.Request, statusCode int, signedResponse *SignedEnvelopeTransferFinishedResponse, responseCode ResponseCode, reason string) {
+	reqLogger := logger.ContextRequestLogger(r.Context())
+
+	// Determine log level based on response code
+	// BSIG/BENV are warnings (expected validation failures)
+	// MDOC/INCD are info (temporary states that may resolve)
+	logLevel := slog.LevelWarn
+	if responseCode == ResponseCodeMDOC || responseCode == ResponseCodeINCD {
+		logLevel = slog.LevelInfo
+	}
+
+	reqLogger.Log(r.Context(), logLevel, "Signed rejection response",
+		slog.String("response_code", string(responseCode)),
+		slog.String("reason", reason),
+		slog.Int("status_code", statusCode),
+	)
+
+	RespondWithPayload(w, statusCode, signedResponse)
+}

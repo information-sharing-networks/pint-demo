@@ -163,11 +163,6 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 
 	// Step 4: If documents are missing, return MDOC response
 	if len(missingDocs) > 0 {
-		reqLogger.Warn("Cannot finish transfer - missing documents",
-			slog.Int("missing_count", len(missingDocs)),
-			slog.Any("missing_checksums", missingDocs),
-		)
-
 		reason := fmt.Sprintf("cannot accept envelope transfer: %d additional document(s) not yet received", len(missingDocs))
 
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -181,7 +176,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 			return
 		}
 
-		pint.RespondWithPayload(w, http.StatusConflict, signedResponse)
+		pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeMDOC, reason)
 		return
 	}
 
