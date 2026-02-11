@@ -87,6 +87,7 @@ func (h *PartyValidatorLocal) ValidateReceiver(ctx context.Context, codeListProv
 	}
 
 	// Execute request
+	// #nosec G704 -- False positive: BaseURL is from server config + query params are sanitized above (Encode()).
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to call party service: %w", err)

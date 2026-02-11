@@ -46,6 +46,7 @@ func RespondWithPayload(w http.ResponseWriter, statusCode int, payload any) {
 		if err := json.NewEncoder(w).Encode(payload); err != nil {
 			// If encoding fails, log it but don't try to send another response
 			// (headers are already written)
+			// #nosec G706 -- False positive: error is escaped (slog) and not from user input
 			slog.Error("Failed to encode JSON response",
 				slog.String("error", err.Error()),
 			)
