@@ -97,6 +97,10 @@ services:
       - JWK_CACHE_HTTP_TIMEOUT
       - REGISTRY_FETCH_TIMEOUT
 
+      # Party validation configuration
+      - PARTY_SERVICE_NAME
+      - PARTY_SERVICE_BASE_URL
+
     working_dir: /pint-demo
     ports:
       - "${PORT:-8080}:${PORT:-8080}"

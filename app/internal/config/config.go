@@ -87,7 +87,7 @@ type ServerEnvironment struct {
 	PartyServiceName string `env:"PARTY_SERVICE_NAME,default=local"`
 
 	// PartyServiceBaseURL is the base URL of the party management service
-	PartyServiceBaseURL string `env:"PARTY_SERVICE_BASE_URL,default=http://localhost:8080/admin/parties"`
+	PartyServiceBaseURL string `env:"PARTY_SERVICE_BASE_URL,required=true"`
 }
 
 var validEnvs = map[string]bool{
