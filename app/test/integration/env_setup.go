@@ -417,16 +417,3 @@ func runDatabaseMigrations(t *testing.T, pool *pgxpool.Pool) error {
 
 	return nil
 }
-
-// cleanupDatabase truncates the envelope tables to reset the database state between tests
-func cleanupDatabase(t *testing.T, pool *pgxpool.Pool) {
-	t.Helper()
-	ctx := context.Background()
-
-	_, err := pool.Exec(ctx, `
-		TRUNCATE TABLE transport_documents CASCADE;
-	`)
-	if err != nil {
-		t.Fatalf("Failed to cleanup database: %v", err)
-	}
-}

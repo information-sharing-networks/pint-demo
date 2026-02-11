@@ -36,7 +36,7 @@ func NewReceiverValidationHandler(partyValidator services.PartyValidator) *Recei
 //	@Tags			PINT
 //	@Accept			json
 //	@Produce		json
-//	@Param			request	body		pint.ReceiverValidationRequest	true	"Party identifying code"
+//	@Param			request	body		services.PartyIdentifyingCode	true	"Party identifying code"
 //	@Success		200		{object}	pint.ReceiverValidationResponse	"Party found and active"
 //	@Failure		400		{object}	pint.ErrorResponse				"Invalid request"
 //	@Failure		404		{object}	pint.ErrorResponse				"Party not found or inactive"
@@ -46,7 +46,7 @@ func (h *ReceiverValidationHandler) HandleReceiverValidation(w http.ResponseWrit
 	ctx := r.Context()
 
 	// Parse request body
-	var req pint.ReceiverValidationRequest
+	var req services.PartyIdentifyingCode
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "failed to decode request JSON"))
 		return
@@ -64,7 +64,7 @@ func (h *ReceiverValidationHandler) HandleReceiverValidation(w http.ResponseWrit
 	}
 
 	// Validate the party using the party validator service
-	partyName, err := h.partyValidator.ValidateReceiver(ctx, req.CodeListProvider, req.PartyCode)
+	partyName, err := h.partyValidator.ValidatePartyIdentifyingCode(ctx, req)
 	if err != nil {
 		if errors.Is(err, services.ErrPartyNotFound) {
 			// Return 404 for unknown/inactive parties

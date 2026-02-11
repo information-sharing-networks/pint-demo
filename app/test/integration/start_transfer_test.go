@@ -17,9 +17,12 @@ import (
 )
 
 // TestStartTransfer does an end-2-end test of the POST /v3/envelopes endpointd
+// TODO tests for multiple/inconsistent/missing identifying codes
+// TODO move recipient party tests to use new helper
 func TestStartTransfer(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2")
 	defer testEnv.shutdown()
+	createValidParties(t, testEnv)
 
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	// the test envelope with additional documents (1 ebl visualization, 2 supporting documents)
@@ -76,6 +79,7 @@ func TestStartTransfer(t *testing.T) {
 			if test.resetDatabase {
 				t.Log("Resetting database for test")
 				cleanupDatabase(t, testEnv.pool)
+				createValidParties(t, testEnv)
 			}
 
 			// Load valid test envelope
@@ -415,6 +419,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 			// Start server as the specified platform
 			env := startInProcessServer(t, tt.serverPlatform)
 			defer env.shutdown()
+			createValidParties(t, env)
 
 			envelopesURL := env.baseURL + "/v3/envelopes"
 
@@ -460,9 +465,99 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 					t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
 				}
 
-				t.Logf("Wrong recipient platform: Received BENV response with reason: %s", *payload.Reason)
-			} else {
-				t.Logf("Correct recipient platform: Transfer accepted")
+			}
+		})
+	}
+}
+
+func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
+	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
+	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+
+	tests := []struct {
+		name             string
+		envelopePath     string
+		setupParties     func(t *testing.T, env *testEnv)
+		expectedStatus   int
+		expectedResponse pint.ResponseCode
+		wantErrContains  string
+	}{
+		{
+			name:           "recipient_party_exists",
+			envelopePath:   testEnvelopePath,
+			setupParties:   createValidParties,
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:             "recipient_party_not_found",
+			envelopePath:     testEnvelopePath,
+			setupParties:     func(t *testing.T, testEnv *testEnv) {}, // no parties
+			expectedStatus:   http.StatusUnprocessableEntity,
+			expectedResponse: pint.ResponseCodeBENV,
+			wantErrContains:  "could not be located using the provided identifying codes",
+		},
+		{
+			name:             "recipient_party_multiple_codes_resolve_to_different_parties",
+			envelopePath:     testEnvelopePath,
+			setupParties:     createInvalidParties,
+			expectedStatus:   http.StatusUnprocessableEntity,
+			expectedResponse: pint.ResponseCodeBENV,
+			wantErrContains:  "resolved to multiple different parties",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Start server as EBL2
+			env := startInProcessServer(t, "EBL2")
+			defer env.shutdown()
+
+			// setup parties
+			tt.setupParties(t, env)
+
+			envelopesURL := env.baseURL + "/v3/envelopes"
+
+			// Load and POST the envelope
+			envelopeData, err := os.ReadFile(tt.envelopePath)
+			if err != nil {
+				t.Fatalf("Failed to read test envelope: %v", err)
+			}
+
+			resp, err := http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+			if err != nil {
+				t.Fatalf("Failed to POST envelope: %v", err)
+			}
+			defer resp.Body.Close()
+
+			// Verify status code
+			if resp.StatusCode != tt.expectedStatus {
+				t.Fatalf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)
+			}
+
+			if tt.expectedStatus == http.StatusUnprocessableEntity {
+				// Decode the signed error response
+				var signedResponse pint.SignedEnvelopeTransferFinishedResponse
+				if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
+					t.Fatalf("Failed to decode signed response: %v", err)
+				}
+
+				// Decode the JWS payload
+				payload := decodeSignedFinishedResponse(t, signedResponse)
+
+				// Verify the response code is BENV
+				if payload.ResponseCode != tt.expectedResponse {
+					t.Errorf("Expected responseCode %q, got %q", tt.expectedResponse, payload.ResponseCode)
+				}
+
+				// Verify the reason contains expected error
+				if payload.Reason == nil || !strings.Contains(*payload.Reason, tt.wantErrContains) {
+					t.Errorf("Expected reason to contain %q, got %v", tt.wantErrContains, payload.Reason)
+				}
+
+				// Verify lastEnvelopeTransferChainEntrySignedContentChecksum is set
+				if payload.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
+					t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
+				}
 			}
 		})
 	}

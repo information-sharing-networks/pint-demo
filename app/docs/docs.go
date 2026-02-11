@@ -576,7 +576,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pint.ReceiverValidationRequest"
+                            "$ref": "#/definitions/services.PartyIdentifyingCode"
                         }
                     }
                 ],
@@ -1191,26 +1191,6 @@ const docTemplate = `{
                 }
             }
         },
-        "pint.ReceiverValidationRequest": {
-            "type": "object",
-            "properties": {
-                "codeListName": {
-                    "description": "CodeListName is optional - the name of the code list (e.g., \"DID\", \"LEI\", \"DUNS\")",
-                    "type": "string",
-                    "example": "DID"
-                },
-                "codeListProvider": {
-                    "description": "CodeListProvider is the provider of the code list (e.g., \"WAVE\", \"CARX\", \"GLEIF\", \"W3C\")",
-                    "type": "string",
-                    "example": "W3C"
-                },
-                "partyCode": {
-                    "description": "PartyCode is the code to identify the party as provided by the code list provider",
-                    "type": "string",
-                    "example": "did:web:example.com:party:12345"
-                }
-            }
-        },
         "pint.ReceiverValidationResponse": {
             "type": "object",
             "properties": {
@@ -1247,6 +1227,26 @@ const docTemplate = `{
                     "description": "EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when\nan envelope transfer is accepted or rejected.",
                     "type": "string",
                     "example": "eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"
+                }
+            }
+        },
+        "services.PartyIdentifyingCode": {
+            "type": "object",
+            "properties": {
+                "codeListName": {
+                    "description": "CodeListName is optional - the name of the code list (e.g., \"DID\", \"LEI\", \"DUNS\")",
+                    "type": "string",
+                    "example": "DID"
+                },
+                "codeListProvider": {
+                    "description": "CodeListProvider is the provider of the code list (e.g., \"WAVE\", \"CARX\", \"GLEIF\", \"W3C\")",
+                    "type": "string",
+                    "example": "W3C"
+                },
+                "partyCode": {
+                    "description": "PartyCode is the code to identify the party as provided by the code list provider",
+                    "type": "string",
+                    "example": "did:web:example.com:party:12345"
                 }
             }
         }

@@ -20,8 +20,13 @@
         "eblPlatform": "EBL1",
         "identifyingCodes": [
           {
+            "codeListProvider": "EBL2",
+            "partyCode": "next-recipient@EBL2_party_code"
+          },
+          {
             "codeListProvider": "GLEIF",
-            "partyCode": "next-recipient@ed25519-eblplatform.example.com"
+            "codeListName": "LEI",
+            "partyCode": "next-recipient@GLEIF_party_code"
           }
         ]
       },

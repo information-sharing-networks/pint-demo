@@ -2,18 +2,6 @@ package pint
 
 // these are the types correpsonding to the API responses for the PINT API (see DCSA EBL_PINT 3.0.0)
 
-// ReceiverValidationRequest is the request body for POST /v3/receiver-validation
-type ReceiverValidationRequest struct {
-	// CodeListProvider is the provider of the code list (e.g., "WAVE", "CARX", "GLEIF", "W3C")
-	CodeListProvider string `json:"codeListProvider" example:"W3C"`
-
-	// PartyCode is the code to identify the party as provided by the code list provider
-	PartyCode string `json:"partyCode" example:"did:web:example.com:party:12345"`
-
-	// CodeListName is optional - the name of the code list (e.g., "DID", "LEI", "DUNS")
-	CodeListName *string `json:"codeListName,omitempty" example:"DID"`
-}
-
 // ReceiverValidationResponse is returned when a party is successfully validated (200 OK)
 type ReceiverValidationResponse struct {
 	// PartyName is the name of the party that was validated

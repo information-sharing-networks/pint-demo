@@ -21,7 +21,12 @@
         "identifyingCodes": [
           {
             "codeListProvider": "EBL2",
-            "partyCode": "next-recipient@rsa-eblplatform2.example.com"
+            "partyCode": "next-recipient@EBL2_party_code"
+          },
+          {
+            "codeListProvider": "GLEIF",
+            "codeListName": "LEI",
+            "partyCode": "next-recipient@GLEIF_party_code"
           }
         ]
       },

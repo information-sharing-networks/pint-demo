@@ -22,11 +22,29 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 )
 
+// PartyIdentifyingCode is the request body for POST /v3/receiver-validation
+type PartyIdentifyingCode struct {
+	// CodeListProvider is the provider of the code list (e.g., "WAVE", "CARX", "GLEIF", "W3C")
+	CodeListProvider string `json:"codeListProvider" example:"W3C"`
+
+	// PartyCode is the code to identify the party as provided by the code list provider
+	PartyCode string `json:"partyCode" example:"did:web:example.com:party:12345"`
+
+	// CodeListName is optional - the name of the code list (e.g., "DID", "LEI", "DUNS")
+	CodeListName *string `json:"codeListName,omitempty" example:"DID"`
+}
+
 // PartyValidator validates party identifying codes and returns party information.
 type PartyValidator interface {
-	// ValidateReceiver validates a party identifying code and returns the party name if found and active.
+	// ValidatePartyIdentifyingCode validates a party identifying code and returns the party name if found and active.
+	// This method is used by the /v3/receiver-validation endpoint handler.
 	// Returns ErrPartyNotFound if the party is not found, inactive, or the code list provider is not supported.
-	ValidateReceiver(ctx context.Context, codeListProvider, partyCode string) (partyName string, err error)
+	ValidatePartyIdentifyingCode(ctx context.Context, identifyingCode PartyIdentifyingCode) (partyName string, err error)
+
+	// GetPartyIDByIdentifyingCode returns the internal party ID for a given identifying code.
+	// This method is used by the receiving platform to validate that multiple identifing codes map to the same party.
+	// Returns ErrPartyNotFound if the party is not found, inactive, or the code list provider is not supported.
+	GetPartyIDByIdentifyingCode(ctx context.Context, identifyingCode PartyIdentifyingCode) (partyID string, err error)
 }
 
 // Common errors
@@ -60,59 +78,85 @@ func NewPartyValidator(cfg *config.ServerEnvironment, queries *database.Queries)
 // PartyValidatorLocal validates parties by calling the local admin GET parties endpoint
 //
 //	GET {baseURL}/admin/parties?code_list_provider={provider}&party_code={code}
-//	Response: {"party_name": "...", ...}
+//	Response: {"id": "...", "party_name": "...", "active": true}
 //	404 if party not found or inactive
 type PartyValidatorLocal struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-// ValidateReceiver validates a party by calling GET /admin/parties with query parameters.
-func (h *PartyValidatorLocal) ValidateReceiver(ctx context.Context, codeListProvider, partyCode string) (string, error) {
+// partyResponse represents the response from the admin GET /admin/parties endpoint
+type partyResponse struct {
+	ID        string `json:"id"`
+	PartyName string `json:"party_name"`
+	Active    bool   `json:"active"`
+}
+
+// callPartyService is a helper that calls the admin GET /admin/parties endpoint
+func (h *PartyValidatorLocal) callPartyService(ctx context.Context, identifyingCode PartyIdentifyingCode) (*partyResponse, error) {
 	// Build URL with query parameters
 	u, err := url.Parse(h.baseURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse base URL: %w", err)
+		return nil, fmt.Errorf("failed to parse base URL: %w", err)
 	}
 
 	q := u.Query()
-	q.Set("code_list_provider", codeListProvider)
-	q.Set("party_code", partyCode)
+	q.Set("code_list_provider", identifyingCode.CodeListProvider)
+	q.Set("party_code", identifyingCode.PartyCode)
+	if identifyingCode.CodeListName != nil {
+		q.Set("code_list_name", *identifyingCode.CodeListName)
+	}
 	u.RawQuery = q.Encode()
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Execute request
 	// #nosec G704 -- False positive: BaseURL is from server config + query params are sanitized above (Encode()).
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to call party service: %w", err)
+		return nil, fmt.Errorf("failed to call party service: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Handle response
 	if resp.StatusCode == http.StatusNotFound {
-		return "", ErrPartyNotFound
+		return nil, ErrPartyNotFound
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("party service returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("party service returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
-	var partyResp struct {
-		PartyName string `json:"party_name"`
-	}
+	var partyResp partyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&partyResp); err != nil {
-		return "", fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	return &partyResp, nil
+}
+
+// ValidatePartyIdentifyingCode validates a party identifying code and returns the party name.
+func (h *PartyValidatorLocal) ValidatePartyIdentifyingCode(ctx context.Context, identifyingCode PartyIdentifyingCode) (string, error) {
+	partyResp, err := h.callPartyService(ctx, identifyingCode)
+	if err != nil {
+		return "", err
+	}
 	return partyResp.PartyName, nil
+}
+
+// GetPartyIDByIdentifyingCode returns the internal party ID for a given identifying code.
+func (h *PartyValidatorLocal) GetPartyIDByIdentifyingCode(ctx context.Context, identifyingCode PartyIdentifyingCode) (string, error) {
+	partyResp, err := h.callPartyService(ctx, identifyingCode)
+	if err != nil {
+		return "", err
+	}
+	return partyResp.ID, nil
 }
 
 // PartyValidatorSample validates parties by calling a remote service (illustrative example)
@@ -121,8 +165,14 @@ type PartyValidatorSample struct {
 	httpClient *http.Client
 }
 
-// ValidateReceiver validates a party by calling GET /admin/parties with query parameters.
-func (h *PartyValidatorSample) ValidateReceiver(ctx context.Context, codeListProvider, partyCode string) (string, error) {
+// ValidatePartyIdentifyingCode validates a party by calling a remote service (illustrative example).
+func (h *PartyValidatorSample) ValidatePartyIdentifyingCode(ctx context.Context, identifyingCode PartyIdentifyingCode) (string, error) {
+	// implement remote service call here
+	return "not implemented", nil
+}
+
+// GetPartyIDByIdentifyingCode returns the internal party ID by calling a remote service (illustrative example).
+func (h *PartyValidatorSample) GetPartyIDByIdentifyingCode(ctx context.Context, identifyingCode PartyIdentifyingCode) (string, error) {
 	// implement remote service call here
 	return "not implemented", nil
 }

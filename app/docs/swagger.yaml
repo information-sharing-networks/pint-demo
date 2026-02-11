@@ -471,24 +471,6 @@ definitions:
           code
         type: string
     type: object
-  pint.ReceiverValidationRequest:
-    properties:
-      codeListName:
-        description: CodeListName is optional - the name of the code list (e.g., "DID",
-          "LEI", "DUNS")
-        example: DID
-        type: string
-      codeListProvider:
-        description: CodeListProvider is the provider of the code list (e.g., "WAVE",
-          "CARX", "GLEIF", "W3C")
-        example: W3C
-        type: string
-      partyCode:
-        description: PartyCode is the code to identify the party as provided by the
-          code list provider
-        example: did:web:example.com:party:12345
-        type: string
-    type: object
   pint.ReceiverValidationResponse:
     properties:
       partyName:
@@ -519,6 +501,24 @@ definitions:
           EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when
           an envelope transfer is accepted or rejected.
         example: eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM
+        type: string
+    type: object
+  services.PartyIdentifyingCode:
+    properties:
+      codeListName:
+        description: CodeListName is optional - the name of the code list (e.g., "DID",
+          "LEI", "DUNS")
+        example: DID
+        type: string
+      codeListProvider:
+        description: CodeListProvider is the provider of the code list (e.g., "WAVE",
+          "CARX", "GLEIF", "W3C")
+        example: W3C
+        type: string
+      partyCode:
+        description: PartyCode is the code to identify the party as provided by the
+          code list provider
+        example: did:web:example.com:party:12345
         type: string
     type: object
 info:
@@ -1078,7 +1078,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/pint.ReceiverValidationRequest'
+          $ref: '#/definitions/services.PartyIdentifyingCode'
       produces:
       - application/json
       responses:

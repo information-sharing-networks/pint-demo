@@ -16,6 +16,7 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
+	"github.com/information-sharing-networks/pint-demo/app/internal/services"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -51,6 +52,9 @@ type StartTransferHandler struct {
 
 	// Minimum trust level required for signatures (server config)
 	minTrustLevel crypto.TrustLevel
+
+	// partyValidator is used to validate the recipient party exists and is active on the recipient platform
+	partyValidator services.PartyValidator
 }
 
 // NewStartTransferHandler creates a new handler for starting envelope transfers
@@ -63,6 +67,7 @@ func NewStartTransferHandler(
 	x5cCertChain []*x509.Certificate,
 	x5cCustomRoots *x509.CertPool,
 	minTrustLevel crypto.TrustLevel,
+	partyValidator services.PartyValidator,
 ) *StartTransferHandler {
 	return &StartTransferHandler{
 		queries:        queries,
@@ -73,6 +78,7 @@ func NewStartTransferHandler(
 		x5cCertChain:   x5cCertChain,
 		x5cCustomRoots: x5cCustomRoots,
 		minTrustLevel:  minTrustLevel,
+		partyValidator: partyValidator,
 	}
 }
 
@@ -411,7 +417,81 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// Collect all additional documents required for the transfer
 	additionalDocs := getAdditionalDocumentList(verificationResult.Manifest)
 
-	// Step 7. TODO check the receiving party exists (not yet implemented)
+	// Step 7: Validate the receiving party exists and is active on the recipient platform.
+	//
+	// Senders may provide multiple identifyingCodes for the recipient - each should uniquely
+	// identify a party, and if multiple codes exist, they must refer to the same legal entity.
+	// Multiple codes enable different downstream systems to use their preferred identifier
+	// (e.g., both DID and LEI for the same company).
+	//
+	// **Validation Strategy**
+	// Validate each code via the party validator service and ensure all successfully validated
+	// codes refer to the same internal party ID.
+	//
+	// 1. No codes validate = REJECT (BENV: party not found)
+	// 2. Codes validate to different party IDs = REJECT (BENV: conflicting codes)
+	// 3. Some codes validate, others don't = REJECT (BENV: conflicting codes)
+	// 4. All codes validate to same party ID = ACCEPT
+	//
+	// TODO: check the expectation for receiver logic:
+	// - Rule 2 is implied by the spec (which says the sender should take care not to send conflicting codes)
+	// - Rule 3 is not explicitly requird but seems sensible: accepting unmatched codes
+	// 	 risks downstream confusion since there is no way for the downstream system
+	//	 to know which code(s) were successfully validated.
+	lastTransferEntry := verificationResult.LastTransferChainEntry
+	lastTransaction := lastTransferEntry.Transactions[len(lastTransferEntry.Transactions)-1]
+
+	recipient := lastTransaction.Recipient
+
+	validatedPartyIDs := make(map[string]bool) // partyID -> true
+	var unrecognizedCodes []string
+
+	for _, code := range recipient.IdentifyingCodes {
+		// convert to PartyIdentifyingCode
+		identifyingCode := services.PartyIdentifyingCode{
+			CodeListProvider: code.CodeListProvider,
+			PartyCode:        code.PartyCode,
+			CodeListName:     code.CodeListName,
+		}
+		partyID, err := s.partyValidator.GetPartyIDByIdentifyingCode(ctx, identifyingCode)
+		if err != nil {
+			if errors.Is(err, services.ErrPartyNotFound) {
+				// Track unrecognized codes
+				unrecognizedCodes = append(unrecognizedCodes,
+					fmt.Sprintf("%s:%s", code.CodeListProvider, code.PartyCode))
+				continue
+			}
+
+			// internal error
+			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to validate party"))
+
+			return
+		}
+
+		// Track validated party IDs
+		validatedPartyIDs[partyID] = true
+	}
+
+	// Reject if no codes validated
+	if len(validatedPartyIDs) == 0 {
+		reason = fmt.Sprintf("The recipient party <%s> could not be located using the provided identifying codes", recipient.PartyName)
+		s.respondWithSignedRejection(w, r, lastChainChecksum, pint.ResponseCodeBENV, reason)
+		return
+	}
+
+	// Reject if any codes were not recognized
+	if len(unrecognizedCodes) > 0 {
+		reason = fmt.Sprintf("Could not validate all identifying codes for recipient party <%s>. Unrecognized codes: %v.", recipient.PartyName, unrecognizedCodes)
+		s.respondWithSignedRejection(w, r, lastChainChecksum, pint.ResponseCodeBENV, reason)
+		return
+	}
+
+	// Reject if codes validated to different parties
+	if len(validatedPartyIDs) > 1 {
+		reason = fmt.Sprintf("Identifying codes for <%s> resolved to multiple different parties", recipient.PartyName)
+		s.respondWithSignedRejection(w, r, lastChainChecksum, pint.ResponseCodeBENV, reason)
+		return
+	}
 
 	// Step 8. start transactional db work
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
@@ -452,14 +532,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	// Step 10: Create a record of the envelope transfer
-	lastTransferEntry := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
+	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	storedEnvelope, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
 		TransportDocumentChecksum:           verificationResult.TransportDocumentChecksum,
 		SentByPlatformCode:                  verificationResult.LastTransferChainEntry.EblPlatform,
 		LastTransferChainEntryChecksum:      verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
 		EnvelopeManifestSignedContent:       string(envelope.EnvelopeManifestSignedContent),
-		LastTransferChainEntrySignedContent: string(lastTransferEntry),
+		LastTransferChainEntrySignedContent: string(lastTransferEntrySignedContent),
 		ResponseCode:                        responseCode, // RECE if immediate accept, NULL if pending
 		ResponseReason:                      nil,
 		TrustLevel:                          int32(verificationResult.TrustLevel),

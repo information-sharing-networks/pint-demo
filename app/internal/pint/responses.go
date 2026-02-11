@@ -78,6 +78,7 @@ func RespondWithSignedRejection(w http.ResponseWriter, r *http.Request, statusCo
 		slog.String("response_code", string(responseCode)),
 		slog.String("reason", reason),
 		slog.Int("status_code", statusCode),
+		slog.String("error_code", string(responseCode)),
 	)
 
 	RespondWithPayload(w, statusCode, signedResponse)

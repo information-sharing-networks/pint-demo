@@ -31,7 +31,7 @@ CREATE TABLE party_identifying_codes (
     CONSTRAINT fk_party_identifying_codes_party FOREIGN KEY (party_id)
         REFERENCES parties(id)
         ON DELETE CASCADE,
-    CONSTRAINT unique_identifying_code UNIQUE(code_list_provider,  party_code)
+    CONSTRAINT unique_identifying_code UNIQUE(code_list_provider, code_list_name,  party_code)
 );
 
 CREATE INDEX idx_party_identifying_codes_party ON party_identifying_codes(party_id);

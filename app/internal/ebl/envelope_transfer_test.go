@@ -143,7 +143,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 
 			for i := range envelope.EnvelopeTransferChain {
 				if envelope.EnvelopeTransferChain[i] != sampleEblEnvelope.EnvelopeTransferChain[i] {
-					t.Fatalf("transfer chain entry item %d mismatch", i)
+					t.Fatalf("expected transfer chain entry %d signed content does not match envelope transfer chain entry", i)
 				}
 				log.Printf("Transfer chain entry item %d matches\n", i)
 			}

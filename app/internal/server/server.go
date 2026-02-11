@@ -224,6 +224,7 @@ func (s *Server) registerPintRoutes() {
 		s.x5cCertChain,
 		s.x5cCustomRoots,
 		s.config.MinTrustLevel,
+		s.services.PartyValidator,
 	)
 
 	transferAdditionalDocument := pinthandlers.NewTransferAdditionalDocumentHandler(
