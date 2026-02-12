@@ -42,14 +42,14 @@ func TestStartTransfer(t *testing.T) {
 		resetDatabase        bool
 	}{
 		{
-			name:                 "valid envelope with additional documents",
+			name:                 "accepts envelope with additional documents",
 			envelopePath:         testEnvelopeWithDocsPath,
 			expectedStatus:       http.StatusCreated, // should be created but not accepted
 			expectedMissingDocs:  3,
 			expectedReceivedDocs: 0,
 		},
 		{
-			name:                 "valid envelope with additional documents (retry)",
+			name:                 "retry: returns pending state for envelope with additional documents",
 			envelopePath:         testEnvelopeWithDocsPath,
 			expectedStatus:       http.StatusCreated, // should report dupe
 			expectedMissingDocs:  3,
@@ -57,7 +57,7 @@ func TestStartTransfer(t *testing.T) {
 			isRetry:              true,
 		},
 		{
-			name:                 "valid envelope with no additional documents",
+			name:                 "accepts envelope with no additional documents immediately",
 			envelopePath:         testEnvelopeNoDocsPath,
 			expectedStatus:       http.StatusOK, // should be immediately accepted
 			expectedMissingDocs:  0,
@@ -65,7 +65,7 @@ func TestStartTransfer(t *testing.T) {
 			resetDatabase:        true,
 		},
 		{
-			name:                 "valid envelope with no additional documents (retry)",
+			name:                 "retry: returns DUPE for envelope with no additional documents",
 			envelopePath:         testEnvelopeNoDocsPath,
 			expectedStatus:       http.StatusOK, // should be immediately accepted
 			expectedMissingDocs:  0,
@@ -293,7 +293,7 @@ func TestStartTransfer(t *testing.T) {
 		})
 
 	}
-	t.Run("malformed JSON returns 400 Bad Request", func(t *testing.T) {
+	t.Run("error: malformed JSON returns 400 Bad Request", func(t *testing.T) {
 		malformedJSON := []byte(`{"invalid": json}`)
 
 		resp, err := http.Post(envelopesURL, "application/json", bytes.NewReader(malformedJSON))
@@ -324,7 +324,7 @@ func TestStartTransfer(t *testing.T) {
 	})
 
 	// skip this test
-	t.Run("tampered envelope returns 422 Unprocessable Entity", func(t *testing.T) {
+	t.Run("error: tampered envelope returns 422 with BENV", func(t *testing.T) {
 		// Load valid test envelope
 		envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
 		if err != nil {
@@ -401,12 +401,12 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 		wantErrContains string
 	}{
 		{
-			name:           "correct_recipient_platform",
+			name:           "accepts envelope addressed to correct platform",
 			serverPlatform: "EBL2",
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name:            "wrong_recipient_platform",
+			name:            "returns BENV when envelope addressed to wrong platform",
 			serverPlatform:  "EBL1",
 			expectedStatus:  http.StatusUnprocessableEntity,
 			expectedCode:    pint.ResponseCodeBENV,
@@ -483,13 +483,13 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 		wantErrContains  string
 	}{
 		{
-			name:           "recipient_party_exists",
+			name:           "accepts when recipient party exists",
 			envelopePath:   testEnvelopePath,
 			setupParties:   createValidParties,
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name:             "recipient_party_not_found",
+			name:             "returns BENV when recipient party not found",
 			envelopePath:     testEnvelopePath,
 			setupParties:     func(t *testing.T, testEnv *testEnv) {}, // no parties
 			expectedStatus:   http.StatusUnprocessableEntity,
@@ -497,7 +497,7 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 			wantErrContains:  "could not be located using the provided identifying codes",
 		},
 		{
-			name:             "recipient_party_multiple_codes_resolve_to_different_parties",
+			name:             "returns BENV when recipient codes resolve to different parties",
 			envelopePath:     testEnvelopePath,
 			setupParties:     createInvalidParties,
 			expectedStatus:   http.StatusUnprocessableEntity,

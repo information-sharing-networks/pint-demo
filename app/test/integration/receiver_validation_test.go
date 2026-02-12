@@ -39,7 +39,7 @@ func TestReceiverValidation(t *testing.T) {
 		expectErrorCode   pint.ErrorCode
 	}{
 		{
-			name: "valid_party_with_LEI",
+			name: "validates party with LEI",
 			validationRequest: services.PartyIdentifyingCode{
 				CodeListProvider: "GLEIF",
 				PartyCode:        "123",
@@ -49,7 +49,7 @@ func TestReceiverValidation(t *testing.T) {
 			expectedPartyName: "Test Ltd",
 		},
 		{
-			name: "valid_party_without_codeListName",
+			name: "validates party without codeListName",
 			validationRequest: services.PartyIdentifyingCode{
 				CodeListProvider: "EBL1",
 				PartyCode:        "456",
@@ -58,7 +58,7 @@ func TestReceiverValidation(t *testing.T) {
 			expectedPartyName: "Test Ltd - No codeListName",
 		},
 		{
-			name: "party_not_found",
+			name: "returns 404 when party not found",
 			validationRequest: services.PartyIdentifyingCode{
 				CodeListProvider: "GLEIF",
 				PartyCode:        "N/A",
@@ -67,7 +67,7 @@ func TestReceiverValidation(t *testing.T) {
 			expectErrorCode: pint.ErrCodeUnknownParty,
 		},
 		{
-			name: "inactive_party",
+			name: "returns 404 when party is inactive",
 			validationRequest: services.PartyIdentifyingCode{
 				CodeListProvider: "GLEIF",
 				PartyCode:        "789",
@@ -76,7 +76,7 @@ func TestReceiverValidation(t *testing.T) {
 			expectErrorCode: pint.ErrCodeUnknownParty,
 		},
 		{
-			name: "missing_code_list_provider",
+			name: "error: missing code list provider",
 			validationRequest: services.PartyIdentifyingCode{
 				PartyCode: "SOMECODE",
 			},
@@ -84,7 +84,7 @@ func TestReceiverValidation(t *testing.T) {
 			expectErrorCode: pint.ErrCodeMalformedRequest,
 		},
 		{
-			name: "missing_party_code",
+			name: "error: missing party code",
 			validationRequest: services.PartyIdentifyingCode{
 				CodeListProvider: "GLEIF",
 			},

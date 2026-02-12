@@ -166,7 +166,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 		expectedMissingCount int
 	}{
 		{
-			name:                 "1. Upload EBL visualization",
+			name:                 "1. uploads EBL visualization",
 			documentChecksum:     eblVisualizationChecksum,
 			documentContent:      eblVisualizationContent,
 			isEblVisualization:   true,
@@ -174,7 +174,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			expectedMissingCount: 2,
 		},
 		{
-			name:                 "2. Re-upload EBL visualization (duplicate)",
+			name:                 "2. accepts duplicate EBL visualization",
 			documentChecksum:     eblVisualizationChecksum,
 			documentContent:      eblVisualizationContent,
 			isEblVisualization:   true,
@@ -182,7 +182,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			expectedMissingCount: 2,
 		},
 		{
-			name:                 "3. Upload invoice",
+			name:                 "3. uploads invoice",
 			documentChecksum:     invoiceChecksum,
 			documentContent:      invoiceContent,
 			isEblVisualization:   false,
@@ -190,7 +190,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			expectedMissingCount: 1,
 		},
 		{
-			name:                 "4. Re-upload invoice (duplicate)",
+			name:                 "4. accepts duplicate invoice",
 			documentChecksum:     invoiceChecksum,
 			documentContent:      invoiceContent,
 			isEblVisualization:   false,
@@ -198,7 +198,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			expectedMissingCount: 1,
 		},
 		{
-			name:                 "5. Upload packing list (all docs uploaded)",
+			name:                 "5. uploads packing list completing transfer",
 			documentChecksum:     packingListChecksum,
 			documentContent:      packingListContent,
 			isEblVisualization:   false,
@@ -267,7 +267,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	}
 
 	// After all documents are uploaded, call finish-transfer endpoint to complete the transfer
-	t.Run("6. Finish transfer (expect RECE)", func(t *testing.T) {
+	t.Run("6. finishes transfer and returns RECE", func(t *testing.T) {
 		finishURL := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
 		req, err := http.NewRequest(http.MethodPut, finishURL, nil)
 		if err != nil {
@@ -313,7 +313,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	})
 
 	// Retry finish-transfer to verify DUPE response
-	t.Run("7. Retry finish transfer (expect DUPE)", func(t *testing.T) {
+	t.Run("7. retry: returns DUPE on finish transfer", func(t *testing.T) {
 		finishURL := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/finish-transfer"
 		req, err := http.NewRequest(http.MethodPut, finishURL, nil)
 		if err != nil {
@@ -422,9 +422,10 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 		expectedStatusCode   int
 		expectedResponseCode *pint.ResponseCode // nil for non-PINT error responses
 		checkReason          bool
+		skipBase64Encoding   bool // If true, send raw content without base64 encoding
 	}{
 		{
-			name:                 "checksum mismatch returns 409 INCD",
+			name:                 "returns INCD when checksum mismatch",
 			envelopeRef:          envelopeRef,
 			documentChecksum:     packingListChecksum,
 			documentContent:      invoiceContent, // Wrong content!
@@ -433,14 +434,15 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 			checkReason:          true,
 		},
 		{
-			name:               "invalid base64 returns 400",
+			name:               "error: invalid base64 returns 400",
 			envelopeRef:        envelopeRef,
 			documentChecksum:   packingListChecksum,
-			documentContent:    []byte("this is not valid base64!!!"),
+			documentContent:    []byte("!!invalid base64!!"),
 			expectedStatusCode: http.StatusBadRequest,
+			skipBase64Encoding: true,
 		},
 		{
-			name:                 "document not in manifest returns 422 BENV",
+			name:                 "returns BENV when document not in manifest",
 			envelopeRef:          envelopeRef,
 			documentChecksum:     "0000000000000000000000000000000000000000000000000000000000000000",
 			documentContent:      []byte("some content"),
@@ -448,21 +450,21 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 			expectedResponseCode: &[]pint.ResponseCode{pint.ResponseCodeBENV}[0],
 		},
 		{
-			name:               "invalid envelope reference returns 400",
+			name:               "error: invalid envelope reference returns 400",
 			envelopeRef:        uuid.New().String(), // Valid UUID but doesn't exist
 			documentChecksum:   packingListChecksum,
 			documentContent:    packingListContent,
 			expectedStatusCode: http.StatusBadRequest,
 		},
 		{
-			name:               "malformed envelope reference returns 400",
+			name:               "error: malformed envelope reference returns 400",
 			envelopeRef:        "not-a-uuid",
 			documentChecksum:   packingListChecksum,
 			documentContent:    packingListContent,
 			expectedStatusCode: http.StatusBadRequest,
 		},
 		{
-			name:               "empty body returns 400",
+			name:               "error: empty body returns 400",
 			envelopeRef:        envelopeRef,
 			documentChecksum:   packingListChecksum,
 			documentContent:    []byte(""),
@@ -474,9 +476,9 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			url := testEnv.baseURL + "/v3/envelopes/" + tt.envelopeRef + "/additional-documents/" + tt.documentChecksum
 
-			// Encode content as base64 unless it's already invalid base64 test
+			// Encode content as base64 unless skipBase64Encoding is set
 			var body []byte
-			if tt.name == "invalid base64 returns 400" {
+			if tt.skipBase64Encoding {
 				body = tt.documentContent
 			} else {
 				body = []byte(base64.StdEncoding.EncodeToString(tt.documentContent))

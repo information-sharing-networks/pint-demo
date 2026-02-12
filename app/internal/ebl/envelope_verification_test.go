@@ -29,9 +29,11 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 		expectedSenderDomain  string
 		expectedCarrierDomain string
 		recipientPlatformCode string
+		senderPlatformCode    string // Platform code for the sender's key in KeyProvider
+		carrierPlatformCode   string // Platform code for the carrier's key in KeyProvider
 	}{
 		{
-			name:                  "valid_Ed25519",
+			name:                  "verifies Ed25519 signed envelope",
 			eblEnvelopePath:       "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
 			publicKeyJWKPath:      "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
 			carrierPublicKeyPath:  "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk",
@@ -39,9 +41,11 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			expectedSenderDomain:  "ed25519-eblplatform.example.com",
 			expectedCarrierDomain: "ed25519-carrier.example.com",
 			recipientPlatformCode: "EBL2",
+			senderPlatformCode:    "EBL1",
+			carrierPlatformCode:   "CAR1",
 		},
 		{
-			name:                  "valid_RSA",
+			name:                  "verifies RSA signed envelope",
 			eblEnvelopePath:       "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
 			publicKeyJWKPath:      "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk",
 			carrierPublicKeyPath:  "../../test/testdata/keys/rsa-carrier.example.com.public.jwk",
@@ -49,6 +53,8 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			expectedSenderDomain:  "rsa-eblplatform.example.com",
 			expectedCarrierDomain: "rsa-carrier.example.com",
 			recipientPlatformCode: "EBL1",
+			senderPlatformCode:    "EBL2",
+			carrierPlatformCode:   "CAR2",
 		},
 	}
 	for _, test := range testData {
@@ -107,17 +113,10 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			// Create mock KeyProvider with both keys
-			// Map KIDs to platform codes based on test data:
-			// - Ed25519 keys: EBL1 (platform), CAR1 (carrier)
-			// - RSA keys: EBL2 (platform), CAR2 (carrier)
+			// Map KIDs to platform codes based on test data
 			keyProvider := testutil.NewMockKeyProvider()
-			if test.name == "valid_Ed25519" {
-				keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
-				keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR1")
-			} else {
-				keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL2")
-				keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, "CAR2")
-			}
+			keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, test.senderPlatformCode)
+			keyProvider.AddKeyWithPlatform(carrierHeader.KeyID, carrierPublicKey, test.carrierPlatformCode)
 
 			// Create verification input
 			input := EnvelopeVerificationInput{
@@ -221,7 +220,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 	}{
 		// signature errors
 		{
-			name:            "incorrect public key",
+			name:            "returns BSIG when incorrect public key",
 			publicKeyPath:   wrongPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  false,
@@ -229,7 +228,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "JWS verification failed", // Signature fails before x5c check
 		},
 		{
-			name: "tampered envelope manifest - signature invalid",
+			name: "returns BSIG when envelope manifest signature invalid",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				// Modify the manifest JWS by replacing the payload
 				parts := strings.Split(string(env.EnvelopeManifestSignedContent), ".")
@@ -247,7 +246,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "JWS verification failed",
 		},
 		{
-			name:            "wrong root CA",
+			name:            "returns BSIG when wrong root CA",
 			publicKeyPath:   validPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  true,
@@ -256,7 +255,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		// Envelope integrity errors
 		{
-			name: "tampered transfer chain entry signature",
+			name: "returns BENV when transfer chain entry signature tampered",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				if len(env.EnvelopeTransferChain) == 0 {
 					return fmt.Errorf("empty transfer chain")
@@ -279,7 +278,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "last transfer chain entry checksum does not match the manifest",
 		},
 		{
-			name: "tampered transport document",
+			name: "returns BENV when transport document tampered",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				env.TransportDocument = json.RawMessage(`{"tampered": "data"}`)
 				return nil
@@ -291,7 +290,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "transport document checksum mismatch",
 		},
 		{
-			name: "missing transportDocumentReference",
+			name: "returns BENV when missing transportDocumentReference",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				// Create a transport document WITHOUT transportDocumentReference
 				// This tests that a malicious actor can't create a properly signed envelope
@@ -360,7 +359,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "transportDocumentReference is required",
 		},
 		{
-			name: "empty transfer chain",
+			name: "returns BENV when transfer chain empty",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				env.EnvelopeTransferChain = []EnvelopeTransferChainEntrySignedContent{}
 				return nil
@@ -372,7 +371,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "envelope transfer chain is empty",
 		},
 		{
-			name: "invalid state transition - SURRENDER_FOR_DELIVERY followed by TRANSFER",
+			name: "returns BENV when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				// Decode the last transfer chain entry (which has a TRANSFER transaction)
 				lastIdx := len(env.EnvelopeTransferChain) - 1
