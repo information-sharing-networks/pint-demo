@@ -85,14 +85,18 @@ const (
 	EnvelopeStateSign                  EnvelopeState = "SIGN"
 	EnvelopeStateSurrenderForAmendment EnvelopeState = "SURRENDER_FOR_AMENDMENT"
 	EnvelopeStateSurrenderForDelivery  EnvelopeState = "SURRENDER_FOR_DELIVERY"
+	EnvelopeStateSACC                  EnvelopeState = "SACC" // used by the carrier to accept a surrender request.
+	EnvelopeStateSREJ                  EnvelopeState = "SREJ" // used by the carrier to reject a surrender request.
 )
 
 var validEnvelopeStateTransitions = map[EnvelopeState][]EnvelopeState{
 	EnvelopeStateIssue:                 {EnvelopeStateTransfer, EnvelopeStateEndorse},
 	EnvelopeStateTransfer:              {EnvelopeStateTransfer, EnvelopeStateEndorse, EnvelopeStateEndorseToOrder, EnvelopeStateBlankEndorse, EnvelopeStateSign, EnvelopeStateSurrenderForAmendment, EnvelopeStateSurrenderForDelivery},
 	EnvelopeStateEndorse:               {EnvelopeStateTransfer, EnvelopeStateEndorse, EnvelopeStateEndorseToOrder, EnvelopeStateBlankEndorse, EnvelopeStateSign, EnvelopeStateSurrenderForAmendment, EnvelopeStateSurrenderForDelivery},
-	EnvelopeStateSurrenderForAmendment: {}, // terminal state
-	EnvelopeStateSurrenderForDelivery:  {}, // terminal state
+	EnvelopeStateSurrenderForAmendment: {EnvelopeStateSACC, EnvelopeStateSREJ},
+	EnvelopeStateSurrenderForDelivery:  {EnvelopeStateSACC, EnvelopeStateSREJ},
+	EnvelopeStateSACC:                  {}, // terminal state
+	EnvelopeStateSREJ:                  {}, // terminal state
 }
 
 // isValidEnvelopeStateTransition checks if a transition from currentState to nextState is valid
