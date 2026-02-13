@@ -140,6 +140,10 @@ DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable"
 docker compose exec app bash -c 'cd /pint-demo/app && goose -dir sql/schema postgres "$DATABASE_URL" down"
 ```
 
+auto-reload is enabled in dev mode, so changes to the code will be reloaded automatically (this regenerates the sqlc code and restarts the server)
+
+the swagger documentation is available at http://localhost:8080/docs
+
 ## Concepts
 
 ### Key distribution
@@ -318,9 +322,10 @@ Use a properly protected party management system in production.
 - `GET /admin/parties/{partyID}/codes` - Get a party by identifying code
 
 **Common**
-- `GET /health` - Health check endpoint
+- `GET /health/live` - Health (liveness) check endpoint
+- `GET /ready` - Readiness check endpoint (includes database connectivity)
 - `GET /.well-known/jwks.json` - JWK set endpoint (public key for this instance of the server)
-- `GET /docs` - API documentation 
+- `GET /docs` - API documentation
 - `GET /swagger.json` - OpenAPI specification
 
 Support for the following endpoints is planned but not yet implemented:
