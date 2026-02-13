@@ -388,7 +388,7 @@ func TestTransaction_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.tx.Validate()
+			err := tt.tx.ValidateStructure()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Transaction.Validate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -447,7 +447,7 @@ func TestIdentifyingCode_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.code.Validate()
+			err := tt.code.ValidateStructure()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("IdentifyingCode.Validate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -553,7 +553,7 @@ func TestActorParty_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.party.Validate()
+			err := tt.party.ValidateStructure()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ActorParty.Validate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -686,7 +686,7 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.entry.Validate()
+			err := tt.entry.ValidateStructure()
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() expected error but got none")

@@ -1,7 +1,8 @@
 package pint
 
 // error_response.go implements the DCSA standard error response format for the PINT API
-// it includes functions to map lower level errors to the DCSA error response format (returned to the client
+// it includes functions to map lower level errors (pint.Error, ebl.Error, crypto.Error)
+// to the DCSA error response format that is returned to the client.
 
 import (
 	"errors"
@@ -64,13 +65,10 @@ type DetailedError struct {
 func MapErrorToResponse(err error, r *http.Request) *ErrorResponse {
 	requestID := middleware.GetReqID(r.Context())
 
-	// Try to extract the most specific error type first (pint.Error)
-	var pintErr *PintError
-	if errors.As(err, &pintErr) {
-		return errorResponseFromPint(pintErr, r, requestID)
-	}
+	// Check for the most specific error types first (crypto.Error and ebl.Error)
+	// so that we extract the most specific (sanitized) error
 
-	// Then try crypto.Error
+	// Try crypto.Error first (most specific)
 	var cryptoErr *crypto.CryptoError
 	if errors.As(err, &cryptoErr) {
 		return errorResponseFromCrypto(cryptoErr, r, requestID)
@@ -80,6 +78,12 @@ func MapErrorToResponse(err error, r *http.Request) *ErrorResponse {
 	var eblErr *ebl.EblError
 	if errors.As(err, &eblErr) {
 		return errorResponseFromEbl(eblErr, r, requestID)
+	}
+
+	// Then try pint.Error (may wrap the above errors)
+	var pintErr *PintError
+	if errors.As(err, &pintErr) {
+		return errorResponseFromPint(pintErr, r, requestID)
 	}
 
 	// fallback - this is not expectedi - if it does, return an internal error response and log the unmapped error

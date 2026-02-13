@@ -6,15 +6,16 @@ import (
 )
 
 var (
-	validTransportDocument = []byte(`{"transportDocumentReference":"MAEU123456","shippingInstructionReference":"SI123456"}`)
-	validLastTransferChain = "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3RraWQifQ.eyJ0cmFuc3BvcnREb2N1bWVudENoZWNrc3VtIjoiYWJjMTIzIn0.c2lnbmF0dXJl" // mock JWS
-	validEblVisualisation  = &DocumentMetadata{
+	// thse are valid test data for building an envelope manifest (not real JWS strings)
+	testTransportDocument = []byte(`{"transportDocumentReference":"MAEU123456","shippingInstructionReference":"SI123456"}`)
+	testLastTransferChain = "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3RraWQifQ.eyJ0cmFuc3BvcnREb2N1bWVudENoZWNrc3VtIjoiYWJjMTIzIn0.c2lnbmF0dXJl" // mock JWS
+	testEblVisualisation  = &DocumentMetadata{
 		Name:             "ebl.pdf",
 		Size:             100,
 		MediaType:        "application/pdf",
 		DocumentChecksum: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
 	}
-	validSupportingDocuments = []DocumentMetadata{
+	testSupportingDocuments = []DocumentMetadata{
 		{
 			Name:             "invoice.pdf",
 			Size:             100,
@@ -42,42 +43,42 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 	}{
 		{
 			name:              "valid - minimal (no optional fields)",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			wantErr:           false,
 		},
 		{
 			name:              "valid - with eBL visualisation",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
-			eblVisualisation:  validEblVisualisation,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
+			eblVisualisation:  testEblVisualisation,
 			wantErr:           false,
 		},
 		{
 			name:                "valid - with supporting documents",
-			transportDocument:   validTransportDocument,
-			lastTransferChain:   validLastTransferChain,
-			supportingDocuments: validSupportingDocuments,
+			transportDocument:   testTransportDocument,
+			lastTransferChain:   testLastTransferChain,
+			supportingDocuments: testSupportingDocuments,
 			wantErr:             false,
 		},
 		{
 			name:                "valid - with both eBL visualisation and supporting documents",
-			transportDocument:   validTransportDocument,
-			lastTransferChain:   validLastTransferChain,
-			eblVisualisation:    validEblVisualisation,
-			supportingDocuments: validSupportingDocuments,
+			transportDocument:   testTransportDocument,
+			lastTransferChain:   testLastTransferChain,
+			eblVisualisation:    testEblVisualisation,
+			supportingDocuments: testSupportingDocuments,
 			wantErr:             false,
 		},
 		{
 			name:                "missing transport document",
 			transportDocument:   nil,
-			lastTransferChain:   validLastTransferChain,
+			lastTransferChain:   testLastTransferChain,
 			wantErr:             true,
 			expectedErrContains: "transport document is required",
 		},
 		{
 			name:                "missing last transfer chain",
-			transportDocument:   validTransportDocument,
+			transportDocument:   testTransportDocument,
 			lastTransferChain:   "",
 			wantErr:             true,
 			expectedErrContains: "last transfer chain entry is required",
@@ -85,14 +86,14 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		{
 			name:                "invalid transport document JSON",
 			transportDocument:   []byte(`invalid json`),
-			lastTransferChain:   validLastTransferChain,
+			lastTransferChain:   testLastTransferChain,
 			wantErr:             true,
 			expectedErrContains: "failed to canonicalize",
 		},
 		{
 			name:              "eBL visualisation missing name",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			eblVisualisation: &DocumentMetadata{
 				Name:             "",
 				Size:             12345,
@@ -104,8 +105,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "eBL visualisation missing size",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			eblVisualisation: &DocumentMetadata{
 				Name:             "ebl.pdf",
 				Size:             0,
@@ -117,8 +118,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "eBL visualisation missing mediaType",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			eblVisualisation: &DocumentMetadata{
 				Name:             "ebl.pdf",
 				Size:             12345,
@@ -130,8 +131,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "eBL visualisation missing documentChecksum",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			eblVisualisation: &DocumentMetadata{
 				Name:             "ebl.pdf",
 				Size:             12345,
@@ -143,8 +144,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "supporting document missing name",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			supportingDocuments: []DocumentMetadata{
 				{
 					Name:             "",
@@ -158,8 +159,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "supporting document missing size",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			supportingDocuments: []DocumentMetadata{
 				{
 					Name:             "invoice.pdf",
@@ -173,8 +174,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "supporting document missing mediaType",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			supportingDocuments: []DocumentMetadata{
 				{
 					Name:             "invoice.pdf",
@@ -188,8 +189,8 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 		},
 		{
 			name:              "supporting document missing documentChecksum",
-			transportDocument: validTransportDocument,
-			lastTransferChain: validLastTransferChain,
+			transportDocument: testTransportDocument,
+			lastTransferChain: testLastTransferChain,
 			supportingDocuments: []DocumentMetadata{
 				{
 					Name:             "invoice.pdf",
@@ -316,7 +317,7 @@ func TestEblEnvelopeBuilder(t *testing.T) {
 
 	// 4. Build the eblEnvelope
 	eblEnvelope, err := NewEblEnvelopeBuilder().
-		WithTransportDocument(validTransportDocument).
+		WithTransportDocument(testTransportDocument).
 		WithEnvelopeManifestSignedContent(envelopeManifest).
 		AddTransferChainEntry(transferChainEntry1).
 		AddTransferChainEntry(transferChainEntry2).
@@ -327,7 +328,7 @@ func TestEblEnvelopeBuilder(t *testing.T) {
 	}
 
 	// 5. Validate the envelope
-	if err := eblEnvelope.Validate(); err != nil {
+	if err := eblEnvelope.ValidateStructure(); err != nil {
 		t.Fatalf("Envelope validation failed: %v", err)
 	}
 
@@ -406,7 +407,7 @@ func TestEblEnvelopeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.envelope.Validate()
+			err := tt.envelope.ValidateStructure()
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}

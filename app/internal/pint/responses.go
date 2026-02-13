@@ -1,5 +1,7 @@
 package pint
 
+// responses.go provides helper functions for sending HTTP responses from the PINT API handlers.
+
 import (
 	"encoding/json"
 	"log/slog"

@@ -1,4 +1,4 @@
-package commonhandlers
+package handlers
 
 import (
 	"net/http"
@@ -9,7 +9,7 @@ import (
 // HandleHealth godoc
 //
 //	@Summary		Health (liveness) Check
-//	@Description	Check if the signalsd http service is alive and responding.
+//	@Description	Check if the HTTP service is alive and responding.
 //	@Tags			Common
 //	@Produce		plain
 //

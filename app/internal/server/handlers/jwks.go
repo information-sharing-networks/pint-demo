@@ -1,4 +1,4 @@
-package commonhandlers
+package handlers
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ func HandleJWKS(jwkSet jwk.Set) http.HandlerFunc {
 	}
 }
 
-// used for swaggo documentation as swaggo doesn't support the jwk.Set interface type
+// JWKSResponse is used for swaggo documentation as swaggo doesn't support the jwk.Set interface type.
 type JWKSResponse struct {
 	Keys []map[string]any `json:"keys"`
 }

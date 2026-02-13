@@ -1,64 +1,6 @@
 consumes:
 - application/json
 definitions:
-  commonhandlers.JWKSResponse:
-    properties:
-      keys:
-        items:
-          additionalProperties: {}
-          type: object
-        type: array
-    type: object
-  commonhandlers.PartyIdentifyingCodeRequest:
-    properties:
-      code_list_name:
-        type: string
-      code_list_provider:
-        type: string
-      party_code:
-        type: string
-    type: object
-  commonhandlers.PartyIdentifyingCodeResponse:
-    properties:
-      code_list_name:
-        type: string
-      code_list_provider:
-        type: string
-      id:
-        type: string
-      party_code:
-        type: string
-      party_id:
-        type: string
-    type: object
-  commonhandlers.PartyRequest:
-    properties:
-      active:
-        type: boolean
-      party_name:
-        type: string
-    type: object
-  commonhandlers.PartyResponse:
-    properties:
-      active:
-        type: boolean
-      id:
-        type: string
-      party_name:
-        type: string
-    type: object
-  commonhandlers.VersionResponse:
-    properties:
-      build_time:
-        example: "2024-01-28T10:00:00Z"
-        type: string
-      service:
-        example: pint-server
-        type: string
-      version:
-        example: 1.0.0
-        type: string
-    type: object
   ebl.ActorParty:
     properties:
       eblPlatform:
@@ -118,7 +60,7 @@ definitions:
           transfer chain.
 
           Each EnvelopeTransferChainEntry represents a batch of transactions
-          that happened on a single platform and is is signed by the sending platform.
+          that happened on a single platform and is signed by the sending platform.
 
           The full chain is required by the receiver to verify the complete history and detect tampering.
         items:
@@ -296,6 +238,64 @@ definitions:
         - $ref: '#/definitions/ebl.RecipientParty'
         description: 'recipient: The party receiving the action (optional for some
           action codes like SIGN)'
+    type: object
+  handlers.JWKSResponse:
+    properties:
+      keys:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
+  handlers.PartyIdentifyingCodeRequest:
+    properties:
+      code_list_name:
+        type: string
+      code_list_provider:
+        type: string
+      party_code:
+        type: string
+    type: object
+  handlers.PartyIdentifyingCodeResponse:
+    properties:
+      code_list_name:
+        type: string
+      code_list_provider:
+        type: string
+      id:
+        type: string
+      party_code:
+        type: string
+      party_id:
+        type: string
+    type: object
+  handlers.PartyRequest:
+    properties:
+      active:
+        type: boolean
+      party_name:
+        type: string
+    type: object
+  handlers.PartyResponse:
+    properties:
+      active:
+        type: boolean
+      id:
+        type: string
+      party_name:
+        type: string
+    type: object
+  handlers.VersionResponse:
+    properties:
+      build_time:
+        example: "2024-01-28T10:00:00Z"
+        type: string
+      service:
+        example: pint-server
+        type: string
+      version:
+        example: 1.0.0
+        type: string
     type: object
   pint.DetailedError:
     properties:
@@ -542,7 +542,7 @@ info:
     Check the X-Max-Request-Body response header for the configured limit on signals payload.
 
     The rate limit is set globaly and prevents abuse of the service.
-    In production there will be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.
+    In production there may be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.
 
     ## Authentication & Authorization
 
@@ -550,11 +550,11 @@ info:
     Participating platforms are authenticated via JWS signatures -
     requests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.
 
-    In a real production system, OAuth 2.0 service accounts would provide additional authentication and authorization capabilities,
+    In a production system, OAuth 2.0 service accounts may be used to provide additional authentication and authorization capabilities,
     e.g where external clients need to initiate a transfer on behalf of a user.
   license:
     name: MIT
-  title: pint-server API
+  title: pint-server
 paths:
   /.well-known/jwks.json:
     get:
@@ -570,7 +570,7 @@ paths:
         "200":
           description: JWK set
           schema:
-            $ref: '#/definitions/commonhandlers.JWKSResponse'
+            $ref: '#/definitions/handlers.JWKSResponse'
       summary: Get JWK set
       tags:
       - Common
@@ -584,14 +584,14 @@ paths:
         name: party
         required: true
         schema:
-          $ref: '#/definitions/commonhandlers.PartyRequest'
+          $ref: '#/definitions/handlers.PartyRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/commonhandlers.PartyResponse'
+            $ref: '#/definitions/handlers.PartyResponse'
         "400":
           description: Invalid request
           schema:
@@ -622,7 +622,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/commonhandlers.PartyResponse'
+            $ref: '#/definitions/handlers.PartyResponse'
         "400":
           description: Invalid request
           schema:
@@ -648,7 +648,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/commonhandlers.PartyResponse'
+            $ref: '#/definitions/handlers.PartyResponse'
         "400":
           description: Invalid party ID
           schema:
@@ -674,14 +674,14 @@ paths:
         name: party
         required: true
         schema:
-          $ref: '#/definitions/commonhandlers.PartyRequest'
+          $ref: '#/definitions/handlers.PartyRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/commonhandlers.PartyResponse'
+            $ref: '#/definitions/handlers.PartyResponse'
         "400":
           description: Invalid request
           schema:
@@ -708,14 +708,14 @@ paths:
         name: code
         required: true
         schema:
-          $ref: '#/definitions/commonhandlers.PartyIdentifyingCodeRequest'
+          $ref: '#/definitions/handlers.PartyIdentifyingCodeRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/commonhandlers.PartyIdentifyingCodeResponse'
+            $ref: '#/definitions/handlers.PartyIdentifyingCodeResponse'
         "400":
           description: Invalid request
           schema:
@@ -737,7 +737,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/commonhandlers.PartyResponse'
+            $ref: '#/definitions/handlers.PartyResponse'
         "404":
           description: Party not found
           schema:
@@ -747,7 +747,7 @@ paths:
       - Admin
   /health/live:
     get:
-      description: Check if the signalsd http service is alive and responding.
+      description: Check if the HTTP service is alive and responding.
       produces:
       - text/plain
       responses:
@@ -790,7 +790,7 @@ paths:
 
         **Success Responses:**
 
-        `201 Created` - Transfer started but not yet accepted  (unsigned json response)
+        `201 Created` - Transfer started but not yet accepted (unsigned JSON response)
         - The envelope transfer is now active
         - Additional documents listed in the EnvelopeManifest are required
         - Sender must transfer documents, then call "Finish envelope transfer" endpoint
@@ -819,13 +819,14 @@ paths:
         or `BENV` (envelope validation failure). Details of the error are in the payload of the JWS.
 
         **Trust Level Failures**
+
         This platform enforces a minimum trust level for signatures,
-        based on the x5c header in the envelope manifsest JWS.
+        based on the x5c header in the envelope manifest JWS.
         - Trust level 1 is the lowest trust level, and means that a JWS
         will be accepted even if no x5c header is present.
         - Trust level 2 means the JWS must contain a valid certificate,
         (Domain Validation (DV) certificates are allowed).
-        - Trust level 3 is the hightest trust level, and means that the JWS must contain a valid Extended Validation (EV)
+        - Trust level 3 is the highest trust level, and means that the JWS must contain a valid Extended Validation (EV)
         or Organization Validation (OV) certificate.
 
         The trust level is checked after signature verification, and a valid JWS with an insufficient trust
@@ -848,8 +849,8 @@ paths:
 
         IMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform
         (they may come from middleware or infrastructure). Therefore:
-        - Do not assume an unsigned error means the transfer was rejected
-        - only determine transfer acceptance/rejection from signed responses
+        - Do not assume an unsigned error means the transfer was rejected.
+        - Only determine transfer acceptance/rejection from signed responses.
 
         The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
         When there is a mismatch between the HTTP response status code
@@ -914,15 +915,15 @@ paths:
         Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
 
         The receiving platform validates:
-        - Document was declared in the EnvelopeManifest
-        - SHA-256 checksum matches the URL parameter
-        - Document size matches the manifest
+        - Document was declared in the EnvelopeManifest.
+        - SHA-256 checksum matches the URL parameter.
+        - Document size matches the manifest.
 
         **Request Body Format:**
 
         The request body is a base64-encoded string containing the document content.
-        Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure)
-        The decoded content type is determined by sending platform based on the media type
+        Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure).
+        The decoded content type is determined by the sending platform based on the media type
         declared in the EnvelopeManifest.
 
         If the sending platform loses track of the transfer state for a document, it can safely
@@ -931,17 +932,17 @@ paths:
         If the sending platform loses track of which documents have not been received, it can call
         the PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.
 
-        **Success Response**
+        **Success Response:**
 
-        `204 No Content` - this is returned when the document is received successfully,
+        `204 No Content` - This is returned when the document is received successfully,
         or when the document has already been received.
 
 
         **Error Responses (signed):**
 
-        `409 Conflict` - Checksum or size mismatch (INCD response code)
+        `409 Conflict` - Checksum or size mismatch (INCD response code).
 
-        `422 Unprocessable Entity` - Envelope rejected (BSIG/BENV response code)
+        `422 Unprocessable Entity` - Envelope rejected (BSIG/BENV response code).
       parameters:
       - description: Envelope reference (UUID)
         in: path
@@ -1001,11 +1002,11 @@ paths:
         All additional documents have been received and the envelope transfer has been accepted on the platform.
 
         The payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.
-        (See the `default` response for details of the response payload)
+        (See the `default` response for details of the response payload.)
 
-        **retry handling:**
-        when the sender retries a transfer that has already been accepted, the receiver will return a signed response and
-        the payload will contain a struture identical to the original response, but with a response code of DUPE
+        **Retry handling:**
+        When the sender retries a transfer that has already been accepted, the receiver will return a signed response and
+        the payload will contain a structure identical to the original response, but with a response code of DUPE
         and an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.
 
         **Notes**
@@ -1013,21 +1014,21 @@ paths:
         **Error Responses (signed)**
 
         `409 Conflict` - Missing documents (MDOC)
-        - One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
+        - One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload).
 
         `422 Unprocessable Entity` - Envelope rejected (BSIG/BENV) (signed response)
-        - BSIG: Signature validation failed
-        - BENV: Envelope validation failed
+        - BSIG: Signature validation failed.
+        - BENV: Envelope validation failed.
 
-        see the `default` response for details of the response payload
+        See the `default` response for details of the response payload.
 
         **Error Responses (unsigned)**
 
-        `400 Bad Request` - Malformed request - returned as an unsigned error response
-        `500 Internal Server Error` - Internal error - returned as an unsigned error response
+        `400 Bad Request` - Malformed request - returned as an unsigned error response.
+        `500 Internal Server Error` - Internal error - returned as an unsigned error response.
 
-        **Note** unsigned responses cannot be verified as originating from the receiving platform -
-        do not assume an unsigned error response means the transfer was rejected.
+        **Note:** Unsigned responses cannot be verified as originating from the receiving platform.
+        Do not assume an unsigned error response means the transfer was rejected.
         Only determine transfer acceptance/rejection from signed responses.
       parameters:
       - description: Envelope reference (UUID)
@@ -1065,13 +1066,15 @@ paths:
       consumes:
       - application/json
       description: |-
-        Request the name of a party given a party code. This enables the sending user to validate
-        the receiver information (similar to how bank transfers enable users to confirm the receiver
-        before confirming the transfer).
+        Request the name of a party (legal entity) given a party code. This enables the sending service to
+        to check the receiver party exists and is active before sending an eBL (similar to how bank
+        transfers enable users to confirm the receiver's account name before confirming the transfer).
 
         A successful response asserts that the platform will accept an eBL for the account or user
-        denoted by the provided identifying code and that said account or user is "active and able
-        to accept interoperable eBLs" as defined by the platform hosting the account or user.
+        denoted by the provided identifying code.
+
+        Note the sender can provider more than one identity code for the same party (e.g. both a DID and a LEI for the same company).
+        The receiver platform will reject transfers where these codes resolve to different parties on their system.
       parameters:
       - description: Party identifying code
         in: body
@@ -1105,7 +1108,7 @@ paths:
     get:
       description: |-
         Returns the version and build information for the service
-        Note: version information is embeded at build time using ldflags. see build.sh for details.
+        Note: version information is embedded at build time using ldflags. See build.sh for details.
         Returns placeholders when running from source.
       produces:
       - application/json
@@ -1113,7 +1116,7 @@ paths:
         "200":
           description: Version information
           schema:
-            $ref: '#/definitions/commonhandlers.VersionResponse'
+            $ref: '#/definitions/handlers.VersionResponse'
       summary: Get version information
       tags:
       - Common

@@ -118,7 +118,7 @@ if [ ${LINUX} ]; then
     GOARCH=""
 fi
 
-echo "Building receiver"
+echo "Building server"
 go build -ldflags "$LDFLAGS" -o bin/pint-server ./cmd/pint-server
 echo "Building client"
 go build -ldflags "$LDFLAGS" -o bin/pint-client ./cmd/pint-client

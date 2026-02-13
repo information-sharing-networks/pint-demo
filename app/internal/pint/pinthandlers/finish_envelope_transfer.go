@@ -48,7 +48,7 @@ func NewFinishEnvelopeTransferHandler(
 }
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
-// this is used for 200/409/422 (RECE,DUPE,MDOC,DISE & BSIG,BENV) responses.
+// This is used for 200/409/422 (RECE,DUPE,MDOC,DISE & BSIG,BENV) responses.
 func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
@@ -79,11 +79,11 @@ func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pi
 //	@Description	All additional documents have been received and the envelope transfer has been accepted on the platform.
 //	@Description
 //	@Description	The payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.
-//	@Description	(See the `default` response for details of the response payload)
+//	@Description	(See the `default` response for details of the response payload.)
 //	@Description
-//	@Description	**retry handling:**
-//	@Description	when the sender retries a transfer that has already been accepted, the receiver will return a signed response and
-//	@Description	the payload will contain a struture identical to the original response, but with a response code of DUPE
+//	@Description	**Retry handling:**
+//	@Description	When the sender retries a transfer that has already been accepted, the receiver will return a signed response and
+//	@Description	the payload will contain a structure identical to the original response, but with a response code of DUPE
 //	@Description	and an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.
 //	@Description
 //	@Description	**Notes**
@@ -91,21 +91,21 @@ func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pi
 //	@Description	**Error Responses (signed)**
 //	@Description
 //	@Description	`409 Conflict` - Missing documents (MDOC)
-//	@Description	- One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)
+//	@Description	- One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload).
 //	@Description
 //	@Description	`422 Unprocessable Entity` - Envelope rejected (BSIG/BENV) (signed response)
-//	@Description	- BSIG: Signature validation failed
-//	@Description	- BENV: Envelope validation failed
+//	@Description	- BSIG: Signature validation failed.
+//	@Description	- BENV: Envelope validation failed.
 //	@Description
-//	@Description	see the `default` response for details of the response payload
+//	@Description	See the `default` response for details of the response payload.
 //	@Description
 //	@Description	**Error Responses (unsigned)**
 //	@Description
-//	@Description	`400 Bad Request` - Malformed request - returned as an unsigned error response
-//	@Description	`500 Internal Server Error` - Internal error - returned as an unsigned error response
+//	@Description	`400 Bad Request` - Malformed request - returned as an unsigned error response.
+//	@Description	`500 Internal Server Error` - Internal error - returned as an unsigned error response.
 //	@Description
-//	@Description	**Note** unsigned responses cannot be verified as originating from the receiving platform -
-//	@Description	do not assume an unsigned error response means the transfer was rejected.
+//	@Description	**Note:** Unsigned responses cannot be verified as originating from the receiving platform.
+//	@Description	Do not assume an unsigned error response means the transfer was rejected.
 //	@Description	Only determine transfer acceptance/rejection from signed responses.
 //	@Description
 //	@Param		envelopeReference	path		string										true	"Envelope reference (UUID)"

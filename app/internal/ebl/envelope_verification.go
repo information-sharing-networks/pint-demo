@@ -234,7 +234,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	result.LastEnvelopeTransferChainEntrySignedContentChecksum = lastEntryChecksum
 
 	// Step 1: Validate envelope structure (required fields)
-	if err := input.Envelope.Validate(); err != nil {
+	if err := input.Envelope.ValidateStructure(); err != nil {
 		return result, WrapEnvelopeError(err, "envelope validation failed")
 	}
 
@@ -277,7 +277,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	if err := json.Unmarshal(manifestPayload, manifest); err != nil {
 		return result, WrapEnvelopeError(err, "failed to parse manifest payload")
 	}
-	if err := manifest.Validate(); err != nil {
+	if err := manifest.ValidateStructure(); err != nil {
 		return result, WrapEnvelopeError(err, "manifest validation failed")
 	}
 	result.Manifest = manifest
@@ -489,7 +489,7 @@ func verifyIssuanceManifest(
 	}
 
 	// Step 3: Validate the IssuanceManifest has required fields
-	if err := issuanceManifest.Validate(); err != nil {
+	if err := issuanceManifest.ValidateStructure(); err != nil {
 		return WrapEnvelopeError(err, "issuance manifest validation failed")
 	}
 
@@ -583,7 +583,7 @@ func verifyEnvelopeTransferChain(
 		}
 
 		// Validate the entry has all the mandatory fields
-		if err := currentEntry.Validate(); err != nil {
+		if err := currentEntry.ValidateStructure(); err != nil {
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 

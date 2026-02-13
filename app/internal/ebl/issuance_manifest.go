@@ -46,8 +46,8 @@ type IssuanceManifest struct {
 // IssuanceManifestSignedContent represents a JWS compact serialization of an IssuanceManifest.
 type IssuanceManifestSignedContent string
 
-// Validate checks that all required fields are present per DCSA EBL_ISS specification
-func (i *IssuanceManifest) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_ISS specification
+func (i *IssuanceManifest) ValidateStructure() error {
 	if i.DocumentChecksum == "" {
 		return NewIssuanceBadRequestError("documentChecksum is required")
 	}
@@ -84,8 +84,8 @@ type EBLVisualisationByCarrier struct {
 	ContentType string `json:"contentType"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_ISS specification
-func (e *EBLVisualisationByCarrier) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_ISS specification
+func (e *EBLVisualisationByCarrier) ValidateStructure() error {
 	if e.Name == "" {
 		return NewIssuanceBadRequestError("name is required")
 	}
@@ -172,7 +172,7 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 
 	// add eBL visualisation checksum
 	if b.eBLVisualisationByCarrier != nil {
-		if err := b.eBLVisualisationByCarrier.Validate(); err != nil {
+		if err := b.eBLVisualisationByCarrier.ValidateStructure(); err != nil {
 			return nil, crypto.WrapValidationError(err, "eBLVisualisationByCarrier")
 		}
 

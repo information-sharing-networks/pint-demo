@@ -35,7 +35,7 @@ const docTemplate = `{
                     "200": {
                         "description": "JWK set",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.JWKSResponse"
+                            "$ref": "#/definitions/handlers.JWKSResponse"
                         }
                     }
                 }
@@ -60,7 +60,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyRequest"
+                            "$ref": "#/definitions/handlers.PartyRequest"
                         }
                     }
                 ],
@@ -68,7 +68,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                            "$ref": "#/definitions/handlers.PartyResponse"
                         }
                     },
                     "400": {
@@ -115,7 +115,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                            "$ref": "#/definitions/handlers.PartyResponse"
                         }
                     },
                     "400": {
@@ -155,7 +155,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                            "$ref": "#/definitions/handlers.PartyResponse"
                         }
                     },
                     "400": {
@@ -197,7 +197,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyRequest"
+                            "$ref": "#/definitions/handlers.PartyRequest"
                         }
                     }
                 ],
@@ -205,7 +205,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                            "$ref": "#/definitions/handlers.PartyResponse"
                         }
                     },
                     "400": {
@@ -249,7 +249,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyIdentifyingCodeRequest"
+                            "$ref": "#/definitions/handlers.PartyIdentifyingCodeRequest"
                         }
                     }
                 ],
@@ -257,7 +257,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyIdentifyingCodeResponse"
+                            "$ref": "#/definitions/handlers.PartyIdentifyingCodeResponse"
                         }
                     },
                     "400": {
@@ -291,7 +291,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.PartyResponse"
+                            "$ref": "#/definitions/handlers.PartyResponse"
                         }
                     },
                     "404": {
@@ -305,7 +305,7 @@ const docTemplate = `{
         },
         "/health/live": {
             "get": {
-                "description": "Check if the signalsd http service is alive and responding.",
+                "description": "Check if the HTTP service is alive and responding.",
                 "produces": [
                     "text/plain"
                 ],
@@ -357,7 +357,7 @@ const docTemplate = `{
         },
         "/v3/envelopes": {
             "post": {
-                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started but not yet accepted  (unsigned json response)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transfer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted immediately (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted) or ` + "`" + `DUPE` + "`" + ` (duplicate).\n` + "`" + `DUPE` + "`" + ` means this transfer was previously received and accepted - in this case the response\nalso includes the last accepted transfer chain entry\n` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with ` + "`" + `responseCode` + "`" + ` of ` + "`" + `BSIG` + "`" + ` (signature failure)\nor ` + "`" + `BENV` + "`" + ` (envelope validation failure). Details of the error are in the payload of the JWS.\n\n**Trust Level Failures**\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifsest JWS.\n- Trust level 1 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n- Trust level 2 means the JWS must contain a valid certificate,\n(Domain Validation (DV) certificates are allowed).\n- Trust level 3 is the hightest trust level, and means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will return a ` + "`" + `422 Unprocessable Entity` + "`" + ` (BSIG) response.\n\nNote that if an x5c cert is included, it must be signed by a trusted root CA and the\npublic key in the certificate must match the key used to sign the JWS.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned error response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n` + "`" + `400 Bad Request` + "`" + ` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n` + "`" + `500 Internal Server Error` + "`" + ` errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected\n- only determine transfer acceptance/rejection from signed responses\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the ` + "`" + `responseCode` + "`" + ` in the signed response, the ` + "`" + `responseCode` + "`" + ` takes precedence.",
+                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started but not yet accepted (unsigned JSON response)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,\nthe receiver assumes the sender has lost track of the state of the transfer.\nIn this case, the request is treated as a retry and the existing envelope\nreference and current missing documents are returned with HTTP 201.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted immediately (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted) or ` + "`" + `DUPE` + "`" + ` (duplicate).\n` + "`" + `DUPE` + "`" + ` means this transfer was previously received and accepted - in this case the response\nalso includes the last accepted transfer chain entry\n` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with ` + "`" + `responseCode` + "`" + ` of ` + "`" + `BSIG` + "`" + ` (signature failure)\nor ` + "`" + `BENV` + "`" + ` (envelope validation failure). Details of the error are in the payload of the JWS.\n\n**Trust Level Failures**\n\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifest JWS.\n- Trust level 1 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n- Trust level 2 means the JWS must contain a valid certificate,\n(Domain Validation (DV) certificates are allowed).\n- Trust level 3 is the highest trust level, and means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will return a ` + "`" + `422 Unprocessable Entity` + "`" + ` (BSIG) response.\n\nNote that if an x5c cert is included, it must be signed by a trusted root CA and the\npublic key in the certificate must match the key used to sign the JWS.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned error response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n` + "`" + `400 Bad Request` + "`" + ` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n` + "`" + `500 Internal Server Error` + "`" + ` errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected.\n- Only determine transfer acceptance/rejection from signed responses.\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the ` + "`" + `responseCode` + "`" + ` in the signed response, the ` + "`" + `responseCode` + "`" + ` takes precedence.",
                 "tags": [
                     "PINT"
                 ],
@@ -433,7 +433,7 @@ const docTemplate = `{
         },
         "/v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}": {
             "put": {
-                "description": "Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest\n- SHA-256 checksum matches the URL parameter\n- Document size matches the manifest\n\n**Request Body Format:**\n\nThe request body is a base64-encoded string containing the document content.\nExample: ` + "`" + `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` + "`" + ` (plain base64 string, no JSON structure)\nThe decoded content type is determined by sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform loses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform loses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response**\n\n` + "`" + `204 No Content` + "`" + ` - this is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n` + "`" + `409 Conflict` + "`" + ` - Checksum or size mismatch (INCD response code)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV response code)\n",
+                "description": "Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest.\n- SHA-256 checksum matches the URL parameter.\n- Document size matches the manifest.\n\n**Request Body Format:**\n\nThe request body is a base64-encoded string containing the document content.\nExample: ` + "`" + `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` + "`" + ` (plain base64 string, no JSON structure).\nThe decoded content type is determined by the sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform loses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform loses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response:**\n\n` + "`" + `204 No Content` + "`" + ` - This is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n` + "`" + `409 Conflict` + "`" + ` - Checksum or size mismatch (INCD response code).\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV response code).\n",
                 "consumes": [
                     "application/json"
                 ],
@@ -505,7 +505,7 @@ const docTemplate = `{
         },
         "/v3/envelopes/{envelopeReference}/finish-transfer": {
             "put": {
-                "description": "Use this endpoint after you have finished transferring all additional documents.\n\nPrior to accepting envelope transfer, the receiving platform ensures that all supporting documents listed in the envelope manifest have been successfully transferred.\n\n**Success Responses**\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (RECE)\n\nAll additional documents have been received and the envelope transfer has been accepted on the platform.\n\nThe payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.\n(See the ` + "`" + `default` + "`" + ` response for details of the response payload)\n\n**retry handling:**\nwhen the sender retries a transfer that has already been accepted, the receiver will return a signed response and\nthe payload will contain a struture identical to the original response, but with a response code of DUPE\nand an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.\n\n**Notes**\n\n**Error Responses (signed)**\n\n` + "`" + `409 Conflict` + "`" + ` - Missing documents (MDOC)\n- One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload)\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV) (signed response)\n- BSIG: Signature validation failed\n- BENV: Envelope validation failed\n\nsee the ` + "`" + `default` + "`" + ` response for details of the response payload\n\n**Error Responses (unsigned)**\n\n` + "`" + `400 Bad Request` + "`" + ` - Malformed request - returned as an unsigned error response\n` + "`" + `500 Internal Server Error` + "`" + ` - Internal error - returned as an unsigned error response\n\n**Note** unsigned responses cannot be verified as originating from the receiving platform -\ndo not assume an unsigned error response means the transfer was rejected.\nOnly determine transfer acceptance/rejection from signed responses.\n",
+                "description": "Use this endpoint after you have finished transferring all additional documents.\n\nPrior to accepting envelope transfer, the receiving platform ensures that all supporting documents listed in the envelope manifest have been successfully transferred.\n\n**Success Responses**\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (RECE)\n\nAll additional documents have been received and the envelope transfer has been accepted on the platform.\n\nThe payload of the signed response contains the last transfer chain entry checksum and a list of all received additional document checksums.\n(See the ` + "`" + `default` + "`" + ` response for details of the response payload.)\n\n**Retry handling:**\nWhen the sender retries a transfer that has already been accepted, the receiver will return a signed response and\nthe payload will contain a structure identical to the original response, but with a response code of DUPE\nand an extra field: duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent.\n\n**Notes**\n\n**Error Responses (signed)**\n\n` + "`" + `409 Conflict` + "`" + ` - Missing documents (MDOC)\n- One or more additional documents are still missing (see missingAdditionalDocumentChecksums in response payload).\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV) (signed response)\n- BSIG: Signature validation failed.\n- BENV: Envelope validation failed.\n\nSee the ` + "`" + `default` + "`" + ` response for details of the response payload.\n\n**Error Responses (unsigned)**\n\n` + "`" + `400 Bad Request` + "`" + ` - Malformed request - returned as an unsigned error response.\n` + "`" + `500 Internal Server Error` + "`" + ` - Internal error - returned as an unsigned error response.\n\n**Note:** Unsigned responses cannot be verified as originating from the receiving platform.\nDo not assume an unsigned error response means the transfer was rejected.\nOnly determine transfer acceptance/rejection from signed responses.\n",
                 "consumes": [
                     "application/json"
                 ],
@@ -558,7 +558,7 @@ const docTemplate = `{
         },
         "/v3/receiver-validation": {
             "post": {
-                "description": "Request the name of a party given a party code. This enables the sending user to validate\nthe receiver information (similar to how bank transfers enable users to confirm the receiver\nbefore confirming the transfer).\n\nA successful response asserts that the platform will accept an eBL for the account or user\ndenoted by the provided identifying code and that said account or user is \"active and able\nto accept interoperable eBLs\" as defined by the platform hosting the account or user.",
+                "description": "Request the name of a party (legal entity) given a party code. This enables the sending service to\nto check the receiver party exists and is active before sending an eBL (similar to how bank\ntransfers enable users to confirm the receiver's account name before confirming the transfer).\n\nA successful response asserts that the platform will accept an eBL for the account or user\ndenoted by the provided identifying code.\n\nNote the sender can provider more than one identity code for the same party (e.g. both a DID and a LEI for the same company).\nThe receiver platform will reject transfers where these codes resolve to different parties on their system.",
                 "consumes": [
                     "application/json"
                 ],
@@ -610,7 +610,7 @@ const docTemplate = `{
         },
         "/version": {
             "get": {
-                "description": "Returns the version and build information for the service\nNote: version information is embeded at build time using ldflags. see build.sh for details.\nReturns placeholders when running from source.",
+                "description": "Returns the version and build information for the service\nNote: version information is embedded at build time using ldflags. See build.sh for details.\nReturns placeholders when running from source.",
                 "produces": [
                     "application/json"
                 ],
@@ -622,7 +622,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Version information",
                         "schema": {
-                            "$ref": "#/definitions/commonhandlers.VersionResponse"
+                            "$ref": "#/definitions/handlers.VersionResponse"
                         }
                     }
                 }
@@ -630,94 +630,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "commonhandlers.JWKSResponse": {
-            "type": "object",
-            "properties": {
-                "keys": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
-                }
-            }
-        },
-        "commonhandlers.PartyIdentifyingCodeRequest": {
-            "type": "object",
-            "properties": {
-                "code_list_name": {
-                    "type": "string"
-                },
-                "code_list_provider": {
-                    "type": "string"
-                },
-                "party_code": {
-                    "type": "string"
-                }
-            }
-        },
-        "commonhandlers.PartyIdentifyingCodeResponse": {
-            "type": "object",
-            "properties": {
-                "code_list_name": {
-                    "type": "string"
-                },
-                "code_list_provider": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "party_code": {
-                    "type": "string"
-                },
-                "party_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "commonhandlers.PartyRequest": {
-            "type": "object",
-            "properties": {
-                "active": {
-                    "type": "boolean"
-                },
-                "party_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "commonhandlers.PartyResponse": {
-            "type": "object",
-            "properties": {
-                "active": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "party_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "commonhandlers.VersionResponse": {
-            "type": "object",
-            "properties": {
-                "build_time": {
-                    "type": "string",
-                    "example": "2024-01-28T10:00:00Z"
-                },
-                "service": {
-                    "type": "string",
-                    "example": "pint-server"
-                },
-                "version": {
-                    "type": "string",
-                    "example": "1.0.0"
-                }
-            }
-        },
         "ebl.ActorParty": {
             "type": "object",
             "properties": {
@@ -782,7 +694,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "envelopeTransferChain": {
-                    "description": "EnvelopeTransferChain: Ordered list of JWS tokens representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.",
+                    "description": "EnvelopeTransferChain: Ordered list of JWS tokens representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -992,6 +904,94 @@ const docTemplate = `{
                             "$ref": "#/definitions/ebl.RecipientParty"
                         }
                     ]
+                }
+            }
+        },
+        "handlers.JWKSResponse": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "handlers.PartyIdentifyingCodeRequest": {
+            "type": "object",
+            "properties": {
+                "code_list_name": {
+                    "type": "string"
+                },
+                "code_list_provider": {
+                    "type": "string"
+                },
+                "party_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.PartyIdentifyingCodeResponse": {
+            "type": "object",
+            "properties": {
+                "code_list_name": {
+                    "type": "string"
+                },
+                "code_list_provider": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "party_code": {
+                    "type": "string"
+                },
+                "party_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.PartyRequest": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "party_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.PartyResponse": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "party_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.VersionResponse": {
+            "type": "object",
+            "properties": {
+                "build_time": {
+                    "type": "string",
+                    "example": "2024-01-28T10:00:00Z"
+                },
+                "service": {
+                    "type": "string",
+                    "example": "pint-server"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.0.0"
                 }
             }
         },
@@ -1273,8 +1273,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "pint-server API",
-	Description:      "pint-server is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers\n\n## Common Error Responses\nAll endpoints may return:\n- `413` Request body exceeds size limit\n- `429` Rate limit exceeded\n- `500` Internal server error\n\nIndividual endpoints document their specific business logic errors.\n\n## Request Limits\nAll endpoints are protected by:\n- **Rate limiting**: Configurable requests per second (see env vars) - default 100 rps (set to 0 to disable)\n- **Request size limits**: Configurable (see env vars) - default 1MB\n\nCheck the X-Max-Request-Body response header for the configured limit on signals payload.\n\nThe rate limit is set globaly and prevents abuse of the service.\nIn production there will be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.\n\n## Authentication & Authorization\n\nThe pint-demo PINT APIs do not require credentials to be sent with the request.\nParticipating platforms are authenticated via JWS signatures -\nrequests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.\n\nIn a real production system, OAuth 2.0 service accounts would provide additional authentication and authorization capabilities,\ne.g where external clients need to initiate a transfer on behalf of a user.\n",
+	Title:            "pint-server",
+	Description:      "pint-server is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers\n\n## Common Error Responses\nAll endpoints may return:\n- `413` Request body exceeds size limit\n- `429` Rate limit exceeded\n- `500` Internal server error\n\nIndividual endpoints document their specific business logic errors.\n\n## Request Limits\nAll endpoints are protected by:\n- **Rate limiting**: Configurable requests per second (see env vars) - default 100 rps (set to 0 to disable)\n- **Request size limits**: Configurable (see env vars) - default 1MB\n\nCheck the X-Max-Request-Body response header for the configured limit on signals payload.\n\nThe rate limit is set globaly and prevents abuse of the service.\nIn production there may be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.\n\n## Authentication & Authorization\n\nThe pint-demo PINT APIs do not require credentials to be sent with the request.\nParticipating platforms are authenticated via JWS signatures -\nrequests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.\n\nIn a production system, OAuth 2.0 service accounts may be used to provide additional authentication and authorization capabilities,\ne.g where external clients need to initiate a transfer on behalf of a user.\n",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

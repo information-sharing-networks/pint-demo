@@ -16,8 +16,8 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
-	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
-	commonhandlers "github.com/information-sharing-networks/pint-demo/app/internal/server/handlers"
+	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/pinthandlers"
+	"github.com/information-sharing-networks/pint-demo/app/internal/server/handlers"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server/middleware"
 	"github.com/information-sharing-networks/pint-demo/app/internal/services"
 	"github.com/information-sharing-networks/pint-demo/app/internal/version"
@@ -25,6 +25,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
+// Server contains the dependencies for the PINT server
 type Server struct {
 	// pool is the postgress database connection pool
 	pool *pgxpool.Pool
@@ -52,13 +53,13 @@ type Server struct {
 	// must be either ed25519.PrivateKey or *rsa.PrivateKey
 	signingKey any
 
-	// signingJWKSet is the JWK set containing the public key for this server's signing key
+	// publicJWKSet is the JWK set containing the public key for this server's signing key
 	// served at /.well-known/jwks.json (for public key discovery)
-	signingJWKSet jwk.Set
+	publicJWKSet jwk.Set
 
 	// x5cCertChain is the X.509 certificate chain included in JWS signatures sent to
 	// other platforms (optional).
-	x5cCertChain []*x509.Certificate // X.509 certificate chain for signing (optional)
+	x5cCertChain []*x509.Certificate
 
 	// x5cCustomRoots is the custom root CAs for x5c verification (optional, nil = system roots).
 	// the server can't be configured to use a custom root CA unless it is also
@@ -66,7 +67,7 @@ type Server struct {
 	//
 	// Note: if using a custom root, the server expects all participants in the PINT network that are using x5c headers
 	// for non-repudation to share the same root CA
-	x5cCustomRoots *x509.CertPool // Custom root CAs for x5c verification (optional, nil = system roots)
+	x5cCustomRoots *x509.CertPool
 
 	// services aggregates external service integrations (party validation, CTR, audit, etc.)
 	services *services.Services
@@ -134,7 +135,7 @@ func NewServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWK set: %w", err)
 	}
-	server.signingJWKSet = jwkSet
+	server.publicJWKSet = jwkSet
 
 	// initialize services (party validation, etc)
 	server.services, err = services.NewServices(cfg, queries)
@@ -204,10 +205,10 @@ func (s *Server) setupMiddleware() {
 
 // registerCommonRoutes registers infrastructure routes (health, jwks, version, docs)
 func (s *Server) registerCommonRoutes() {
-	s.router.Get("/health/live", commonhandlers.HandleHealth)
-	s.router.Get("/ready", commonhandlers.HandleReadiness(s.queries))
-	s.router.Get("/.well-known/jwks.json", commonhandlers.HandleJWKS(s.signingJWKSet))
-	s.router.Get("/version", commonhandlers.HandleVersion(version.Get().Version, version.Get().BuildDate))
+	s.router.Get("/health/live", handlers.HandleHealth)
+	s.router.Get("/ready", handlers.HandleReadiness(s.queries))
+	s.router.Get("/.well-known/jwks.json", handlers.HandleJWKS(s.publicJWKSet))
+	s.router.Get("/version", handlers.HandleVersion(version.Get().Version, version.Get().BuildDate))
 }
 
 func (s *Server) registerPintRoutes() {
@@ -274,16 +275,57 @@ func (s *Server) registerApiDocoRoutes() {
 func (s *Server) registerAdminRoutes() {
 	s.router.Route("/admin", func(r chi.Router) {
 		// Party management
-		r.Post("/parties", commonhandlers.HandleCreateParty(s.queries))
-		r.Get("/parties/{partyID}", commonhandlers.HandleGetPartyByID(s.queries))
-		r.Put("/parties/{partyID}", commonhandlers.HandleUpdateParty(s.queries))
-		r.Get("/parties/{partyName}", commonhandlers.HandleGetPartyByPartyName(s.queries))
-		r.Post("/parties/{partyID}/codes", commonhandlers.HandleCreatePartyIdentifyingCode(s.queries))
+		r.Post("/parties", handlers.HandleCreateParty(s.queries))
+		r.Get("/parties/{partyID}", handlers.HandleGetPartyByID(s.queries))
+		r.Put("/parties/{partyID}", handlers.HandleUpdateParty(s.queries))
+		r.Get("/parties/{partyName}", handlers.HandleGetPartyByPartyName(s.queries))
+		r.Post("/parties/{partyID}/codes", handlers.HandleCreatePartyIdentifyingCode(s.queries))
 		// Party lookup by code (used by local party validator)
-		r.Get("/parties", commonhandlers.HandleGetPartyByPartyCode(s.queries))
+		r.Get("/parties", handlers.HandleGetPartyByPartyCode(s.queries))
 	})
 }
 
+func (s *Server) DatabaseShutdown() {
+	if s.pool != nil {
+		s.pool.Close()
+		s.logger.Info("database connection closed")
+	}
+}
+
+// CreateJWKSet creates a JWK set from the server's signing key's PUBLIC key.
+// The JWKS endpoint must only expose public keys, never private keys.
+func (s *Server) createJWKSet() (jwk.Set, error) {
+	var jwkKey jwk.Key
+	var err error
+
+	switch key := s.signingKey.(type) {
+	case ed25519.PrivateKey:
+		// Extract public key from private key
+		publicKey := key.Public().(ed25519.PublicKey)
+		jwkKey, err = crypto.Ed25519PublicKeyToJWK(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Ed25519 public JWK: %w", err)
+		}
+	case *rsa.PrivateKey:
+		// Extract public key from private key
+		publicKey := &key.PublicKey
+		jwkKey, err = crypto.RSAPublicKeyToJWK(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create RSA public JWK: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported key type: %T", key)
+	}
+
+	jwkSet := jwk.NewSet()
+	if err := jwkSet.AddKey(jwkKey); err != nil {
+		return nil, fmt.Errorf("failed to add key to JWK set: %w", err)
+	}
+
+	return jwkSet, nil
+}
+
+// Start starts the server and shuts down gracefully when the context is cancelled.
 func (s *Server) Start(ctx context.Context) error {
 	serverAddr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 
@@ -329,44 +371,4 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.logger.Info("HTTP server shutdown complete")
 	return nil
-}
-
-func (s *Server) DatabaseShutdown() {
-	if s.pool != nil {
-		s.pool.Close()
-		s.logger.Info("database connection closed")
-	}
-}
-
-// CreateJWKSet creates a JWK set from the server's signing key's PUBLIC key.
-// The JWKS endpoint must only expose public keys, never private keys.
-func (s *Server) createJWKSet() (jwk.Set, error) {
-	var jwkKey jwk.Key
-	var err error
-
-	switch key := s.signingKey.(type) {
-	case ed25519.PrivateKey:
-		// Extract public key from private key
-		publicKey := key.Public().(ed25519.PublicKey)
-		jwkKey, err = crypto.Ed25519PublicKeyToJWK(publicKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Ed25519 public JWK: %w", err)
-		}
-	case *rsa.PrivateKey:
-		// Extract public key from private key
-		publicKey := &key.PublicKey
-		jwkKey, err = crypto.RSAPublicKeyToJWK(publicKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create RSA public JWK: %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported key type: %T", key)
-	}
-
-	jwkSet := jwk.NewSet()
-	if err := jwkSet.AddKey(jwkKey); err != nil {
-		return nil, fmt.Errorf("failed to add key to JWK set: %w", err)
-	}
-
-	return jwkSet, nil
 }

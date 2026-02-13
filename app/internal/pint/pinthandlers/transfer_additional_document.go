@@ -50,7 +50,7 @@ func NewTransferAdditionalDocumentHandler(
 }
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
-// this is used for 409/422 (INCD & BSIG,BENV) responses.
+// This is used for 409/422 (INCD & BSIG,BENV) responses.
 func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
@@ -73,15 +73,15 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Description	Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.
 //	@Description
 //	@Description	The receiving platform validates:
-//	@Description	- Document was declared in the EnvelopeManifest
-//	@Description	- SHA-256 checksum matches the URL parameter
-//	@Description	- Document size matches the manifest
+//	@Description	- Document was declared in the EnvelopeManifest.
+//	@Description	- SHA-256 checksum matches the URL parameter.
+//	@Description	- Document size matches the manifest.
 //	@Description
 //	@Description	**Request Body Format:**
 //	@Description
 //	@Description	The request body is a base64-encoded string containing the document content.
-//	@Description	Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure)
-//	@Description	The decoded content type is determined by sending platform based on the media type
+//	@Description	Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure).
+//	@Description	The decoded content type is determined by the sending platform based on the media type
 //	@Description	declared in the EnvelopeManifest.
 //	@Description
 //	@Description	If the sending platform loses track of the transfer state for a document, it can safely
@@ -90,17 +90,17 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Description	If the sending platform loses track of which documents have not been received, it can call
 //	@Description	the PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.
 //	@Description
-//	@Description	**Success Response**
+//	@Description	**Success Response:**
 //	@Description
-//	@Description	`204 No Content` - this is returned when the document is received successfully,
+//	@Description	`204 No Content` - This is returned when the document is received successfully,
 //	@Description	or when the document has already been received.
 //	@Description
 //	@Description
 //	@Description	**Error Responses (signed):**
 //	@Description
-//	@Description	`409 Conflict` - Checksum or size mismatch (INCD response code)
+//	@Description	`409 Conflict` - Checksum or size mismatch (INCD response code).
 //	@Description
-//	@Description	`422 Unprocessable Entity` - Envelope rejected (BSIG/BENV response code)
+//	@Description	`422 Unprocessable Entity` - Envelope rejected (BSIG/BENV response code).
 //	@Description
 //
 //	@Tags		PINT
@@ -152,9 +152,9 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	}
 	defer r.Body.Close()
 
-	// expect a base64-encoded string containing the binary document content and ignore the content-type header
-	// TODO: confirm what dcsa expect in the content-type header
-	// (v3.0.0 says 'Content-Type application/json is preferred' but shows a base64 string as the example)
+	// Expect a base64-encoded string containing the binary document content and ignore the content-type header.
+	// TODO: confirm what DCSA expects here
+	// (v3.0.0 says 'Content-Type application/json is preferred' but shows a base64 string as the example).
 	base64Content := string(bodyBytes)
 
 	// Decode the base64 string to get the actual binary document content (PDF, image, etc.)

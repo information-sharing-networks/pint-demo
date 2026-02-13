@@ -5,19 +5,19 @@ package ebl
 // CreateEnvelopeTransfer is used to create a complete envelope transfer request for POST /v3/envelopes.
 //
 // In a production service, the sending platform would have:
-// 1. The transport document JSON
-// 2. The complete envelope transfer chain (array of signed entries)
-// 3. Optional: eBL visualisation file
-// 4. Optional: supporting documents
+// a. The transport document JSON
+// b. The complete envelope transfer chain (array of signed entries)
+// c. Optional: eBL visualisation file
+// d. Optional: supporting documents
 //
 // Transfer chain entries summarize the activity that has happened to the eBL since the last time it was on this platform.
 //
 // In a production service, the initial receiving platform would need to:
-// 2a. Create the first entry (ISSUE transaction) with the issuance manifest recieved from the carrier
-// 2b. Create subsequent entries (ENDORSE , SIGN, TRANSFER, etc.) linking to the previous entry
-// 2c. Include the transfer chain in the envelope transer
+// 1. Create the first entry (ISSUE transaction) with the issuance manifest received from the carrier
+// 2. Create subsequent entries (ENDORSE, SIGN, TRANSFER, etc.) linking to the previous entry
+// 3. Include the transfer chain in the envelope transfer
 //
-// the functions below include wrappers to help construct and sign transfer chain entries
+// The functions below include wrappers to help construct and sign transfer chain entries.
 
 import (
 	"crypto/x509"
@@ -44,18 +44,18 @@ type EnvelopeTransferInput struct {
 	EnvelopeTransferChain []EnvelopeTransferChainEntrySignedContent
 
 	// EBLVisualizationFilePath is the optional path to the eBL visualization file (e.g., PDF)
-	// If provided, the file will be read, checksummed, and metadata included in the envelope manifest
-	// the binary data will be sent separately via the supporting documents API.
-	// in a production system the binary data and metadata can be retrieved from the issuance request (no need to recompute from the file)
+	// If provided, the file will be read, checksummed, and metadata included in the envelope manifest.
+	// The binary data will be sent separately via the supporting documents API.
+	// In a production system the binary data and metadata can be retrieved from the issuance request (no need to recompute from the file).
 	EBLVisualizationFilePath string
 
-	// SupportingDocumentFilePaths is an optional list of paths to supporting documents
-	// If provided, each file will be read, checksummed, and metadata included in the envelope manifest
-	// the binary data will be sent separately via the supporting documents API.
+	// SupportingDocumentFilePaths is an optional list of paths to supporting documents.
+	// If provided, each file will be read, checksummed, and metadata included in the envelope manifest.
+	// The binary data will be sent separately via the supporting documents API.
 	SupportingDocumentFilePaths []string
 }
 
-// CreateEnvelopeTransfer creates a complete DCSA EblEnvelope ready to send to POST /v3/envelopes
+// CreateEnvelopeTransfer creates a complete DCSA EblEnvelope ready to send to POST /v3/envelopes.
 //
 // The signing algorithm is automatically detected from the private key type (ed25519.PrivateKey or *rsa.PrivateKey).
 //
@@ -64,9 +64,9 @@ type EnvelopeTransferInput struct {
 //   - privateKey: The sending platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
 //   - certChain: Optional X.509 certificate chain. Pass nil if not needed.
 //
-// Using a cert chain with an EV or OV certificate is recommended for production (used for non-repudiation)
+// Using a cert chain with an EV or OV certificate is recommended for production (used for non-repudiation).
 //
-// Returns the complete EblEnvelope ready to be JSON-marshaled and sent to POST /v3/envelopes
+// Returns the complete EblEnvelope ready to be JSON-marshaled and sent to POST /v3/envelopes.
 func CreateEnvelopeTransfer(
 	input EnvelopeTransferInput,
 	privateKey any,
@@ -180,11 +180,11 @@ func loadDocumentMetadata(filePath string) (*DocumentMetadata, error) {
 	}, nil
 }
 
-// TransferChainEntryInput contains the data needed to create an entry.
+// TransferChainEntryInput contains the data needed to create a transfer chain entry.
 //
 // Note that there are conditional fields:
-//   - when isFirstEntry is true, IssuanceManifestSignedContent is required and PreviousEntryJWS should not be provided.
-//   - when isFirstEntry is false, PreviousEntryJWS is required and IssuanceManifestSignedContent should not be provided.
+//   - When IsFirstEntry is true, IssuanceManifestSignedContent is required and PreviousEnvelopeTransferChainEntrySignedContent should not be provided.
+//   - When IsFirstEntry is false, PreviousEnvelopeTransferChainEntrySignedContent is required and IssuanceManifestSignedContent should not be provided.
 type TransferChainEntryInput struct {
 
 	// TransportDocumentChecksum is the SHA-256 checksum of the canonical transport document.
@@ -197,17 +197,17 @@ type TransferChainEntryInput struct {
 	// IsFirstEntry indicates if this is the first entry in the chain.
 	IsFirstEntry bool
 
-	// IssuanceManifestSignedContent is required for the first entry only
+	// IssuanceManifestSignedContent is required for the first entry only.
 	IssuanceManifestSignedContent *IssuanceManifestSignedContent
 
-	// ControlTrackingRegistry is optional and only for the first entry
+	// ControlTrackingRegistry is optional and only for the first entry.
 	// Example: "https://ctr.dcsa.org/v1"
 	ControlTrackingRegistry *string
 
-	// PreviousEnvelopeTransferChainEntrySignedContent is required for subsequent entries (not first entry)
+	// PreviousEnvelopeTransferChainEntrySignedContent is required for subsequent entries (not first entry).
 	PreviousEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
 
-	// Transactions is the list of transactions for this entry (at least one required)
+	// Transactions is the list of transactions for this entry (at least one required).
 	Transactions []Transaction
 }
 
@@ -218,9 +218,9 @@ type TransferChainEntryInput struct {
 //   - privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
 //   - certChain: Optional X.509 certificate chain. Pass nil to omit x5c header.
 //
-// Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification)
+// Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification).
 //
-// Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain
+// Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain.
 func CreateTransferChainEntry(
 	input TransferChainEntryInput,
 	privateKey any,
@@ -263,7 +263,7 @@ func CreateTransferChainEntry(
 
 	if input.IsFirstEntry {
 		builder = NewFirstEnvelopeTransferChainEntryBuilder(*input.IssuanceManifestSignedContent)
-		// if provided, CTR is only included in the first entry.
+		// If provided, CTR is only included in the first entry.
 		if input.ControlTrackingRegistry != nil {
 			builder.WithControlTrackingRegistry(*input.ControlTrackingRegistry)
 		}
@@ -281,8 +281,8 @@ func CreateTransferChainEntry(
 		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
 	}
 
-	// Step 3: Sign the transfer chain entry with the platform's private key
-	// The keyID is automatically computed inside the Sign method
+	// Step 3: Sign the transfer chain entry with the platform's private key.
+	// The keyID is automatically computed inside the Sign method.
 	signedContent, err := entry.Sign(privateKey, certChain)
 	if err != nil {
 		return "", WrapEnvelopeError(err, "failed to sign transfer chain entry")
@@ -294,8 +294,8 @@ func CreateTransferChainEntry(
 // CreateTransferTransaction is a helper function to create a TRANSFER transaction.
 //
 // Parameters:
-//   - actor: The party performing the transfer (must be on the sending platform)
-//   - recipient: The party receiving the transfer (may be on a different platform)
+//   - actor: The party performing the transfer (must be on the sending platform).
+//   - recipient: The party receiving the transfer (may be on a different platform).
 func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
 		ActionCode:     "TRANSFER",

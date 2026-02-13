@@ -1,4 +1,4 @@
-package commonhandlers
+package handlers
 
 import (
 	"encoding/json"
@@ -231,7 +231,7 @@ func HandleGetPartyByPartyName(queries *database.Queries) http.HandlerFunc {
 		party, err := queries.GetPartyByPartyName(r.Context(), partyName)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				http.Error(w, "Party not found !!!!", http.StatusNotFound)
+				http.Error(w, "Party not found", http.StatusNotFound)
 				return
 			}
 			reqLogger.Error("failed to get party", slog.String("error", err.Error()))

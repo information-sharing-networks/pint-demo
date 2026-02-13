@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//	@title			pint-server API
+//	@title			pint-server
 //	@description	pint-server is an implemenation of the DCSA v3 PINT API for receiving eBL envelope transfers
 //	@description
 //	@description	## Common Error Responses
@@ -37,7 +37,7 @@ import (
 //	@description	Check the X-Max-Request-Body response header for the configured limit on signals payload.
 //	@description
 //	@description	The rate limit is set globaly and prevents abuse of the service.
-//	@description	In production there will be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.
+//	@description	In production there may be additional protections in place such as per-IP rate limiting provided by the load balancer/reverse proxy.
 //	@description
 //	@description	## Authentication & Authorization
 //	@description
@@ -45,7 +45,7 @@ import (
 //	@description	Participating platforms are authenticated via JWS signatures -
 //	@description	requests must be signed with a key registered in the platform registry. Unrecognized keys are rejected.
 //	@description
-//	@description	In a real production system, OAuth 2.0 service accounts would provide additional authentication and authorization capabilities,
+//	@description	In a production system, OAuth 2.0 service accounts may be used to provide additional authentication and authorization capabilities,
 //	@description	e.g where external clients need to initiate a transfer on behalf of a user.
 //	@description
 //	@license.name	MIT

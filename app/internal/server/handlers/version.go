@@ -1,4 +1,4 @@
-package commonhandlers
+package handlers
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 //
 //	@Summary		Get version information
 //	@Description	Returns the version and build information for the service
-//	@Description	Note: version information is embeded at build time using ldflags. see build.sh for details.
+//	@Description	Note: version information is embedded at build time using ldflags. See build.sh for details.
 //	@Description	Returns placeholders when running from source.
 //	@Tags			Common
 //	@Produce		json

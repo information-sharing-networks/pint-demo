@@ -83,7 +83,7 @@ func NewStartTransferHandler(
 }
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
-// this is used for 200/422 (DUPE,RECE & BSIG,BENV) responses.
+// This is used for 200/422 (DUPE,RECE & BSIG,BENV) responses.
 func (s *StartTransferHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
@@ -102,8 +102,8 @@ func (s *StartTransferHandler) createSignedFinishedResponse(response pint.Envelo
 
 // respondWithSignedRejection creates and sends a signed rejection response (422 Unprocessable Entity).
 //
-// The payload in the JWS token is a  DCSA FinshTransferResponse struct that includes the last chain entry
-// signed content checksum, response code and reason description
+// The payload in the JWS token is a DCSA FinishTransferResponse struct that includes the last chain entry
+// signed content checksum, response code and reason description.
 func (s *StartTransferHandler) respondWithSignedRejection(w http.ResponseWriter, r *http.Request, lastChainChecksum string, responseCode pint.ResponseCode, reason string) {
 	signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 		LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
@@ -230,7 +230,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 //	@Description
 //	@Description	**Success Responses:**
 //	@Description
-//	@Description	`201 Created` - Transfer started but not yet accepted  (unsigned json response)
+//	@Description	`201 Created` - Transfer started but not yet accepted (unsigned JSON response)
 //	@Description	- The envelope transfer is now active
 //	@Description	- Additional documents listed in the EnvelopeManifest are required
 //	@Description	- Sender must transfer documents, then call "Finish envelope transfer" endpoint
@@ -259,13 +259,14 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 //	@Description	or `BENV` (envelope validation failure). Details of the error are in the payload of the JWS.
 //	@Description
 //	@Description	**Trust Level Failures**
+//	@Description
 //	@Description	This platform enforces a minimum trust level for signatures,
-//	@Description	based on the x5c header in the envelope manifsest JWS.
+//	@Description	based on the x5c header in the envelope manifest JWS.
 //	@Description	- Trust level 1 is the lowest trust level, and means that a JWS
 //	@Description	will be accepted even if no x5c header is present.
 //	@Description	- Trust level 2 means the JWS must contain a valid certificate,
 //	@Description	(Domain Validation (DV) certificates are allowed).
-//	@Description	- Trust level 3 is the hightest trust level, and means that the JWS must contain a valid Extended Validation (EV)
+//	@Description	- Trust level 3 is the highest trust level, and means that the JWS must contain a valid Extended Validation (EV)
 //	@Description	or Organization Validation (OV) certificate.
 //	@Description
 //	@Description	The trust level is checked after signature verification, and a valid JWS with an insufficient trust
@@ -288,8 +289,8 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 //	@Description
 //	@Description	IMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform
 //	@Description	(they may come from middleware or infrastructure). Therefore:
-//	@Description	- Do not assume an unsigned error means the transfer was rejected
-//	@Description	- only determine transfer acceptance/rejection from signed responses
+//	@Description	- Do not assume an unsigned error means the transfer was rejected.
+//	@Description	- Only determine transfer acceptance/rejection from signed responses.
 //	@Description
 //	@Description	The sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.
 //	@Description	When there is a mismatch between the HTTP response status code
@@ -323,7 +324,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	var reason string
 
-	// Step 2. Envelope verification (signature/envelope errors return 422 with a signed response otherwise 500/unsigned response):w
+	// Step 2. Envelope verification (signature/envelope errors return 422 with a signed response otherwise 500/unsigned response)
 	verificationResult, err := ebl.VerifyEnvelope(ebl.EnvelopeVerificationInput{
 		Envelope:              &envelope,
 		RootCAs:               s.x5cCustomRoots,
@@ -360,10 +361,10 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		slog.String("last_transfer_chain_checksum", verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum),
 	)
 
-	// store the last transfer entry chain checksum for the response.
-	// this checksum is a unique identifier for a specific transfer attempt
+	// Store the last transfer entry chain checksum for the response.
+	// This checksum is a unique identifier for a specific transfer attempt
 	// (the last chain entry contains the checksum of the previous entry and the checksum of the transport document,
-	//  so it is unique for each transfer attempt)
+	// so it is unique for each transfer attempt).
 	lastChainChecksum := verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum
 	if lastChainChecksum == "" {
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to verify envelope - last chain checksum is empty"))
@@ -395,14 +396,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// valid envelopes from this point.
+	// Valid envelopes from this point.
 
-	// Step 5. Check for envelope transfer retries
+	// Step 5. Check for envelope transfer retries.
 	// The last entry chain checksum is the unique identifier for a specific transfer attempt.
 	//
-	// retries are handled as follows:
-	//	- When there are no additional documents to be transferred return (200 OK,  signed response with a response_code of DUPE)
-	// 	- When there are additional documents still to be transferred (201 Created, unsigned response with the current state)
+	// Retries are handled as follows:
+	//	- When there are no additional documents to be transferred return (200 OK, signed response with a response_code of DUPE).
+	// 	- When there are additional documents still to be transferred (201 Created, unsigned response with the current state).
 	if handled, err := s.handleRetry(ctx, w, lastChainChecksum); err != nil {
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to handle retry"))
 		return
@@ -410,9 +411,9 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 6. new transfer received - get the list of expected additional document checksums
-	// - if there are additional documents required the transfer can be accepted immediately (response will be 201 Created/RECE)
-	// - if there are no additional documents required the response will be 200 OK, and the response will be signed (accepted immediately)
+	// Step 6. New transfer received - get the list of expected additional document checksums.
+	// - If there are additional documents required the transfer cannot be accepted immediately (response will be 201 Created).
+	// - If there are no additional documents required the response will be 200 OK, and the response will be signed (accepted immediately with RECE).
 
 	// Collect all additional documents required for the transfer
 	additionalDocs := getAdditionalDocumentList(verificationResult.Manifest)
@@ -428,14 +429,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// Validate each code via the party validator service and ensure all successfully validated
 	// codes refer to the same internal party ID.
 	//
-	// 1. No codes validate = REJECT (BENV: party not found)
-	// 2. Codes validate to different party IDs = REJECT (BENV: conflicting codes)
-	// 3. Some codes validate, others don't = REJECT (BENV: conflicting codes)
-	// 4. All codes validate to same party ID = ACCEPT
+	// a. No codes validate = REJECT (BENV: party not found)
+	// b. Codes validate to different party IDs = REJECT (BENV: conflicting codes)
+	// c. Some codes validate, others don't = REJECT (BENV: conflicting codes)
+	// e. All codes validate to same party ID = ACCEPT
 	//
 	// TODO: check the expectation for receiver logic:
-	// - Rule 2 is implied by the spec (which says the sender should take care not to send conflicting codes)
-	// - Rule 3 is not explicitly requird but seems sensible: accepting unmatched codes
+	// - Rule b is implied by the spec (which says the sender should take care not to send conflicting codes).
+	// - Rule c is not explicitly required but seems sensible: accepting unmatched codes
 	// 	 risks downstream confusion since there is no way for the downstream system
 	//	 to know which code(s) were successfully validated.
 	lastTransferEntry := verificationResult.LastTransferChainEntry
@@ -493,7 +494,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 8. start transactional db work
+	// Step 8. Start transactional db work
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		logger.ContextWithLogAttrs(ctx,
@@ -512,7 +513,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Step 9: load transport document if it hasn't been received previously
+	// Step 9: Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.InsertTransportDocumentIfNew(ctx, database.InsertTransportDocumentIfNewParams{
 		Checksum:                      verificationResult.TransportDocumentChecksum,
@@ -569,7 +570,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			previousChecksum = &prevChecksum
 		}
 
-		// store the transfer chain entry
+		// Store the transfer chain entry
 		_, err = txQueries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
 			TransportDocumentChecksum: verificationResult.TransportDocumentChecksum,
 			EnvelopeID:                storedEnvelope.ID,
@@ -585,7 +586,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 11 placeholder records for expected additional documents (where applicable)
+	// Step 12: Create placeholder records for expected additional documents (where applicable)
 	for _, doc := range additionalDocs {
 		_, err = txQueries.CreateExpectedAdditionalDocument(ctx, database.CreateExpectedAdditionalDocumentParams{
 			EnvelopeID:         storedEnvelope.ID,
@@ -601,7 +602,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// commit db changes
+	// Commit db changes
 	if err := tx.Commit(ctx); err != nil {
 		logger.ContextWithLogAttrs(ctx,
 			slog.String("error", err.Error()),
@@ -611,7 +612,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 12 - handle request with no additional documents (immediate acceptance - 200/RECE)
+	// Step 13 - handle request with no additional documents (immediate acceptance - 200/RECE)
 	if len(additionalDocs) == 0 {
 		// Create and sign the RECE response
 		signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -635,8 +636,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 13. Return response for pending transfer (201 Created/ unsigned response)
-	// because this is the start of the transfer all the additional docs are 'missing'
+	// Step 14. Return response for pending transfer (201 Created/unsigned response).
+	// Because this is the start of the transfer all the additional docs are 'missing'.
 	missingChecksums := make([]string, len(additionalDocs))
 	for i, doc := range additionalDocs {
 		missingChecksums[i] = doc.checksum

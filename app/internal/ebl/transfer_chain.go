@@ -43,8 +43,8 @@ type EnvelopeTransferChainEntry struct {
 	Transactions []Transaction `json:"transactions"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (e *EnvelopeTransferChainEntry) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (e *EnvelopeTransferChainEntry) ValidateStructure() error {
 	if e.EblPlatform == "" {
 		return NewEnvelopeError("eblPlatform is required")
 	}
@@ -87,7 +87,7 @@ func (e *EnvelopeTransferChainEntry) Validate() error {
 
 	// Validate each transaction
 	for i, tx := range e.Transactions {
-		if err := tx.Validate(); err != nil {
+		if err := tx.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, fmt.Sprintf("transaction[%d]", i))
 		}
 	}
@@ -124,12 +124,12 @@ type Transaction struct {
 	AuditReference *string `json:"auditReference,omitempty"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (t *Transaction) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (t *Transaction) ValidateStructure() error {
 	if t.ActionCode == "" {
 		return NewEnvelopeError("actionCode is required")
 	}
-	if err := t.Actor.Validate(); err != nil {
+	if err := t.Actor.ValidateStructure(); err != nil {
 		return WrapEnvelopeError(err, "actor")
 	}
 	if t.ActionDateTime == "" {
@@ -137,7 +137,7 @@ func (t *Transaction) Validate() error {
 	}
 	// Recipient is optional (e.g., for SIGN action code)
 	if t.Recipient != nil {
-		if err := t.Recipient.Validate(); err != nil {
+		if err := t.Recipient.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, "recipient")
 		}
 	}
@@ -164,8 +164,8 @@ type ActorParty struct {
 	RepresentedParty *RepresentedActorParty `json:"representedParty,omitempty"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (a *ActorParty) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (a *ActorParty) ValidateStructure() error {
 	if a.PartyName == "" {
 		return NewEnvelopeError("partyName is required")
 	}
@@ -176,12 +176,12 @@ func (a *ActorParty) Validate() error {
 		return NewEnvelopeError("at least one identifyingCode is required")
 	}
 	for i, code := range a.IdentifyingCodes {
-		if err := code.Validate(); err != nil {
+		if err := code.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, fmt.Sprintf("identifyingCodes[%d]", i))
 		}
 	}
 	if a.RepresentedParty != nil {
-		if err := a.RepresentedParty.Validate(); err != nil {
+		if err := a.RepresentedParty.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, "representedParty")
 		}
 	}
@@ -208,8 +208,8 @@ type RecipientParty struct {
 	RepresentedParty *RepresentedRecipientParty `json:"representedParty,omitempty"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (r *RecipientParty) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (r *RecipientParty) ValidateStructure() error {
 	if r.PartyName == "" {
 		return NewEnvelopeError("partyName is required")
 	}
@@ -220,12 +220,12 @@ func (r *RecipientParty) Validate() error {
 		return NewEnvelopeError("at least one identifyingCode is required")
 	}
 	for i, code := range r.IdentifyingCodes {
-		if err := code.Validate(); err != nil {
+		if err := code.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, fmt.Sprintf("identifyingCodes[%d]", i))
 		}
 	}
 	if r.RepresentedParty != nil {
-		if err := r.RepresentedParty.Validate(); err != nil {
+		if err := r.RepresentedParty.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, "representedParty")
 		}
 	}
@@ -242,14 +242,14 @@ type RepresentedActorParty struct {
 	IdentifyingCodes []IdentifyingCode `json:"identifyingCodes,omitempty"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (r *RepresentedActorParty) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (r *RepresentedActorParty) ValidateStructure() error {
 	if r.PartyName == "" {
 		return fmt.Errorf("partyName is required")
 	}
 	// IdentifyingCodes are optional for represented parties
 	for i, code := range r.IdentifyingCodes {
-		if err := code.Validate(); err != nil {
+		if err := code.ValidateStructure(); err != nil {
 			return fmt.Errorf("identifyingCodes[%d]: %w", i, err)
 		}
 	}
@@ -266,14 +266,14 @@ type RepresentedRecipientParty struct {
 	IdentifyingCodes []IdentifyingCode `json:"identifyingCodes,omitempty"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (r *RepresentedRecipientParty) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (r *RepresentedRecipientParty) ValidateStructure() error {
 	if r.PartyName == "" {
 		return fmt.Errorf("partyName is required")
 	}
 	// IdentifyingCodes are optional for represented parties
 	for i, code := range r.IdentifyingCodes {
-		if err := code.Validate(); err != nil {
+		if err := code.ValidateStructure(); err != nil {
 			return fmt.Errorf("identifyingCodes[%d]: %w", i, err)
 		}
 	}
@@ -294,8 +294,8 @@ type IdentifyingCode struct {
 	CodeListName *string `json:"codeListName,omitempty"`
 }
 
-// Validate checks that all required fields are present per DCSA EBL_PINT specification
-func (i *IdentifyingCode) Validate() error {
+// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
+func (i *IdentifyingCode) ValidateStructure() error {
 	if i.CodeListProvider == "" {
 		return fmt.Errorf("codeListProvider is required")
 	}
@@ -480,7 +480,7 @@ func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry
 	}
 
 	// Validate the final entry (this will check first/subsequent entry rules)
-	if err := entry.Validate(); err != nil {
+	if err := entry.ValidateStructure(); err != nil {
 		return nil, WrapEnvelopeError(err, "invalid transfer chain entry")
 	}
 

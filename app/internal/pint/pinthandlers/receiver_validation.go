@@ -26,13 +26,16 @@ func NewReceiverValidationHandler(partyValidator services.PartyValidator) *Recei
 // HandleReceiverValidation godoc
 //
 //	@Summary		Validate a receiver party
-//	@Description	Request the name of a party given a party code. This enables the sending user to validate
-//	@Description	the receiver information (similar to how bank transfers enable users to confirm the receiver
-//	@Description	before confirming the transfer).
+//	@Description	Request the name of a party (legal entity) given a party code. This enables the sending service to
+//	@Description	to check the receiver party exists and is active before sending an eBL (similar to how bank
+//	@Description	transfers enable users to confirm the receiver's account name before confirming the transfer).
 //	@Description
 //	@Description	A successful response asserts that the platform will accept an eBL for the account or user
-//	@Description	denoted by the provided identifying code and that said account or user is "active and able
-//	@Description	to accept interoperable eBLs" as defined by the platform hosting the account or user.
+//	@Description	denoted by the provided identifying code.
+//	@Description
+//	@Description	Note the sender can provider more than one identity code for the same party (e.g. both a DID and a LEI for the same company).
+//	@Description 	The receiver platform will reject transfers where these codes resolve to different parties on their system.
+//	@Description.
 //	@Tags			PINT
 //	@Accept			json
 //	@Produce		json

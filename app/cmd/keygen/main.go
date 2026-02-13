@@ -1,3 +1,5 @@
+package main
+
 // keygen is a CLI tool for creating JWK sets for PINT platforms.
 //
 // Generates key pairs in both JWK and PEM formats:
@@ -11,10 +13,6 @@
 // 4. Publish public JWK at https://domain/.well-known/jwks.json
 // 5. Use private JWK for signing PINT messages
 //
-// the publick key PEM file is not strictly necessary, but it's useful for testing.
-
-package main
-
 import (
 	"crypto/ed25519"
 	"fmt"

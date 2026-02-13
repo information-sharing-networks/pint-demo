@@ -1,3 +1,4 @@
+// version information is embeded at build time using ldflags. see build.sh for details.
 package version
 
 // Build-time variables set via ldflags

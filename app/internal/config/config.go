@@ -1,3 +1,5 @@
+// config provides the configuration for the PINT server and CLI.
+// The configuration is loaded from environment variables and sensible defaults.
 package config
 
 import (
