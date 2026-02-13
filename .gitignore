@@ -18,6 +18,9 @@ pint-client
 /app/bin/
 /bin/
 
+# but allow cmd
+!/app/cmd/pint-server
+!/app/cmd/pint-client
 # keys, secrets and env
 **/.env*
 
