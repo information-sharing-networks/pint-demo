@@ -34,6 +34,17 @@ help: ## Show this help message
 
 # Docker management
 docker-up:
+	@if [ ! -f .env ]; then \
+		echo "Error: a .env file is needed running the app in dev mode"; \
+		echo ""; \
+		echo "Please create a .env file in the project root."; \
+		echo "You can copy the example file:"; \
+		echo ""; \
+		echo "  cp .env.example .env"; \
+		echo ""; \
+		echo "See README.md for more details."; \
+		exit 1; \
+	fi
 	@echo "🐳 Starting Docker containers..."
 	@docker compose up 
 

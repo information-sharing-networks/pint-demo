@@ -25,7 +25,13 @@ If you plan to make changes to the code (or want to run the go tests) you will a
 
 ### Quick Start
 
-#### 1. create a .env file in the root of the project:
+#### 1. create a .env file in the root of the project.
+```bash
+# copy the example env file - contains the default settings for a local docker dev environment
+cp .env.example .env
+```
+
+alternatively, you can create a .env file manually and adjust the settings to your needs. The following is the default config:
 ```bash
 # PORT 
 PORT=8080
