@@ -138,10 +138,6 @@ type EnvelopeVerificationInput struct {
 	// recipientPlatformCode is the platform code of the current platform.
 	// This is used to verify the envelope transfer is addressed to the correct platform.
 	RecipientPlatformCode string
-
-	// Logger is an optional logger for warnings about unknown action codes.
-	// If nil, warnings will not be logged.
-	Logger *slog.Logger
 }
 
 // EnvelopeVerificationResult contains the results of envelope verification.
@@ -239,7 +235,6 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	}
 
 	// Step 2: Verify JWS signature and validate x5c certificate chain (if present)
-	input.Logger.Debug("verifying envelope manifest signature")
 	manifestPayload, _, certChain, err := crypto.VerifyJWSWithKeyProvider(
 		string(input.Envelope.EnvelopeManifestSignedContent),
 		input.KeyProvider,
@@ -248,7 +243,6 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	if err != nil {
 		return result, WrapSignatureError(err, "JWS verification failed")
 	}
-	input.Logger.Debug("envelope manifest signature verified successfully")
 
 	// Step 3: extract the domain from the leaf (platform) certificate if the x5c header was present
 	if len(certChain) > 0 {
@@ -304,7 +298,6 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		manifest,
 		input.KeyProvider,
 		input.RootCAs,
-		input.Logger,
 	)
 	if err != nil {
 		return result, WrapEnvelopeError(err, "transfer chain verification failed")
@@ -526,7 +519,6 @@ func verifyEnvelopeTransferChain(
 	manifest *EnvelopeManifest,
 	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,
-	logger *slog.Logger,
 ) ([]*EnvelopeTransferChainEntry, error) {
 
 	if len(envelopeTransferChain) == 0 {
@@ -549,12 +541,6 @@ func verifyEnvelopeTransferChain(
 	// Step 2: The first [`EnvelopeTransferChainEntry`](#/EnvelopeTransferChainEntry) in the `envelopeTransferChain[]` list should contain the `ISSUE` (issuance) transaction as the first transaction in the [`EnvelopeTransferChainEntry.transactions[]`](#/EnvelopeTransferChainEntry) list.
 	firstEntryJWS := envelopeTransferChain[0]
 
-	// Extract kid for logging
-	firstEntryHeader, err := crypto.ParseJWSHeader(string(firstEntryJWS))
-	if err == nil {
-		logger.Debug("verifying first transfer chain entry signature", slog.String("kid", firstEntryHeader.KeyID))
-	}
-
 	firstEntryPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
 		string(firstEntryJWS),
 		keyProvider,
@@ -563,7 +549,6 @@ func verifyEnvelopeTransferChain(
 	if err != nil {
 		return nil, WrapSignatureError(err, "first entry JWS verification failed")
 	}
-	logger.Debug("first transfer chain entry signature verified successfully")
 
 	// Step 3: Check the first entry contains an ISSUE transaction
 	var firstEntry EnvelopeTransferChainEntry
@@ -572,6 +557,11 @@ func verifyEnvelopeTransferChain(
 	}
 	if firstEntry.Transactions[0].ActionCode != "ISSUE" {
 		return nil, NewEnvelopeError("first entry should contain an ISSUE transaction")
+	}
+
+	// Step 3b: Check the first entry contains a issuanceManifestSignedContent field
+	if firstEntry.IssuanceManifestSignedContent == nil {
+		return nil, NewEnvelopeError("first entry should contain an issuanceManifestSignedContent field")
 	}
 
 	// Step 4: verify the chain and collect all entries
@@ -586,12 +576,6 @@ func verifyEnvelopeTransferChain(
 		// Each entry in the chain is signed by the platform that created it.
 		// This prevents a platform from tampering with an entry created by another platform (since they don't have the private key)
 
-		// Extract kid for logging
-		entryHeaderForLog, err := crypto.ParseJWSHeader(string(currentEntryJWS))
-		if err == nil {
-			logger.Debug("verifying transfer chain entry signature", slog.Int("entry_index", i), slog.String("kid", entryHeaderForLog.KeyID))
-		}
-
 		currentPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
 			string(currentEntryJWS),
 			keyProvider,
@@ -600,7 +584,6 @@ func verifyEnvelopeTransferChain(
 		if err != nil {
 			return nil, WrapSignatureError(err, fmt.Sprintf("entry %d JWS verification failed", i))
 		}
-		logger.Debug("transfer chain entry signature verified successfully", slog.Int("entry_index", i))
 
 		// Parse the entry payload
 		var currentEntry EnvelopeTransferChainEntry
@@ -609,7 +592,7 @@ func verifyEnvelopeTransferChain(
 		}
 
 		// Validate the entry has all the mandatory fields
-		if err := currentEntry.ValidateStructure(); err != nil {
+		if err := currentEntry.ValidateStructure(i); err != nil {
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
@@ -689,13 +672,6 @@ func verifyEnvelopeTransferChain(
 	for entryIdx, entry := range allEntries {
 		for txIdx, tx := range entry.Transactions {
 			nextState := EnvelopeState(tx.ActionCode)
-
-			// Log warning if action code is not recognized (DCSA uses PseudoEnum for forward compatibility)
-			if logger != nil && nextState != EnvelopeStateUnset {
-				if _, ok := validEnvelopeStateTransitions[nextState]; !ok {
-					logger.Warn("Unknown action code - envelope will be rejected", slog.String("action_code", tx.ActionCode))
-				}
-			}
 
 			// First transaction must be ISSUE
 			if currentState == EnvelopeStateUnset {

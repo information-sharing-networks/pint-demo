@@ -582,10 +582,11 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	ctrURI := "https://ctr.example.com"
 
 	tests := []struct {
-		name    string
-		entry   *EnvelopeTransferChainEntry
-		wantErr bool
-		errMsg  string
+		name        string
+		entry       *EnvelopeTransferChainEntry
+		entryNumber int
+		wantErr     bool
+		errMsg      string
 	}{
 		{
 			name: "valid first entry",
@@ -595,7 +596,8 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				Transactions:                  []Transaction{validTransaction},
 				IssuanceManifestSignedContent: &issuanceManifest,
 			},
-			wantErr: false,
+			entryNumber: 0,
+			wantErr:     false,
 		},
 		{
 			name: "valid first entry with CTR",
@@ -606,7 +608,8 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				IssuanceManifestSignedContent: &issuanceManifest,
 				ControlTrackingRegistry:       &ctrURI,
 			},
-			wantErr: false,
+			entryNumber: 0,
+			wantErr:     false,
 		},
 		{
 			name: "valid subsequent entry",
@@ -616,7 +619,8 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				Transactions:              []Transaction{validTransaction},
 				PreviousEnvelopeTransferChainEntrySignedContentChecksum: &prevChecksum,
 			},
-			wantErr: false,
+			entryNumber: 1,
+			wantErr:     false,
 		},
 		{
 			name: "invalid - both issuance manifest and previous entry",
@@ -627,8 +631,9 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				IssuanceManifestSignedContent: &issuanceManifest,
 				PreviousEnvelopeTransferChainEntrySignedContentChecksum: &prevChecksum,
 			},
-			wantErr: true,
-			errMsg:  "entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum",
+			entryNumber: 0,
+			wantErr:     true,
+			errMsg:      "entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum",
 		},
 		{
 			name: "invalid - neither issuance manifest nor previous entry",
@@ -637,8 +642,9 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				TransportDocumentChecksum: "checksum123",
 				Transactions:              []Transaction{validTransaction},
 			},
-			wantErr: true,
-			errMsg:  "entry must have either issuanceManifestSignedContent",
+			entryNumber: 0,
+			wantErr:     true,
+			errMsg:      "issuanceManifestSignedContent is required for first entry",
 		},
 		{
 			name: "invalid - subsequent entry with CTR",
@@ -649,8 +655,9 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				PreviousEnvelopeTransferChainEntrySignedContentChecksum: &prevChecksum,
 				ControlTrackingRegistry:                                 &ctrURI,
 			},
-			wantErr: true,
-			errMsg:  "controlTrackingRegistry should only be present in first entry",
+			entryNumber: 1,
+			wantErr:     true,
+			errMsg:      "controlTrackingRegistry should only be present in first entry",
 		},
 		{
 			name: "invalid - missing eblPlatform",
@@ -659,8 +666,9 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				Transactions:                  []Transaction{validTransaction},
 				IssuanceManifestSignedContent: &issuanceManifest,
 			},
-			wantErr: true,
-			errMsg:  "eblPlatform is required",
+			entryNumber: 0,
+			wantErr:     true,
+			errMsg:      "eblPlatform is required",
 		},
 		{
 			name: "invalid - missing transportDocumentChecksum",
@@ -669,8 +677,9 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				Transactions:                  []Transaction{validTransaction},
 				IssuanceManifestSignedContent: &issuanceManifest,
 			},
-			wantErr: true,
-			errMsg:  "transportDocumentChecksum is required",
+			entryNumber: 0,
+			wantErr:     true,
+			errMsg:      "transportDocumentChecksum is required",
 		},
 		{
 			name: "invalid - missing transactions",
@@ -679,14 +688,15 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 				TransportDocumentChecksum:     "checksum123",
 				IssuanceManifestSignedContent: &issuanceManifest,
 			},
-			wantErr: true,
-			errMsg:  "at least one transaction is required",
+			entryNumber: 0,
+			wantErr:     true,
+			errMsg:      "at least one transaction is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.entry.ValidateStructure()
+			err := tt.entry.ValidateStructure(tt.entryNumber)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() expected error but got none")
@@ -839,7 +849,7 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 					WithEBLPlatform("WAVE").
 					WithTransaction(testTransaction)
 			},
-			errMsg: "entry must have either issuanceManifestSignedContent",
+			errMsg: "PreviousEnvelopeTransferChainEntrySignedContentChecksum is required in all entries apart from the first entry",
 		},
 	}
 

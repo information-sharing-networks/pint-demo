@@ -330,7 +330,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		RootCAs:               s.x5cCustomRoots,
 		KeyProvider:           s.keyManager,
 		RecipientPlatformCode: s.platformCode,
-		Logger:                reqLogger,
 	})
 	if err != nil {
 		var responseCode pint.ResponseCode
