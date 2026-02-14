@@ -93,20 +93,20 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Code list provider",
-                        "name": "code_list_provider",
+                        "name": "codeListProvider",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
                         "description": "Code list name (optional)",
-                        "name": "code_list_name",
+                        "name": "codeListName",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Party code",
-                        "name": "party_code",
+                        "name": "partyCode",
                         "in": "query",
                         "required": true
                     }
@@ -922,13 +922,13 @@ const docTemplate = `{
         "handlers.PartyIdentifyingCodeRequest": {
             "type": "object",
             "properties": {
-                "code_list_name": {
+                "codeListName": {
                     "type": "string"
                 },
-                "code_list_provider": {
+                "codeListProvider": {
                     "type": "string"
                 },
-                "party_code": {
+                "partyCode": {
                     "type": "string"
                 }
             }
@@ -936,16 +936,16 @@ const docTemplate = `{
         "handlers.PartyIdentifyingCodeResponse": {
             "type": "object",
             "properties": {
-                "code_list_name": {
+                "codeListName": {
                     "type": "string"
                 },
-                "code_list_provider": {
+                "codeListProvider": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "party_code": {
+                "partyCode": {
                     "type": "string"
                 },
                 "party_id": {
@@ -959,7 +959,7 @@ const docTemplate = `{
                 "active": {
                     "type": "boolean"
                 },
-                "party_name": {
+                "partyName": {
                     "type": "string"
                 }
             }
@@ -973,7 +973,7 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "party_name": {
+                "partyName": {
                     "type": "string"
                 }
             }

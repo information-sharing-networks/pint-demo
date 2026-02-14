@@ -249,31 +249,31 @@ definitions:
     type: object
   handlers.PartyIdentifyingCodeRequest:
     properties:
-      code_list_name:
+      codeListName:
         type: string
-      code_list_provider:
+      codeListProvider:
         type: string
-      party_code:
+      partyCode:
         type: string
     type: object
   handlers.PartyIdentifyingCodeResponse:
     properties:
-      code_list_name:
+      codeListName:
         type: string
-      code_list_provider:
+      codeListProvider:
         type: string
       id:
         type: string
-      party_code:
-        type: string
       party_id:
+        type: string
+      partyCode:
         type: string
     type: object
   handlers.PartyRequest:
     properties:
       active:
         type: boolean
-      party_name:
+      partyName:
         type: string
     type: object
   handlers.PartyResponse:
@@ -282,7 +282,7 @@ definitions:
         type: boolean
       id:
         type: string
-      party_name:
+      partyName:
         type: string
     type: object
   handlers.VersionResponse:
@@ -604,16 +604,16 @@ paths:
       parameters:
       - description: Code list provider
         in: query
-        name: code_list_provider
+        name: codeListProvider
         required: true
         type: string
       - description: Code list name (optional)
         in: query
-        name: code_list_name
+        name: codeListName
         type: string
       - description: Party code
         in: query
-        name: party_code
+        name: partyCode
         required: true
         type: string
       produces:

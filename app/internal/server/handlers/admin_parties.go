@@ -18,28 +18,28 @@ import (
 // request and responses
 
 type PartyRequest struct {
-	PartyName string `json:"party_name"`
+	PartyName string `json:"partyName"`
 	Active    *bool  `json:"active"`
 }
 
 type PartyResponse struct {
 	ID        string `json:"id"`
-	PartyName string `json:"party_name"`
+	PartyName string `json:"partyName"`
 	Active    bool   `json:"active"`
 }
 
 type PartyIdentifyingCodeRequest struct {
-	CodeListProvider string  `json:"code_list_provider"`
-	PartyCode        string  `json:"party_code"`
-	CodeListName     *string `json:"code_list_name,omitempty"`
+	CodeListProvider string  `json:"codeListProvider"`
+	PartyCode        string  `json:"partyCode"`
+	CodeListName     *string `json:"codeListName,omitempty"`
 }
 
 type PartyIdentifyingCodeResponse struct {
 	ID               string  `json:"id"`
 	PartyID          string  `json:"party_id"`
-	CodeListProvider string  `json:"code_list_provider"`
-	PartyCode        string  `json:"party_code"`
-	CodeListName     *string `json:"code_list_name,omitempty"`
+	CodeListProvider string  `json:"codeListProvider"`
+	PartyCode        string  `json:"partyCode"`
+	CodeListName     *string `json:"codeListName,omitempty"`
 }
 
 // HandleCreateParty godoc
@@ -63,7 +63,7 @@ func HandleCreateParty(queries *database.Queries) http.HandlerFunc {
 		}
 
 		if req.PartyName == "" {
-			http.Error(w, "party_name is required", http.StatusBadRequest)
+			http.Error(w, "partyName is required", http.StatusBadRequest)
 			return
 		}
 
@@ -138,7 +138,7 @@ func HandleUpdateParty(queries *database.Queries) http.HandlerFunc {
 
 		// Check if at least one field is provided
 		if req.PartyName == "" && req.Active == nil {
-			http.Error(w, "party_name or active status is required", http.StatusBadRequest)
+			http.Error(w, "partyName or active status is required", http.StatusBadRequest)
 			return
 		}
 
@@ -285,7 +285,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 
 		fmt.Printf("debug req: %+v\n", req)
 		if req.CodeListProvider == "" || req.PartyCode == "" {
-			http.Error(w, "code_list_provider and party_code are required", http.StatusBadRequest)
+			http.Error(w, "codeListProvider and partyCode are required", http.StatusBadRequest)
 			return
 		}
 
@@ -324,9 +324,9 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 //	@Summary	Get party by party code
 //	@Tags		Admin
 //	@Produce	json
-//	@Param		code_list_provider	query		string	true	"Code list provider"
-//	@Param		code_list_name		query		string	false	"Code list name (optional)"
-//	@Param		party_code			query		string	true	"Party code"
+//	@Param		codeListProvider	query		string	true	"Code list provider"
+//	@Param		codeListName		query		string	false	"Code list name (optional)"
+//	@Param		partyCode			query		string	true	"Party code"
 //	@Success	200					{object}	PartyResponse
 //	@Failure	400					{string}	string	"Invalid request"
 //	@Failure	404					{string}	string	"Party not found"
@@ -334,17 +334,17 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 func HandleGetPartyByPartyCode(queries *database.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reqLogger := logger.ContextRequestLogger(r.Context())
-		codeListProvider := r.URL.Query().Get("code_list_provider")
-		partyCode := r.URL.Query().Get("party_code")
+		codeListProvider := r.URL.Query().Get("codeListProvider")
+		partyCode := r.URL.Query().Get("partyCode")
 
 		if codeListProvider == "" || partyCode == "" {
-			http.Error(w, "code_list_provider and party_code are required", http.StatusBadRequest)
+			http.Error(w, "codeListProvider and partyCode are required", http.StatusBadRequest)
 			return
 		}
 
-		// Handle optional code_list_name
+		// Handle optional codeListName
 		var codeListName *string
-		if name := r.URL.Query().Get("code_list_name"); name != "" {
+		if name := r.URL.Query().Get("codeListName"); name != "" {
 			codeListName = &name
 		}
 
