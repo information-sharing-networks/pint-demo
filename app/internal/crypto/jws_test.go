@@ -40,10 +40,6 @@ func TestSignAndVerifSignatureEdSCA(t *testing.T) {
 	}
 	invalidEd25519publicKey := invalidEd25519PrivateKey.Public().(ed25519.PublicKey)
 
-	if err != nil {
-		t.Fatalf("could not create RSA key: %v", err)
-	}
-
 	payload, err := CanonicalizeJSON([]byte(`{ "message": "Hello, World!" }`))
 	if err != nil {
 		t.Fatalf("could not canonicalize test payload: %v", err)
@@ -146,10 +142,6 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 		t.Fatalf("could not create RSA key: %v", err)
 	}
 	invalidRSApublicKey := invalidRSAPrivateKey.Public().(*rsa.PublicKey)
-
-	if err != nil {
-		t.Fatalf("could not create RSA key: %v", err)
-	}
 
 	payload, err := CanonicalizeJSON([]byte(`{ "message": "Hello, World!" }`))
 	if err != nil {

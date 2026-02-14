@@ -239,6 +239,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	}
 
 	// Step 2: Verify JWS signature and validate x5c certificate chain (if present)
+	input.Logger.Debug("verifying envelope manifest signature")
 	manifestPayload, _, certChain, err := crypto.VerifyJWSWithKeyProvider(
 		string(input.Envelope.EnvelopeManifestSignedContent),
 		input.KeyProvider,
@@ -247,6 +248,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	if err != nil {
 		return result, WrapSignatureError(err, "JWS verification failed")
 	}
+	input.Logger.Debug("envelope manifest signature verified successfully")
 
 	// Step 3: extract the domain from the leaf (platform) certificate if the x5c header was present
 	if len(certChain) > 0 {
@@ -473,6 +475,13 @@ func verifyIssuanceManifest(
 	// Step 1: Verify carrier's JWS signature on issuanceManifestSignedContent
 	// The carrier is treated as just another business entity in the PINT network and verified the same way as a platform.
 	// The KeyProvider will extract the carrier's KID from the JWS header and fetch the appropriate key.
+
+	// Extract kid for logging
+	issuanceHeader, err := crypto.ParseJWSHeader(string(*firstEntry.IssuanceManifestSignedContent))
+	if err == nil {
+		slog.Debug("verifying issuance manifest signature", slog.String("kid", issuanceHeader.KeyID))
+	}
+
 	issuanceManifestPayload, _, _, err := crypto.VerifyJWSWithKeyProvider(
 		string(*firstEntry.IssuanceManifestSignedContent),
 		keyProvider,
@@ -481,6 +490,7 @@ func verifyIssuanceManifest(
 	if err != nil {
 		return WrapSignatureError(err, "carrier's JWS signature verification failed")
 	}
+	slog.Debug("issuance manifest signature verified successfully")
 
 	// Step 2: Parse the IssuanceManifest payload
 	issuanceManifest := &IssuanceManifest{}
@@ -538,6 +548,13 @@ func verifyEnvelopeTransferChain(
 
 	// Step 2: The first [`EnvelopeTransferChainEntry`](#/EnvelopeTransferChainEntry) in the `envelopeTransferChain[]` list should contain the `ISSUE` (issuance) transaction as the first transaction in the [`EnvelopeTransferChainEntry.transactions[]`](#/EnvelopeTransferChainEntry) list.
 	firstEntryJWS := envelopeTransferChain[0]
+
+	// Extract kid for logging
+	firstEntryHeader, err := crypto.ParseJWSHeader(string(firstEntryJWS))
+	if err == nil {
+		logger.Debug("verifying first transfer chain entry signature", slog.String("kid", firstEntryHeader.KeyID))
+	}
+
 	firstEntryPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
 		string(firstEntryJWS),
 		keyProvider,
@@ -546,6 +563,7 @@ func verifyEnvelopeTransferChain(
 	if err != nil {
 		return nil, WrapSignatureError(err, "first entry JWS verification failed")
 	}
+	logger.Debug("first transfer chain entry signature verified successfully")
 
 	// Step 3: Check the first entry contains an ISSUE transaction
 	var firstEntry EnvelopeTransferChainEntry
@@ -567,6 +585,13 @@ func verifyEnvelopeTransferChain(
 		// Step 4a: Verify signature of the entry
 		// Each entry in the chain is signed by the platform that created it.
 		// This prevents a platform from tampering with an entry created by another platform (since they don't have the private key)
+
+		// Extract kid for logging
+		entryHeaderForLog, err := crypto.ParseJWSHeader(string(currentEntryJWS))
+		if err == nil {
+			logger.Debug("verifying transfer chain entry signature", slog.Int("entry_index", i), slog.String("kid", entryHeaderForLog.KeyID))
+		}
+
 		currentPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
 			string(currentEntryJWS),
 			keyProvider,
@@ -575,6 +600,7 @@ func verifyEnvelopeTransferChain(
 		if err != nil {
 			return nil, WrapSignatureError(err, fmt.Sprintf("entry %d JWS verification failed", i))
 		}
+		logger.Debug("transfer chain entry signature verified successfully", slog.Int("entry_index", i))
 
 		// Parse the entry payload
 		var currentEntry EnvelopeTransferChainEntry
