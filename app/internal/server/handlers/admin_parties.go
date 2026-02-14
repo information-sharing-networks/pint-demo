@@ -73,6 +73,13 @@ func HandleCreateParty(queries *database.Queries) http.HandlerFunc {
 			active = *req.Active
 		}
 
+		// check if party already exists
+		_, err := queries.GetPartyByPartyName(r.Context(), req.PartyName)
+		if err == nil {
+			http.Error(w, "party with this name already exists", http.StatusConflict)
+			return
+		}
+
 		party, err := queries.CreateParty(r.Context(), database.CreatePartyParams{
 			PartyName: req.PartyName,
 			Active:    active,
@@ -276,6 +283,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 			return
 		}
 
+		fmt.Printf("debug req: %+v\n", req)
 		if req.CodeListProvider == "" || req.PartyCode == "" {
 			http.Error(w, "code_list_provider and party_code are required", http.StatusBadRequest)
 			return
