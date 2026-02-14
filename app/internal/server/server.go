@@ -171,6 +171,7 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 		s.config.RegistryPath,
 		s.config.ManualKeysDir,
 		s.config.JWKCacheHTTPTimeout,
+		s.config.JWKCacheLookupTimeout,
 		s.config.SkipJWKCache,
 		s.config.JWKCacheMinRefresh,
 		s.config.JWKCacheMaxRefresh,

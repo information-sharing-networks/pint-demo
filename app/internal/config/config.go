@@ -45,10 +45,11 @@ type ServerEnvironment struct {
 	DatabasePingTimeout time.Duration `env:"DATABASE_PING_TIMEOUT,default=10s"`
 
 	// JWK cache settings
-	SkipJWKCache        bool          `env:"SKIP_JWK_CACHE,default=false"`
-	JWKCacheMinRefresh  time.Duration `env:"JWK_CACHE_MIN_REFRESH,default=10m"`
-	JWKCacheMaxRefresh  time.Duration `env:"JWK_CACHE_MAX_REFRESH,default=12h"`
-	JWKCacheHTTPTimeout time.Duration `env:"JWK_CACHE_HTTP_TIMEOUT,default=30s"`
+	SkipJWKCache          bool          `env:"SKIP_JWK_CACHE,default=false"`
+	JWKCacheMinRefresh    time.Duration `env:"JWK_CACHE_MIN_REFRESH,default=10m"`
+	JWKCacheMaxRefresh    time.Duration `env:"JWK_CACHE_MAX_REFRESH,default=12h"`
+	JWKCacheHTTPTimeout   time.Duration `env:"JWK_CACHE_HTTP_TIMEOUT,default=30s"`  // Timeout for background HTTP fetches
+	JWKCacheLookupTimeout time.Duration `env:"JWK_CACHE_LOOKUP_TIMEOUT,default=2s"` // Timeout for on-demand key lookups during request processing
 
 	// **Required configuration - the following environment variables and must be set at start up**
 
