@@ -162,8 +162,8 @@ The registry is used for two purposes:
 
 This list is configured via the `DCSA_REGISTRY_PATH` environment variable.
 
-For the purpose of this demo the registry is based on a local file (`app/test/testdata/platform-registry/eblsolutionproviders.csv`),
- but in a real deployment the registry would be served from a secure endpoint and cover all participants in the PINT network.
+For the purpose of this demo the registry is based on a local file (`app/test/testdata/platform-registry/eblsolutionproviders.csv`)
+ - in a real deployment the registry would cover all participants in the PINT network, and would most likely be served via a secure endpoint.
 
 ### Trust model and non-repudiation
 This app implements an experimental approach to verifying the legal entities operating platforms in PINT exchanges. While DCSA does not mandate a specific verification method, this implementation extends their signature approach by enabling platforms to include x5c headers in the JWS.

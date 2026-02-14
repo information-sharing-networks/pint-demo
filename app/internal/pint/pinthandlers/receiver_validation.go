@@ -34,17 +34,17 @@ func NewReceiverValidationHandler(partyValidator services.PartyValidator) *Recei
 //	@Description	denoted by the provided identifying code.
 //	@Description
 //	@Description	Note the sender can provider more than one identity code for the same party (e.g. both a DID and a LEI for the same company).
-//	@Description 	The receiver platform will reject transfers where these codes resolve to different parties on their system.
+//	@Description	The receiver platform will reject transfers where these codes resolve to different parties on their system.
 //	@Description.
-//	@Tags			PINT
-//	@Accept			json
-//	@Produce		json
-//	@Param			request	body		services.PartyIdentifyingCode	true	"Party identifying code"
-//	@Success		200		{object}	pint.ReceiverValidationResponse	"Party found and active"
-//	@Failure		400		{object}	pint.ErrorResponse				"Invalid request"
-//	@Failure		404		{object}	pint.ErrorResponse				"Party not found or inactive"
-//	@Failure		500		{object}	pint.ErrorResponse				"Internal error"
-//	@Router			/v3/receiver-validation [post]
+//	@Tags		PINT
+//	@Accept		json
+//	@Produce	json
+//	@Param		request	body		services.PartyIdentifyingCode	true	"Party identifying code"
+//	@Success	200		{object}	pint.ReceiverValidationResponse	"Party found and active"
+//	@Failure	400		{object}	pint.ErrorResponse				"Invalid request"
+//	@Failure	404		{object}	pint.ErrorResponse				"Party not found or inactive"
+//	@Failure	500		{object}	pint.ErrorResponse				"Internal error"
+//	@Router		/v3/receiver-validation [post]
 func (h *ReceiverValidationHandler) HandleReceiverValidation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
