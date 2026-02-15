@@ -506,7 +506,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	defer func() {
 		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-			logger.ContextWithLogAttrs(ctx,
+			reqLogger.Error("Failed to rollback transaction",
 				slog.String("error", err.Error()),
 			)
 		}
@@ -520,8 +520,16 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		FirstReceivedFromPlatformCode: verificationResult.LastTransferChainEntry.EblPlatform,
 	})
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store transport document"))
-		return
+		if errors.Is(err, pgx.ErrNoRows) {
+			reqLogger.Info("Transport document already received",
+				slog.String("checksum", verificationResult.TransportDocumentChecksum),
+				slog.String("platform_code", s.platformCode),
+				slog.String("first_received_from_platform_code", verificationResult.LastTransferChainEntry.EblPlatform),
+			)
+		} else {
+			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store transport document"))
+			return
+		}
 	}
 
 	// Determine response type: immediate accept (RECE) if no additional docs needed, otherwise pending (NULL)
