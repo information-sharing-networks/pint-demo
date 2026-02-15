@@ -514,7 +514,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Step 9: Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
-	_, err = txQueries.InsertTransportDocumentIfNew(ctx, database.InsertTransportDocumentIfNewParams{
+	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
 		Checksum:                      verificationResult.TransportDocumentChecksum,
 		Content:                       envelope.TransportDocument,
 		FirstReceivedFromPlatformCode: verificationResult.LastTransferChainEntry.EblPlatform,
@@ -539,11 +539,12 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		responseCode = &rece
 	}
 
-	// Step 10: Create a record of the envelope transfer
+	// Step 10: Create a record of the envelope transfer if it hasn't been received previously
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
-	storedEnvelope, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
+	storedEnvelope, err := txQueries.CreateEnvelopeIfNew(ctx, database.CreateEnvelopeIfNewParams{
 		TransportDocumentChecksum:           verificationResult.TransportDocumentChecksum,
+		EnvelopeState:                       string(lastTransaction.ActionCode),
 		SentByPlatformCode:                  verificationResult.LastTransferChainEntry.EblPlatform,
 		LastTransferChainEntryChecksum:      verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
 		EnvelopeManifestSignedContent:       string(envelope.EnvelopeManifestSignedContent),
@@ -553,6 +554,18 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		TrustLevel:                          int32(verificationResult.TrustLevel),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			reqLogger.Info("Envelope already received",
+				slog.String("last_transfer_chain_entry_checksum", verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum),
+				slog.String("envelope_state", string(lastTransaction.ActionCode)),
+				slog.String("platform_code", s.platformCode),
+				slog.String("sender_platform_code", verificationResult.LastTransferChainEntry.EblPlatform),
+				slog.String("recipient_platform_code", verificationResult.RecipientPlatform),
+			)
+			// return 200
+			pint.RespondWithStatusCodeOnly(w, http.StatusOK)
+			return
+		}
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store envelope"))
 		return
 	}

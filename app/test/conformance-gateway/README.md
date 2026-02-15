@@ -20,3 +20,9 @@ sender (62672234fc926888)
 
 ... they are added to the testdata registry csv file as CARR and BOLE respectively.
 
+
+-- parties
+curl -X POST "http://localhost:8081/admin/parties" \
+ -H 'accept: application/json'\
+ -H 'content-type: application/json' \
+ -d '{"active":true,"partyName":"Jane Doe"}' 

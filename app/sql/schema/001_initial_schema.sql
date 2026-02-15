@@ -20,6 +20,9 @@ CREATE TABLE envelopes (
     -- Links to the eBL document being transferred
     transport_document_checksum TEXT NOT NULL,
 
+    -- envelope_state - the state of the eBL at the time of the transfer.
+    envelope_state TEXT NOT NULL CHECK (envelope_state IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY')),
+
     -- Transfer metadata
     sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
     last_transfer_chain_entry_checksum TEXT NOT NULL UNIQUE, -- Prevents duplicate transfers
@@ -37,7 +40,8 @@ CREATE TABLE envelopes (
 
     CONSTRAINT fk_envelopes_transport_document FOREIGN KEY (transport_document_checksum)
         REFERENCES transport_documents(checksum)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT unique_last_transfer_chain_entry_checksum_state UNIQUE(last_transfer_chain_entry_checksum, envelope_state)
 );
 CREATE INDEX idx_envelopes_transport_document ON envelopes(transport_document_checksum);
 CREATE INDEX idx_envelopes_response_code ON envelopes(response_code);
