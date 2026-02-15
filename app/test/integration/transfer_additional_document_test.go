@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -71,11 +72,12 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		// Accepted or duplicate - decode signed EnvelopeTransferFinishedResponse
-		var signedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
-			t.Fatalf("Failed to decode 200 response: %v", err)
+		// Accepted or duplicate - read signed EnvelopeTransferFinishedResponse
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		payload := decodeSignedFinishedResponse(t, signedResponse)
 
@@ -285,11 +287,12 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		// Decode the signed response
-		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-			t.Fatalf("Failed to decode signed response: %v", err)
+		// Read the signed response
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		// Decode the JWS payload
 		payload := decodeSignedFinishedResponse(t, SignedResponse)
@@ -331,11 +334,12 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		// Decode the signed response
-		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-			t.Fatalf("Failed to decode signed response: %v", err)
+		// Read the signed response
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		// Decode the JWS payload
 		payload := decodeSignedFinishedResponse(t, SignedResponse)
@@ -503,10 +507,11 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 
 			// If we expect a PINT response code, verify it
 			if tt.expectedResponseCode != nil {
-				var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-					t.Fatalf("Failed to decode signed response: %v", err)
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("Failed to read response body: %v", err)
 				}
+				SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 				payload := decodeSignedFinishedResponse(t, SignedResponse)
 

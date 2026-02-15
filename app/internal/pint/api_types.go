@@ -34,14 +34,9 @@ type EnvelopeTransferStartedResponse struct {
 }
 
 // SignedEnvelopeTransferFinishedResponse is returned when an envelope transfer is accepted or rejected immediately (200 OK).
-// This response contains a JWS compact serialization signature (header.payload.signature)
+// This response contains a JWS token as a compact serialization (header.payload.signature) and is returned as the response body.
 // The payload when decoded contains an EnvelopeTransferFinishedResponse object that summarizes the result of the transfer.
-type SignedEnvelopeTransferFinishedResponse struct {
-
-	// EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when
-	// an envelope transfer is accepted or rejected.
-	SignedContent string `json:"envelopeTransferFinishedResponseSignedContent"  example:"eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"`
-}
+type SignedEnvelopeTransferFinishedResponse string
 
 // EnvelopeTransferFinishedResponse is the decoded payload of EnvelopeTransferFinishedResponseSignedContent.
 //

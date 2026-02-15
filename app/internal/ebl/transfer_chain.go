@@ -86,7 +86,7 @@ func (e *EnvelopeTransferChainEntry) ValidateStructure(entryNumber int) error {
 	// Subsequent entry specific validation
 	if hasPreviousEntry {
 		if e.ControlTrackingRegistry != nil {
-			return NewEnvelopeError("controlTrackingRegistry should only be present in first transfer chain entry")
+			return NewEnvelopeError("controlTrackingRegistry should only be present in first entry")
 		}
 	}
 

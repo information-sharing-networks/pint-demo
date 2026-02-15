@@ -84,20 +84,18 @@ func NewStartTransferHandler(
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
 // This is used for 200/422 (DUPE,RECE & BSIG,BENV) responses.
-func (s *StartTransferHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
+func (s *StartTransferHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	jws, err := crypto.SignJSON(jsonBytes, s.signingKey, s.x5cCertChain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign response: %w", err)
+		return "", fmt.Errorf("failed to sign response: %w", err)
 	}
 
-	return &pint.SignedEnvelopeTransferFinishedResponse{
-		SignedContent: jws,
-	}, nil
+	return pint.SignedEnvelopeTransferFinishedResponse(jws), nil
 }
 
 // respondWithSignedRejection creates and sends a signed rejection response (422 Unprocessable Entity).
@@ -191,7 +189,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 			return false, fmt.Errorf("failed to create DUPE response: %w", err)
 		}
 
-		pint.RespondWithPayload(w, http.StatusOK, signedResponse)
+		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
 
 		reqLogger.Info("Retry of already-accepted envelope (all docs already received)",
 			slog.String("last_chain_checksum", lastChainChecksum),
@@ -652,7 +650,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			slog.String("last_transfer_chain_entry_checksum", lastChainChecksum),
 		)
 
-		pint.RespondWithPayload(w, http.StatusOK, signedResponse)
+		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
 		return
 	}
 

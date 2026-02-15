@@ -395,7 +395,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Signed response - Transfer accepted immediately (RECE or DUPE) - see the 'default' response for details of the response payload",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "201": {
@@ -413,7 +413,7 @@ const docTemplate = `{
                     "422": {
                         "description": "Signed response - Signature or validation failed (BSIG/BENV) - see the 'default' response for details of the response payload",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
@@ -485,13 +485,13 @@ const docTemplate = `{
                     "409": {
                         "description": "Checksum/size mismatch (INCD)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "422": {
                         "description": "Envelope rejected (BSIG/BENV)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
@@ -526,19 +526,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Signed response - Transfer accepted (RECE/DUPE)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "409": {
                         "description": "Signed response - Missing documents (MDOC) or disputed (DISE)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "422": {
                         "description": "Signed response - Envelope rejected (BSIG/BENV)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
@@ -1219,16 +1219,6 @@ const docTemplate = `{
                 "ResponseCodeINCD",
                 "ResponseCodeMDOC"
             ]
-        },
-        "pint.SignedEnvelopeTransferFinishedResponse": {
-            "type": "object",
-            "properties": {
-                "envelopeTransferFinishedResponseSignedContent": {
-                    "description": "EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when\nan envelope transfer is accepted or rejected.",
-                    "type": "string",
-                    "example": "eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"
-                }
-            }
         },
         "services.PartyIdentifyingCode": {
             "type": "object",

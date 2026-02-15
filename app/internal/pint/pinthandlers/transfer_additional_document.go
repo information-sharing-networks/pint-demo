@@ -51,20 +51,18 @@ func NewTransferAdditionalDocumentHandler(
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
 // This is used for 409/422 (INCD & BSIG,BENV) responses.
-func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
+func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	jws, err := crypto.SignJSON(jsonBytes, h.signingKey, h.x5cCertChain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign response: %w", err)
+		return "", fmt.Errorf("failed to sign response: %w", err)
 	}
 
-	return &pint.SignedEnvelopeTransferFinishedResponse{
-		SignedContent: jws,
-	}, nil
+	return pint.SignedEnvelopeTransferFinishedResponse(jws), nil
 }
 
 // HandleTransferAdditionalDocument godoc
