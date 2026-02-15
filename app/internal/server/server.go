@@ -108,6 +108,11 @@ func NewServer(
 			return nil, fmt.Errorf("failed to load x5c cert chain: %w", err)
 		}
 		server.x5cCertChain = certChain
+
+		if err := server.CheckX5CConfig(); err != nil {
+			return nil, fmt.Errorf("x5c configuration is invalid: %w", err)
+		}
+
 		logger.Info("loaded x5c certificate chain",
 			slog.String("path", cfg.X5CCertPath),
 			slog.Int("certs", len(certChain)))
@@ -324,6 +329,37 @@ func (s *Server) createJWKSet() (jwk.Set, error) {
 	}
 
 	return jwkSet, nil
+}
+
+// CheckX5CConfig checks that the x5c configuration is valid and the key in the certificate chain matches the signing key.
+func (s *Server) CheckX5CConfig() error {
+	// Extract public key from leaf certificate
+	certPublicKey := s.x5cCertChain[0].PublicKey
+
+	// Compare public keys
+	switch key := s.signingKey.(type) {
+	case ed25519.PrivateKey:
+		certKey, ok := certPublicKey.(ed25519.PublicKey)
+		if !ok {
+			return fmt.Errorf("x5c certificate contains %T key, but expected ed25519.PublicKey", certPublicKey)
+		}
+		if !key.Equal(certKey) {
+			return fmt.Errorf("x5c certificate public key does not match the provided Ed25519 signing key")
+		}
+	case *rsa.PrivateKey:
+		certKey, ok := certPublicKey.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("x5c certificate contains %T key, but expected *rsa.PublicKey", certPublicKey)
+		}
+		// Compare RSA keys by checking N and E
+		if certKey.N.Cmp(key.N) != 0 || certKey.E != key.E {
+			return fmt.Errorf("x5c certificate public key does not match provided RSA key")
+		}
+	default:
+		return fmt.Errorf("unsupported key type: %T", key)
+	}
+
+	return nil
 }
 
 // Start starts the server and shuts down gracefully when the context is cancelled.
