@@ -1121,7 +1121,8 @@ const docTemplate = `{
                 7010,
                 7011,
                 8001,
-                8002
+                8002,
+                8003
             ],
             "x-enum-comments": {
                 "ErrCodeInsufficientTrust": "Trust level below minimum required",
@@ -1140,7 +1141,8 @@ const docTemplate = `{
                 "",
                 "",
                 "",
-                "Trust level below minimum required"
+                "Trust level below minimum required",
+                ""
             ],
             "x-enum-varnames": [
                 "ErrCodeBadSignature",
@@ -1155,7 +1157,8 @@ const docTemplate = `{
                 "ErrCodeRequestTooLarge",
                 "ErrCodeNotFound",
                 "ErrCodeUnknownParty",
-                "ErrCodeInsufficientTrust"
+                "ErrCodeInsufficientTrust",
+                "ErrCodeDispute"
             ]
         },
         "pint.ErrorResponse": {
@@ -1216,7 +1219,8 @@ const docTemplate = `{
                 "BSIG",
                 "BENV",
                 "INCD",
-                "MDOC"
+                "MDOC",
+                "DISE"
             ],
             "x-enum-varnames": [
                 "ResponseCodeRECE",
@@ -1224,7 +1228,8 @@ const docTemplate = `{
                 "ResponseCodeBSIG",
                 "ResponseCodeBENV",
                 "ResponseCodeINCD",
-                "ResponseCodeMDOC"
+                "ResponseCodeMDOC",
+                "ResponseCodeDISE"
             ]
         },
         "services.PartyIdentifyingCode": {

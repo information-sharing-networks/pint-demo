@@ -415,6 +415,7 @@ definitions:
     - 7011
     - 8001
     - 8002
+    - 8003
     type: integer
     x-enum-comments:
       ErrCodeInsufficientTrust: Trust level below minimum required
@@ -433,6 +434,7 @@ definitions:
     - ""
     - ""
     - Trust level below minimum required
+    - ""
     x-enum-varnames:
     - ErrCodeBadSignature
     - ErrCodeBadCertificate
@@ -447,6 +449,7 @@ definitions:
     - ErrCodeNotFound
     - ErrCodeUnknownParty
     - ErrCodeInsufficientTrust
+    - ErrCodeDispute
   pint.ErrorResponse:
     properties:
       errorDateTime:
@@ -494,6 +497,7 @@ definitions:
     - BENV
     - INCD
     - MDOC
+    - DISE
     type: string
     x-enum-varnames:
     - ResponseCodeRECE
@@ -502,6 +506,7 @@ definitions:
     - ResponseCodeBENV
     - ResponseCodeINCD
     - ResponseCodeMDOC
+    - ResponseCodeDISE
   services.PartyIdentifyingCode:
     properties:
       codeListName:

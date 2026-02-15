@@ -88,7 +88,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 				t.Fatalf("failed to load certificate chain: %v", err)
 			}
 			// create the transfer chain entry
-			signedIssueEntry, err := CreateTransferChainEntry(issueTransferChainEntryInput, privateKey, certChain)
+			signedIssueEntry, err := CreateTransferChainEntrySignedContent(issueTransferChainEntryInput, privateKey, certChain)
 			if err != nil {
 				t.Fatalf("failed to create transfer chain entry: %v", err)
 			}
@@ -103,7 +103,7 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 			}
 
 			// create the transfer chain entry
-			signedTransferEntry, err := CreateTransferChainEntry(transferTransferChainEntryInput, privateKey, certChain)
+			signedTransferEntry, err := CreateTransferChainEntrySignedContent(transferTransferChainEntryInput, privateKey, certChain)
 			if err != nil {
 				t.Fatalf("failed to create transfer chain entry: %v", err)
 			}

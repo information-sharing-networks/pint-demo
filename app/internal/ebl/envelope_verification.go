@@ -54,6 +54,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -170,9 +171,9 @@ type EnvelopeVerificationResult struct {
 	// Used for tracking the shipment status and database storage.
 	TransportDocumentReference string
 
-	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
+	// LastTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
 	// This is required in API responses and for duplicate detection
-	LastEnvelopeTransferChainEntrySignedContentChecksum string
+	LastTransferChainEntrySignedContentChecksum string
 
 	// TrustLevel indicates the trust level achieved by the signature
 	TrustLevel crypto.TrustLevel
@@ -227,7 +228,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 
 	// always return a result struct from this point - the only required field is the last entry checksum.
 	// If verification fails later, the result struct will contain additional information about the failure
-	result.LastEnvelopeTransferChainEntrySignedContentChecksum = lastEntryChecksum
+	result.LastTransferChainEntrySignedContentChecksum = lastEntryChecksum
 
 	// Step 1: Validate envelope structure (required fields)
 	if err := input.Envelope.ValidateStructure(); err != nil {
@@ -300,6 +301,11 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		input.RootCAs,
 	)
 	if err != nil {
+		// Don't wrap DISE errors - they should be returned as-is with their own error code
+		var eblErr *EblError
+		if errors.As(err, &eblErr) && eblErr.Code() == ErrCodeDispute {
+			return result, err
+		}
 		return result, WrapEnvelopeError(err, "transfer chain verification failed")
 	}
 	result.TransferChain = transferChain
@@ -686,7 +692,7 @@ func verifyEnvelopeTransferChain(
 
 			// Validate the transition is allowed (no transitions are allowed after SURRENDER_FOR_AMENDMENT or SURRENDER_FOR_DELIVERY)
 			if !isValidEnvelopeStateTransition(currentState, nextState) {
-				return nil, NewEnvelopeError(fmt.Sprintf(
+				return nil, NewDisputeError(fmt.Sprintf(
 					"invalid state transition from %s to %s (entry %d, transaction %d)",
 					currentState, nextState, entryIdx, txIdx))
 			}

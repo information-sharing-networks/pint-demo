@@ -1112,7 +1112,8 @@
                 7010,
                 7011,
                 8001,
-                8002
+                8002,
+                8003
             ],
             "x-enum-comments": {
                 "ErrCodeInsufficientTrust": "Trust level below minimum required",
@@ -1131,7 +1132,8 @@
                 "",
                 "",
                 "",
-                "Trust level below minimum required"
+                "Trust level below minimum required",
+                ""
             ],
             "x-enum-varnames": [
                 "ErrCodeBadSignature",
@@ -1146,7 +1148,8 @@
                 "ErrCodeRequestTooLarge",
                 "ErrCodeNotFound",
                 "ErrCodeUnknownParty",
-                "ErrCodeInsufficientTrust"
+                "ErrCodeInsufficientTrust",
+                "ErrCodeDispute"
             ]
         },
         "pint.ErrorResponse": {
@@ -1207,7 +1210,8 @@
                 "BSIG",
                 "BENV",
                 "INCD",
-                "MDOC"
+                "MDOC",
+                "DISE"
             ],
             "x-enum-varnames": [
                 "ResponseCodeRECE",
@@ -1215,7 +1219,8 @@
                 "ResponseCodeBSIG",
                 "ResponseCodeBENV",
                 "ResponseCodeINCD",
-                "ResponseCodeMDOC"
+                "ResponseCodeMDOC",
+                "ResponseCodeDISE"
             ]
         },
         "services.PartyIdentifyingCode": {

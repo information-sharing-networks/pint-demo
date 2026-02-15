@@ -26,6 +26,10 @@ const (
 	// ErrCodeIssuanceRefused indicates that the issuance request is valid but the eBL platform cannot issue the eBL.
 	ErrCodeIssuanceRefused ErrorCode = "REFU"
 
+	// ErrCodeDispute indicates that the receiving platform has successfully parsed and validated the envelope,
+	// but the platform believes the envelope contradicts its recorded history of transfers for this eBL document
+	ErrCodeDispute ErrorCode = "DISE"
+
 	// ErrCodeInternal indicates internal processing failures.
 	ErrCodeInternal ErrorCode = "INT" // internal error
 )
@@ -106,4 +110,14 @@ func NewInternalError(msg string) error {
 // WrapInternalError wraps an existing error as an internal error.
 func WrapInternalError(err error, msg string) error {
 	return &EblError{code: ErrCodeInternal, message: msg, wrapped: err}
+}
+
+// NewDisputeError creates a dispute error.
+func NewDisputeError(msg string) error {
+	return &EblError{code: ErrCodeDispute, message: msg}
+}
+
+// WrapDisputeError wraps an existing error as a dispute error.
+func WrapDisputeError(err error, msg string) error {
+	return &EblError{code: ErrCodeDispute, message: msg, wrapped: err}
 }

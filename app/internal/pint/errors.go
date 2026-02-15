@@ -84,6 +84,10 @@ const (
 	// ErrCodeInsufficientTrust is used when the trust level of a signature is below the minimum required
 	// c.f trust_level.go for more information on trust levels
 	ErrCodeInsufficientTrust ErrorCode = 8002 // Trust level below minimum required
+
+	// ErrCodeDispute is used when the receiving platform has successfully parsed and validated the envelope,
+	// but the platform believes the envelope contradicts its recorded history of transfers for this eBL document
+	ErrCodeDispute ErrorCode = 8003
 )
 
 // NewMalformedRequestError creates an error for malformed requests.
