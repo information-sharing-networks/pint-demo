@@ -352,6 +352,7 @@ definitions:
           the envelope transfer.
           Included with RECE or DUPE ResponseCode to provide a signed receipt.
           This includes all additional documents (including ones the receiver already had).
+          leave as nil when not applicable (eg errors BENV,BSIG).  To return an empty list use []string{}
         example:
         - 123329ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006
         items:

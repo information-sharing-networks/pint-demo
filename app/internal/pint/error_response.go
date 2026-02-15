@@ -243,6 +243,10 @@ func errorResponseFromEbl(err *ebl.EblError, r *http.Request, requestID string) 
 		statusCode = http.StatusBadRequest
 		errorCode = ErrCodeInvalidEnvelope
 		errorCodeText = "Invalid Envelope"
+	case ebl.ErrCodeDispute:
+		statusCode = http.StatusConflict
+		errorCode = ErrCodeDispute
+		errorCodeText = "Dispute"
 	default:
 		statusCode = http.StatusInternalServerError
 		errorCode = ErrCodeInternalError

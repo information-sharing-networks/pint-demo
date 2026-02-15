@@ -159,8 +159,8 @@ func TestStartTransfer(t *testing.T) {
 				if len(payload.MissingAdditionalDocumentChecksums) != test.expectedMissingDocs {
 					t.Errorf("Expected %d missing additional documents, got %d", test.expectedMissingDocs, len(payload.MissingAdditionalDocumentChecksums))
 				}
-				if len(payload.ReceivedAdditionalDocumentChecksums) != test.expectedReceivedDocs {
-					t.Errorf("Expected %d received additional documents, got %d", test.expectedReceivedDocs, len(payload.ReceivedAdditionalDocumentChecksums))
+				if len(*payload.ReceivedAdditionalDocumentChecksums) != test.expectedReceivedDocs {
+					t.Errorf("Expected %d received additional documents, got %d", test.expectedReceivedDocs, len(*payload.ReceivedAdditionalDocumentChecksums))
 				}
 				t.Logf("transfer accepted with 200/%v response", payload.ResponseCode)
 

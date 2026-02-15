@@ -186,7 +186,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 			ResponseCode: pint.ResponseCodeDUPE,
 			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &existingEnvelope.LastTransferChainEntrySignedContent,
 			MissingAdditionalDocumentChecksums:                         missingChecksums,
-			ReceivedAdditionalDocumentChecksums:                        receivedChecksums,
+			ReceivedAdditionalDocumentChecksums:                        &receivedChecksums,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create DUPE response: %w", err)
@@ -647,10 +647,11 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// Step 13 - handle request with no additional documents (immediate acceptance - 200/RECE)
 	if len(additionalDocs) == 0 {
 		// Create and sign the RECE response
+		receivedDocs := []string{}
 		signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainEntrySignedContentChecksum,
 			ResponseCode:                        pint.ResponseCodeRECE,
-			ReceivedAdditionalDocumentChecksums: []string{},
+			ReceivedAdditionalDocumentChecksums: &receivedDocs,
 		})
 		if err != nil {
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create RECE response"))

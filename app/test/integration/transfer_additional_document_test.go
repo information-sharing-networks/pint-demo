@@ -83,7 +83,7 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 
 		return additionalDocumentsState{
 			missingDocs:  payload.MissingAdditionalDocumentChecksums,
-			receivedDocs: payload.ReceivedAdditionalDocumentChecksums,
+			receivedDocs: *payload.ReceivedAdditionalDocumentChecksums,
 			responseCode: &payload.ResponseCode,
 		}
 	}
@@ -303,8 +303,8 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 		}
 
 		// Verify all documents are in received list
-		if len(payload.ReceivedAdditionalDocumentChecksums) != 3 {
-			t.Errorf("Expected 3 received documents, got %d", len(payload.ReceivedAdditionalDocumentChecksums))
+		if len(*payload.ReceivedAdditionalDocumentChecksums) != 3 {
+			t.Errorf("Expected 3 received documents, got %d", len(*payload.ReceivedAdditionalDocumentChecksums))
 		}
 
 		// Verify no missing documents
@@ -312,7 +312,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Errorf("Expected 0 missing documents, got %d", len(payload.MissingAdditionalDocumentChecksums))
 		}
 
-		t.Logf("Transfer finished with RECE response (received: %d)", len(payload.ReceivedAdditionalDocumentChecksums))
+		t.Logf("Transfer finished with RECE response (received: %d)", len(*payload.ReceivedAdditionalDocumentChecksums))
 	})
 
 	// Retry finish-transfer to verify DUPE response

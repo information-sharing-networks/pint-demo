@@ -73,7 +73,8 @@ type EnvelopeTransferFinishedResponse struct {
 	// the envelope transfer.
 	// Included with RECE or DUPE ResponseCode to provide a signed receipt.
 	// This includes all additional documents (including ones the receiver already had).
-	ReceivedAdditionalDocumentChecksums []string `json:"receivedAdditionalDocumentChecksums" example:"123329ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
+	// leave as nil when not applicable (eg errors BENV,BSIG).  To return an empty list use []string{}
+	ReceivedAdditionalDocumentChecksums *[]string `json:"receivedAdditionalDocumentChecksums,omitempty" example:"123329ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
 }
 
 // ResponseCode represents the result of an envelope transfer operation.

@@ -1052,7 +1052,7 @@ const docTemplate = `{
                     "example": "jws.Verify(): invalid key type"
                 },
                 "receivedAdditionalDocumentChecksums": {
-                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.\nIncluded with RECE or DUPE ResponseCode to provide a signed receipt.\nThis includes all additional documents (including ones the receiver already had).",
+                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.\nIncluded with RECE or DUPE ResponseCode to provide a signed receipt.\nThis includes all additional documents (including ones the receiver already had).\nleave as nil when not applicable (eg errors BENV,BSIG).  To return an empty list use []string{}",
                     "type": "array",
                     "items": {
                         "type": "string"
