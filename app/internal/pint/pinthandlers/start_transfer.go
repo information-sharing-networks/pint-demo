@@ -404,6 +404,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to handle retry"))
 			return
 		}
+		return
 	}
 
 	// Step 6. New transfer received - get the list of expected additional document checksums.
