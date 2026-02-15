@@ -1092,6 +1092,13 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "receivedAdditionalDocumentChecksums": {
+                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "transportDocumentChecksum": {
                     "description": "TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).\nComputed on the canonical form of the JSON.",
                     "type": "string",

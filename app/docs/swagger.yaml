@@ -386,6 +386,13 @@ definitions:
         items:
           type: string
         type: array
+      receivedAdditionalDocumentChecksums:
+        description: |-
+          ReceivedAdditionalDocumentChecksums confirms all additional documents received during
+          the envelope transfer.
+        items:
+          type: string
+        type: array
       transportDocumentChecksum:
         description: |-
           TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).

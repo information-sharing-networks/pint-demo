@@ -32,6 +32,10 @@ type EnvelopeTransferStartedResponse struct {
 	// MissingAdditionalDocumentChecksums lists the checksums of additional documents that
 	// the receiving platform expects to receive before accepting the envelope transfer.
 	MissingAdditionalDocumentChecksums []string `json:"missingAdditionalDocumentChecksums"`
+
+	// ReceivedAdditionalDocumentChecksums confirms all additional documents received during
+	// the envelope transfer.
+	ReceivedAdditionalDocumentChecksums []string `json:"receivedAdditionalDocumentChecksums"`
 }
 
 // SignedEnvelopeTransferFinishedResponse is returned when an envelope transfer is accepted or rejected immediately (200 OK).

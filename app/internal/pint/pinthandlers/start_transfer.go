@@ -148,33 +148,28 @@ func getAdditionalDocumentList(manifest *ebl.EnvelopeManifest) []additionalDocum
 }
 
 // handleRetry checks if this is a retry of an existing transfer and handles it appropriately.
-// Returns (true, nil) if the request was handled as a retry, (false, nil) if not a retry, or (false, err) on error.
-func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseWriter, lastChainChecksum string) (bool, error) {
+//
+// This function generates the response to the sender and sends it:
+//   - When there are no additional documents to be transferred return (200 OK, signed response with a response_code of DUPE).
+//   - When there are additional documents still to be transferred (201 Created, unsigned response with the current state).
+func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseWriter, lastChainChecksum string) error {
 	reqLogger := logger.ContextRequestLogger(ctx)
-
-	exists, err := s.queries.ExistsEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return false, fmt.Errorf("failed to check for duplicate envelope: %w", err)
-	}
-	if !exists {
-		return false, nil
-	}
 
 	// Retrieve the existing envelope to check its status
 	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
 	if err != nil {
-		return false, fmt.Errorf("failed to retrieve duplicate envelope: %w", err)
+		return fmt.Errorf("failed to retrieve duplicate envelope: %w", err)
 	}
 
 	missingChecksums, err := s.queries.GetMissingAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
 	if err != nil {
-		return false, fmt.Errorf("failed to retrieve missing documents: %w", err)
+		return fmt.Errorf("failed to retrieve missing documents: %w", err)
 	}
 
 	// TODO received checksums are used for DUPE and RECE...
 	receivedChecksums, err := s.queries.GetReceivedAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
 	if err != nil {
-		return false, fmt.Errorf("failed to retrieve received documents: %w", err)
+		return fmt.Errorf("failed to retrieve received documents: %w", err)
 	}
 
 	if len(missingChecksums) == 0 {
@@ -187,7 +182,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 			ReceivedAdditionalDocumentChecksums:                        receivedChecksums,
 		})
 		if err != nil {
-			return false, fmt.Errorf("failed to create DUPE response: %w", err)
+			return fmt.Errorf("failed to create DUPE response: %w", err)
 		}
 
 		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
@@ -197,7 +192,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 			slog.String("existing_envelope_reference", existingEnvelope.ID.String()),
 			slog.Int("received_documents", len(receivedChecksums)),
 		)
-		return true, nil
+		return nil
 	}
 
 	// Documents still missing - return 201 Created (retry of pending transfer)
@@ -216,7 +211,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 		slog.Int("missing_documents", len(missingChecksums)),
 		slog.Int("received_documents", len(receivedChecksums)),
 	)
-	return true, nil
+	return nil
 }
 
 // / HandleStartTransfer godoc
@@ -398,15 +393,17 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Step 5. Check for envelope transfer retries.
 	// The last entry chain checksum is the unique identifier for a specific transfer attempt.
-	//
-	// Retries are handled as follows:
-	//	- When there are no additional documents to be transferred return (200 OK, signed response with a response_code of DUPE).
-	// 	- When there are additional documents still to be transferred (201 Created, unsigned response with the current state).
-	if handled, err := s.handleRetry(ctx, w, lastChainChecksum); err != nil {
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to handle retry"))
+	existingEnvelope, err := s.queries.ExistsEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to check for duplicate envelope"))
 		return
-	} else if handled {
-		return
+	}
+
+	if existingEnvelope {
+		if err := s.handleRetry(ctx, w, lastChainChecksum); err != nil {
+			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to handle retry"))
+			return
+		}
 	}
 
 	// Step 6. New transfer received - get the list of expected additional document checksums.
@@ -415,6 +412,11 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Collect all additional documents required for the transfer
 	additionalDocs := getAdditionalDocumentList(verificationResult.Manifest)
+
+	// TODO: the spec expects a list of received documents to be returned in the response for new transfers
+	// .. but this implementation assumes documents are scoped to a specific envelope transfer.
+	// Should we accept additional docs from previous transfers? (requires changes to the db schema)
+	receivedChecksums := []string{}
 
 	// Step 7: Validate the receiving party exists and is active on the recipient platform.
 	//
@@ -667,6 +669,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		TransportDocumentChecksum:                           verificationResult.TransportDocumentChecksum,
 		LastEnvelopeTransferChainEntrySignedContentChecksum: verificationResult.LastEnvelopeTransferChainEntrySignedContentChecksum,
 		MissingAdditionalDocumentChecksums:                  missingChecksums,
+		ReceivedAdditionalDocumentChecksums:                 receivedChecksums,
 	}
 	reqLogger.Info("Envelope transfer started pending additional documents",
 		slog.String("envelope_reference", storedEnvelope.ID.String()),
