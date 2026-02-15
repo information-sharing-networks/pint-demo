@@ -111,20 +111,20 @@ func NewServer(
 		logger.Info("loaded x5c certificate chain",
 			slog.String("path", cfg.X5CCertPath),
 			slog.Int("certs", len(certChain)))
-	}
 
-	// configure root CAs
-	if cfg.X5CCustomRootsPath == "" {
-		logger.Info("using system root CAs for x5c validation")
-	} else {
-		server.x5cCustomRoots, err = crypto.LoadCustomRootCAs(cfg.X5CCustomRootsPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load custom root CAs: %w", err)
+		// configure root CAs - ignore if not using x5c headers
+		if cfg.X5CCustomRootsPath == "" {
+			logger.Info("using system root CAs for x5c validation")
+		} else {
+			server.x5cCustomRoots, err = crypto.LoadCustomRootCAs(cfg.X5CCustomRootsPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load custom root CAs: %w", err)
+			}
+			logger.Info("loaded custom root CAs for x5c validation",
+				slog.String("path", cfg.X5CCustomRootsPath))
 		}
-		logger.Info("loaded custom root CAs for x5c validation",
-			slog.String("path", cfg.X5CCustomRootsPath))
-	}
 
+	}
 	// initialize key manager
 	if err := server.initKeyManager(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize KeyManager: %w", err)
