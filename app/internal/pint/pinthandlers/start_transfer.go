@@ -603,7 +603,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 
 		// Store the transfer chain entry
-		_, err = txQueries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
+		_, err = txQueries.CreateTransferChainEntryIfNew(ctx, database.CreateTransferChainEntryIfNewParams{
 			TransportDocumentChecksum: verificationResult.TransportDocumentChecksum,
 			EnvelopeID:                storedEnvelope.ID,
 			SignedContent:             string(entryJWS),
@@ -613,6 +613,12 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			Sequence: int32(i),
 		})
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				reqLogger.Info("Transfer chain entry already exists",
+					slog.String("entry_checksum", entryChecksum),
+				)
+				continue
+			}
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store transfer chain entry"))
 			return
 		}

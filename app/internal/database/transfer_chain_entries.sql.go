@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const CreateTransferChainEntry = `-- name: CreateTransferChainEntry :one
+const CreateTransferChainEntryIfNew = `-- name: CreateTransferChainEntryIfNew :one
 INSERT INTO transfer_chain_entries (
     id,
     created_at,
@@ -30,10 +30,11 @@ INSERT INTO transfer_chain_entries (
     $4,
     $5,
     $6
-) RETURNING id, created_at, transport_document_checksum, envelope_id, signed_content, entry_checksum, previous_entry_checksum, sequence
+) ON CONFLICT (entry_checksum) DO NOTHING
+    RETURNING id, created_at, transport_document_checksum, envelope_id, signed_content, entry_checksum, previous_entry_checksum, sequence
 `
 
-type CreateTransferChainEntryParams struct {
+type CreateTransferChainEntryIfNewParams struct {
 	TransportDocumentChecksum string    `json:"transport_document_checksum"`
 	EnvelopeID                uuid.UUID `json:"envelope_id"`
 	SignedContent             string    `json:"signed_content"`
@@ -43,8 +44,8 @@ type CreateTransferChainEntryParams struct {
 }
 
 // Create a new transfer chain entry
-func (q *Queries) CreateTransferChainEntry(ctx context.Context, arg CreateTransferChainEntryParams) (TransferChainEntry, error) {
-	row := q.db.QueryRow(ctx, CreateTransferChainEntry,
+func (q *Queries) CreateTransferChainEntryIfNew(ctx context.Context, arg CreateTransferChainEntryIfNewParams) (TransferChainEntry, error) {
+	row := q.db.QueryRow(ctx, CreateTransferChainEntryIfNew,
 		arg.TransportDocumentChecksum,
 		arg.EnvelopeID,
 		arg.SignedContent,

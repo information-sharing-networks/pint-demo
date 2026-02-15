@@ -17,7 +17,7 @@ SELECT * FROM transfer_chain_entries
 WHERE envelope_id = $1
 ORDER BY sequence ASC;
 
--- name: CreateTransferChainEntry :one
+-- name: CreateTransferChainEntryIfNew :one
 -- Create a new transfer chain entry
 INSERT INTO transfer_chain_entries (
     id,
@@ -37,5 +37,6 @@ INSERT INTO transfer_chain_entries (
     sqlc.arg(entry_checksum),
     sqlc.arg(previous_entry_checksum),
     sqlc.arg(sequence)
-) RETURNING *;
+) ON CONFLICT (entry_checksum) DO NOTHING
+    RETURNING *;
 
