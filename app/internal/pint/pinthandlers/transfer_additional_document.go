@@ -83,7 +83,8 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Description	**Request Body Format**
 //	@Description
 //	@Description	The request body is a base64-encoded string containing the document content.
-//	@Description	Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure).
+//	@Description	Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."` (json string containing the base64 document content).
+//	@Description
 //	@Description	The decoded content type is determined by the sending platform based on the media type
 //	@Description	declared in the EnvelopeManifest.
 //	@Description
@@ -155,10 +156,14 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	}
 	defer r.Body.Close()
 
-	// Expect a base64-encoded string containing the binary document content and ignore the content-type header.
-	// TODO: confirm what DCSA expects here
-	// (v3.0.0 says 'Content-Type application/json is preferred' but shows a base64 string as the example).
-	base64Content := string(bodyBytes)
+	// Expect a plain json string with base64-encoded document content
+	// unmarshal takes care of JSON string escaping
+	var base64Content string
+	err = json.Unmarshal(bodyBytes, &base64Content)
+	if err != nil {
+		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "failed to decode base64 content"))
+		return
+	}
 
 	// Decode the base64 string to get the actual binary document content (PDF, image, etc.)
 	documentContent, err := base64.StdEncoding.DecodeString(base64Content)

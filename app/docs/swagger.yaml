@@ -932,7 +932,8 @@ paths:
         **Request Body Format**
 
         The request body is a base64-encoded string containing the document content.
-        Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure).
+        Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."` (json string containing the base64 document content).
+
         The decoded content type is determined by the sending platform based on the media type
         declared in the EnvelopeManifest.
 
