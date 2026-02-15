@@ -88,13 +88,23 @@ func RespondWithSignedRejection(w http.ResponseWriter, r *http.Request, statusCo
 
 // RespondWithSignedContent sends a signed response (JWS token) as the raw response body.
 //
+// Note the Content-Type is set to application/json
+//
 // The JWS token is sent as-is without JSON encoding (no quotes around it).
 // This is used for PINT signed responses (RECE, DUPE, BSIG, BENV, MDOC, INCD, DISE).
 func RespondWithSignedContent(w http.ResponseWriter, statusCode int, signedResponse SignedEnvelopeTransferFinishedResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
-	if _, err := w.Write([]byte(signedResponse)); err != nil {
+	// json marshal the signed response so it quoted as a json string in the response body
+	jsonBytes, err := json.Marshal(signedResponse)
+	if err != nil {
+		slog.Error("Failed to marshal signed response",
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if _, err := w.Write(jsonBytes); err != nil {
 		// If writing fails, log it but don't try to send another response
 		// (headers are already written)
 		slog.Error("Failed to write signed response",

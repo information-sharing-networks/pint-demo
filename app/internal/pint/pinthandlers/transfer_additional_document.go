@@ -75,7 +75,12 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Description	- SHA-256 checksum matches the URL parameter.
 //	@Description	- Document size matches the manifest.
 //	@Description
-//	@Description	**Request Body Format:**
+//	@Description	**Envelope Reference**
+//	@Description
+//	@Description	The envelope reference is a UUID that identifies the eBL envelope transfer (this is returned
+//	@Description	by the start transfer endpoint when the transfer is started)
+//	@Description
+//	@Description	**Request Body Format**
 //	@Description
 //	@Description	The request body is a base64-encoded string containing the document content.
 //	@Description	Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure).

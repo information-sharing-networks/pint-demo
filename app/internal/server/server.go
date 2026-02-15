@@ -343,7 +343,9 @@ func (s *Server) CheckX5CConfig() error {
 		if !ok {
 			return fmt.Errorf("x5c certificate contains %T key, but expected ed25519.PublicKey", certPublicKey)
 		}
-		if !key.Equal(certKey) {
+		// Extract public key from private key and compare
+		signingPublicKey := key.Public().(ed25519.PublicKey)
+		if !signingPublicKey.Equal(certKey) {
 			return fmt.Errorf("x5c certificate public key does not match the provided Ed25519 signing key")
 		}
 	case *rsa.PrivateKey:
@@ -352,7 +354,7 @@ func (s *Server) CheckX5CConfig() error {
 			return fmt.Errorf("x5c certificate contains %T key, but expected *rsa.PublicKey", certPublicKey)
 		}
 		// Compare RSA keys by checking N and E
-		if certKey.N.Cmp(key.N) != 0 || certKey.E != key.E {
+		if certKey.N.Cmp(key.PublicKey.N) != 0 || certKey.E != key.PublicKey.E {
 			return fmt.Errorf("x5c certificate public key does not match provided RSA key")
 		}
 	default:

@@ -171,6 +171,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 		return false, fmt.Errorf("failed to retrieve missing documents: %w", err)
 	}
 
+	// TODO received checksums are used for DUPE and RECE...
 	receivedChecksums, err := s.queries.GetReceivedAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
 	if err != nil {
 		return false, fmt.Errorf("failed to retrieve received documents: %w", err)

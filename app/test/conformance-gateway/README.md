@@ -42,3 +42,20 @@ curl -X POST "http://localhost:8081/admin/parties" \
  -H 'accept: application/json'\
  -H 'content-type: application/json' \
  -d '{"codeListProvider":"CARX","partyCode":"12345-jane-doe"}' 
+
+
+# test failures
+@SneakyThrows
+public String sign(String payload) {
+  JWSHeader header = new JWSHeader.Builder(jwsSignerDetails.algorithm()).build();
+  JWSObject jwsObject = new JWSObject(header, new Payload(payload));
+  jwsObject.sign(jwsSignerDetails.signer());
+  return jwsObject.serialize();
+}
+
+# sender thumbprint 
+3QWMgX-urIg8_bloANrpYjT5pq59jlxF3nMDobWe9Ps
+
+
+# connection
+http://host.docker.internal:8081
