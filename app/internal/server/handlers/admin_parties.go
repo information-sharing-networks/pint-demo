@@ -277,6 +277,18 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 			return
 		}
 
+		// check if party exists
+		_, err = queries.GetPartyByID(r.Context(), partyID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, "No party found with this id", http.StatusNotFound)
+				return
+			}
+			reqLogger.Error("failed to get party", slog.String("error", err.Error()))
+			http.Error(w, "Failed to get party", http.StatusInternalServerError)
+			return
+		}
+
 		var req PartyIdentifyingCodeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
