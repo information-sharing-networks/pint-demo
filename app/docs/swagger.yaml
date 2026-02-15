@@ -389,7 +389,7 @@ definitions:
       receivedAdditionalDocumentChecksums:
         description: |-
           ReceivedAdditionalDocumentChecksums confirms all additional documents received during
-          the envelope transfer.
+          the envelope transfer (will be an empty list for new transfers, but may contain items for retries)
         items:
           type: string
         type: array

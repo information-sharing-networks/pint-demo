@@ -1093,7 +1093,7 @@ const docTemplate = `{
                     }
                 },
                 "receivedAdditionalDocumentChecksums": {
-                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.",
+                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer (will be an empty list for new transfers, but may contain items for retries)",
                     "type": "array",
                     "items": {
                         "type": "string"

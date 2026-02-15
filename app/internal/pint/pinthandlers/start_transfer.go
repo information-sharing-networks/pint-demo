@@ -415,7 +415,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// TODO: the spec expects a list of received documents to be returned in the response for new transfers
 	// .. but this implementation assumes documents are scoped to a specific envelope transfer.
-	// Should we accept additional docs from previous transfers? (requires changes to the db schema)
+	// For now we assume this is the intended design (as it ensures the sender is in possession of the docs?).
 	receivedChecksums := []string{}
 
 	// Step 7: Validate the receiving party exists and is active on the recipient platform.
@@ -657,13 +657,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 14. Return response for pending transfer (201 Created/unsigned response).
-	// Because this is the start of the transfer all the additional docs are 'missing'.
+	// missing docs list should be included with pending transfer response (201)
 	missingChecksums := make([]string, len(additionalDocs))
 	for i, doc := range additionalDocs {
 		missingChecksums[i] = doc.checksum
 	}
 
+	// Step 14. Return response for pending transfer (201 Created/unsigned response).
+	// Because this is the start of the transfer
 	response := &pint.EnvelopeTransferStartedResponse{
 		EnvelopeReference:                                   storedEnvelope.ID.String(),
 		TransportDocumentChecksum:                           verificationResult.TransportDocumentChecksum,
@@ -675,7 +676,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		slog.String("envelope_reference", storedEnvelope.ID.String()),
 		slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
 		slog.String("last_transfer_chain_entry_checksum", lastChainChecksum),
-		slog.Int("missing_additional_documents", len(missingChecksums)),
 	)
 
 	pint.RespondWithPayload(w, http.StatusCreated, response)
