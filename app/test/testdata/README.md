@@ -83,3 +83,5 @@ cd  /path/to/pint-demo
 the script will replace the signed content and checksums in the existing ebl envelope files.  It will not create new files.
 
 
+# TODO
+the transportDocumentChecksums are not recalculated by the scripts above (so changing the transport doc content will break the integration tests...)

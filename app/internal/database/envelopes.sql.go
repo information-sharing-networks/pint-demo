@@ -11,12 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
-const CreateEnvelope = `-- name: CreateEnvelope :one
+const CreateEnvelopeIfNew = `-- name: CreateEnvelopeIfNew :one
 INSERT INTO envelopes (
     id,
     created_at,
     updated_at,
     transport_document_checksum,
+    envelope_state,
     sent_by_platform_code,
     last_transfer_chain_entry_checksum,
     envelope_manifest_signed_content,
@@ -35,12 +36,14 @@ INSERT INTO envelopes (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, created_at, updated_at, transport_document_checksum, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level
+    $8,
+    $9
+) ON CONFLICT (last_transfer_chain_entry_checksum, envelope_state) DO NOTHING RETURNING id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level
 `
 
-type CreateEnvelopeParams struct {
+type CreateEnvelopeIfNewParams struct {
 	TransportDocumentChecksum           string  `json:"transport_document_checksum"`
+	EnvelopeState                       string  `json:"envelope_state"`
 	SentByPlatformCode                  string  `json:"sent_by_platform_code"`
 	LastTransferChainEntryChecksum      string  `json:"last_transfer_chain_entry_checksum"`
 	EnvelopeManifestSignedContent       string  `json:"envelope_manifest_signed_content"`
@@ -50,10 +53,11 @@ type CreateEnvelopeParams struct {
 	TrustLevel                          int32   `json:"trust_level"`
 }
 
-// Create a new envelope record for a transfer session
-func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) (Envelope, error) {
-	row := q.db.QueryRow(ctx, CreateEnvelope,
+// Create a new envelope record for a transfer session if it doen't already exist for the current envelope state
+func (q *Queries) CreateEnvelopeIfNew(ctx context.Context, arg CreateEnvelopeIfNewParams) (Envelope, error) {
+	row := q.db.QueryRow(ctx, CreateEnvelopeIfNew,
 		arg.TransportDocumentChecksum,
+		arg.EnvelopeState,
 		arg.SentByPlatformCode,
 		arg.LastTransferChainEntryChecksum,
 		arg.EnvelopeManifestSignedContent,
@@ -68,6 +72,7 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TransportDocumentChecksum,
+		&i.EnvelopeState,
 		&i.SentByPlatformCode,
 		&i.LastTransferChainEntryChecksum,
 		&i.EnvelopeManifestSignedContent,
@@ -95,7 +100,7 @@ func (q *Queries) ExistsEnvelopeByLastChainEntryChecksum(ctx context.Context, la
 }
 
 const GetEnvelopeByLastChainEntryChecksum = `-- name: GetEnvelopeByLastChainEntryChecksum :one
-SELECT id, created_at, updated_at, transport_document_checksum, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level FROM envelopes 
+SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level FROM envelopes 
 WHERE last_transfer_chain_entry_checksum = $1
 `
 
@@ -107,6 +112,7 @@ func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastT
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TransportDocumentChecksum,
+		&i.EnvelopeState,
 		&i.SentByPlatformCode,
 		&i.LastTransferChainEntryChecksum,
 		&i.EnvelopeManifestSignedContent,
@@ -119,7 +125,7 @@ func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastT
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, updated_at, transport_document_checksum, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level FROM envelopes 
+SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level FROM envelopes 
 WHERE id = $1
 `
 
@@ -132,6 +138,7 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, id uuid.UUID) (Env
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TransportDocumentChecksum,
+		&i.EnvelopeState,
 		&i.SentByPlatformCode,
 		&i.LastTransferChainEntryChecksum,
 		&i.EnvelopeManifestSignedContent,

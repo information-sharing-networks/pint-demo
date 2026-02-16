@@ -93,20 +93,20 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Code list provider",
-                        "name": "code_list_provider",
+                        "name": "codeListProvider",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
                         "description": "Code list name (optional)",
-                        "name": "code_list_name",
+                        "name": "codeListName",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Party code",
-                        "name": "party_code",
+                        "name": "partyCode",
                         "in": "query",
                         "required": true
                     }
@@ -395,7 +395,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Signed response - Transfer accepted immediately (RECE or DUPE) - see the 'default' response for details of the response payload",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "201": {
@@ -413,7 +413,7 @@ const docTemplate = `{
                     "422": {
                         "description": "Signed response - Signature or validation failed (BSIG/BENV) - see the 'default' response for details of the response payload",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
@@ -433,7 +433,7 @@ const docTemplate = `{
         },
         "/v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum}": {
             "put": {
-                "description": "Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest.\n- SHA-256 checksum matches the URL parameter.\n- Document size matches the manifest.\n\n**Request Body Format:**\n\nThe request body is a base64-encoded string containing the document content.\nExample: ` + "`" + `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` + "`" + ` (plain base64 string, no JSON structure).\nThe decoded content type is determined by the sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform loses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform loses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response:**\n\n` + "`" + `204 No Content` + "`" + ` - This is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n` + "`" + `409 Conflict` + "`" + ` - Checksum or size mismatch (INCD response code).\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV response code).\n",
+                "description": "Transfer an additional document (supporting document or eBL visualisation) associated with an eBL envelope transfer.\n\nThe receiving platform validates:\n- Document was declared in the EnvelopeManifest.\n- SHA-256 checksum matches the URL parameter.\n- Document size matches the manifest.\n\n**Envelope Reference**\n\nThe envelope reference is a UUID that identifies the eBL envelope transfer (this is returned\nby the start transfer endpoint when the transfer is started)\n\n**Request Body Format**\n\nThe request body is a base64-encoded string containing the document content.\nExample: ` + "`" + `\"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...\"` + "`" + ` (json string containing the base64 document content).\n\nThe decoded content type is determined by the sending platform based on the media type\ndeclared in the EnvelopeManifest.\n\nIf the sending platform loses track of the transfer state for a document, it can safely\nretry the transfer by resending the same document.\n\nIf the sending platform loses track of which documents have not been received, it can call\nthe PUT /v3/envelopes/{envelopeReference} endpoint again to get the current state.\n\n**Success Response:**\n\n` + "`" + `204 No Content` + "`" + ` - This is returned when the document is received successfully,\nor when the document has already been received.\n\n\n**Error Responses (signed):**\n\n` + "`" + `409 Conflict` + "`" + ` - Checksum or size mismatch (INCD response code).\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` - Envelope rejected (BSIG/BENV response code).\n",
                 "consumes": [
                     "application/json"
                 ],
@@ -485,13 +485,13 @@ const docTemplate = `{
                     "409": {
                         "description": "Checksum/size mismatch (INCD)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "422": {
                         "description": "Envelope rejected (BSIG/BENV)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
@@ -526,19 +526,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Signed response - Transfer accepted (RECE/DUPE)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "409": {
                         "description": "Signed response - Missing documents (MDOC) or disputed (DISE)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "422": {
                         "description": "Signed response - Envelope rejected (BSIG/BENV)",
                         "schema": {
-                            "$ref": "#/definitions/pint.SignedEnvelopeTransferFinishedResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
@@ -922,13 +922,13 @@ const docTemplate = `{
         "handlers.PartyIdentifyingCodeRequest": {
             "type": "object",
             "properties": {
-                "code_list_name": {
+                "codeListName": {
                     "type": "string"
                 },
-                "code_list_provider": {
+                "codeListProvider": {
                     "type": "string"
                 },
-                "party_code": {
+                "partyCode": {
                     "type": "string"
                 }
             }
@@ -936,16 +936,16 @@ const docTemplate = `{
         "handlers.PartyIdentifyingCodeResponse": {
             "type": "object",
             "properties": {
-                "code_list_name": {
+                "codeListName": {
                     "type": "string"
                 },
-                "code_list_provider": {
+                "codeListProvider": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "party_code": {
+                "partyCode": {
                     "type": "string"
                 },
                 "party_id": {
@@ -959,7 +959,7 @@ const docTemplate = `{
                 "active": {
                     "type": "boolean"
                 },
-                "party_name": {
+                "partyName": {
                     "type": "string"
                 }
             }
@@ -973,7 +973,7 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "party_name": {
+                "partyName": {
                     "type": "string"
                 }
             }
@@ -1052,7 +1052,7 @@ const docTemplate = `{
                     "example": "jws.Verify(): invalid key type"
                 },
                 "receivedAdditionalDocumentChecksums": {
-                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.\nIncluded with RECE or DUPE ResponseCode to provide a signed receipt.\nThis includes all additional documents (including ones the receiver already had).",
+                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer.\nIncluded with RECE or DUPE ResponseCode to provide a signed receipt.\nThis includes all additional documents (including ones the receiver already had).\nleave as nil when not applicable (eg errors BENV,BSIG).  To return an empty list use []string{}",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -1076,7 +1076,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "envelopeReference": {
-                    "description": "EnvelopeReference is the receiver-generated identifier for this envelope transfer.\nUsed in subsequent API calls (PUT additional-documents, PUT finish-transfer).\nMax length: 100 characters",
+                    "description": "EnvelopeReference is the receiver-generated identifier for this envelope transfer.\nUsed in subsequent API calls (PUT additional-documents, PUT finish-transfer).\nThis is a UUID automatically generated by the receiver (see envelopes.id in the database)\nand is a proxy for the last transfer chain entry checksum.",
                     "type": "string",
                     "example": "4TkP5nvgTly0MwFrDxfIkR2rvOjkUIgzibBoKABU"
                 },
@@ -1087,6 +1087,13 @@ const docTemplate = `{
                 },
                 "missingAdditionalDocumentChecksums": {
                     "description": "MissingAdditionalDocumentChecksums lists the checksums of additional documents that\nthe receiving platform expects to receive before accepting the envelope transfer.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "receivedAdditionalDocumentChecksums": {
+                    "description": "ReceivedAdditionalDocumentChecksums confirms all additional documents received during\nthe envelope transfer (will be an empty list for new transfers, but may contain items for retries)",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -1114,7 +1121,8 @@ const docTemplate = `{
                 7010,
                 7011,
                 8001,
-                8002
+                8002,
+                8003
             ],
             "x-enum-comments": {
                 "ErrCodeInsufficientTrust": "Trust level below minimum required",
@@ -1133,7 +1141,8 @@ const docTemplate = `{
                 "",
                 "",
                 "",
-                "Trust level below minimum required"
+                "Trust level below minimum required",
+                ""
             ],
             "x-enum-varnames": [
                 "ErrCodeBadSignature",
@@ -1148,7 +1157,8 @@ const docTemplate = `{
                 "ErrCodeRequestTooLarge",
                 "ErrCodeNotFound",
                 "ErrCodeUnknownParty",
-                "ErrCodeInsufficientTrust"
+                "ErrCodeInsufficientTrust",
+                "ErrCodeDispute"
             ]
         },
         "pint.ErrorResponse": {
@@ -1209,7 +1219,8 @@ const docTemplate = `{
                 "BSIG",
                 "BENV",
                 "INCD",
-                "MDOC"
+                "MDOC",
+                "DISE"
             ],
             "x-enum-varnames": [
                 "ResponseCodeRECE",
@@ -1217,18 +1228,9 @@ const docTemplate = `{
                 "ResponseCodeBSIG",
                 "ResponseCodeBENV",
                 "ResponseCodeINCD",
-                "ResponseCodeMDOC"
+                "ResponseCodeMDOC",
+                "ResponseCodeDISE"
             ]
-        },
-        "pint.SignedEnvelopeTransferFinishedResponse": {
-            "type": "object",
-            "properties": {
-                "envelopeTransferFinishedResponseSignedContent": {
-                    "description": "EnvelopeTransferFinishedResponseSignedContent is a JWS-signed response returned when\nan envelope transfer is accepted or rejected.",
-                    "type": "string",
-                    "example": "eyJhbGciOiJFZERTQSIsImtpZCI6IjQ0MzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkMzlkM"
-                }
-            }
         },
         "services.PartyIdentifyingCode": {
             "type": "object",

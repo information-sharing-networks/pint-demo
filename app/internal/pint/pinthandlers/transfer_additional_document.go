@@ -51,20 +51,18 @@ func NewTransferAdditionalDocumentHandler(
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
 // This is used for 409/422 (INCD & BSIG,BENV) responses.
-func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
+func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	jws, err := crypto.SignJSON(jsonBytes, h.signingKey, h.x5cCertChain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign response: %w", err)
+		return "", fmt.Errorf("failed to sign response: %w", err)
 	}
 
-	return &pint.SignedEnvelopeTransferFinishedResponse{
-		SignedContent: jws,
-	}, nil
+	return pint.SignedEnvelopeTransferFinishedResponse(jws), nil
 }
 
 // HandleTransferAdditionalDocument godoc
@@ -77,10 +75,16 @@ func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(respons
 //	@Description	- SHA-256 checksum matches the URL parameter.
 //	@Description	- Document size matches the manifest.
 //	@Description
-//	@Description	**Request Body Format:**
+//	@Description	**Envelope Reference**
+//	@Description
+//	@Description	The envelope reference is a UUID that identifies the eBL envelope transfer (this is returned
+//	@Description	by the start transfer endpoint when the transfer is started)
+//	@Description
+//	@Description	**Request Body Format**
 //	@Description
 //	@Description	The request body is a base64-encoded string containing the document content.
-//	@Description	Example: `UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU...` (plain base64 string, no JSON structure).
+//	@Description	Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."` (json string containing the base64 document content).
+//	@Description
 //	@Description	The decoded content type is determined by the sending platform based on the media type
 //	@Description	declared in the EnvelopeManifest.
 //	@Description
@@ -152,10 +156,14 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	}
 	defer r.Body.Close()
 
-	// Expect a base64-encoded string containing the binary document content and ignore the content-type header.
-	// TODO: confirm what DCSA expects here
-	// (v3.0.0 says 'Content-Type application/json is preferred' but shows a base64 string as the example).
-	base64Content := string(bodyBytes)
+	// Expect a plain json string with base64-encoded document content
+	// unmarshal takes care of JSON string escaping
+	var base64Content string
+	err = json.Unmarshal(bodyBytes, &base64Content)
+	if err != nil {
+		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "failed to decode base64 content"))
+		return
+	}
 
 	// Decode the base64 string to get the actual binary document content (PDF, image, etc.)
 	documentContent, err := base64.StdEncoding.DecodeString(base64Content)

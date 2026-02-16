@@ -37,10 +37,11 @@ func getKeyIDFromJWKFile(t *testing.T, path string) string {
 	return kid
 }
 
+// TODO hard-coded count of providers in the test registry - should be made more robust
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
 	url := "../../test/testdata/platform-registry/eblsolutionproviders.csv"
-	config := NewKeymanagerConfig(url, "", 30*time.Second, true, 15*time.Minute, 12*time.Hour)
+	config := NewKeymanagerConfig(url, "", 30*time.Second, 2*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	// Create a test logger that discards output
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -52,7 +53,7 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 		t.Fatalf("failed to create key manager: %v", err)
 	}
 
-	expectedProviderCount := 4 // EBL1, CAR1, EBL2, CAR2
+	expectedProviderCount := 7 // EBL1, CAR1, EBL2, CAR2, BOLE, CARR, CARX
 	if len(km.eblSolutionProviders) != expectedProviderCount {
 		t.Fatalf("expected %d eBL solution providers, got %d", expectedProviderCount, len(km.eblSolutionProviders))
 	}
@@ -130,7 +131,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 	// Testing keys without certificates
 	ctx := context.Background()
 	RegistryPath := "../../test/testdata/platform-registry/eblsolutionproviders.csv"
-	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
+	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, 2*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -207,7 +208,7 @@ TEST,https://test.example.com/,,key-old-2024
 	// Create a KeyManager - it should reject the file with multiple keys
 	ctx := context.Background()
 	RegistryPath := registryPath
-	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, true, 15*time.Minute, 12*time.Hour)
+	config := NewKeymanagerConfig(RegistryPath, tempDir, 30*time.Second, 2*time.Second, true, 15*time.Minute, 12*time.Hour)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,

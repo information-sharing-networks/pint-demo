@@ -31,6 +31,7 @@ type Envelope struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	TransportDocumentChecksum string             `json:"transport_document_checksum"`
+	EnvelopeState             string             `json:"envelope_state"`
 	SentByPlatformCode        string             `json:"sent_by_platform_code"`
 	// UNIQUE constraint prevents duplicate transfers of same chain.
 	LastTransferChainEntryChecksum      string `json:"last_transfer_chain_entry_checksum"`

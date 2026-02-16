@@ -4,7 +4,10 @@ package crypto
 //
 // Note the DCSA standard requires that JWS compact serialization is used for signing and verifying transport documents
 // ... and that the signing process must be performed using a library (this implementation uses github.com/lestrrat-go/jwx/v3)
-// the DCSA spec does not say which signing algorithm should be used (this implementation can use either RS256 or EdDSA)
+// the DCSA spec does not say which signing algorithm should be used.
+//
+// Supported algorithms for verification: RS256, RS384, RS512, PS256, PS384, PS512, EdDSA
+// Supported algorithms for signing: RS256, EdDSA
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc)
 // you will not need to call these functions directly. See the ebl package for high level functions.
@@ -24,7 +27,9 @@ import (
 // JWSHeader represents the header of a JWS token as used in the PINT API
 type JWSHeader struct {
 
-	// Algorithm specifies the signing algorithm (EdDSA or RS256)
+	// Algorithm specifies the signing algorithm
+	// Supported for verification: RS256, RS384, RS512, PS256, PS384, PS512, EdDSA
+	// Supported for signing: RS256, EdDSA
 	Algorithm string `json:"alg"`
 
 	// KeyID - this is used to look up the public key in the receiver's key manager
@@ -215,10 +220,27 @@ func VerifyJWSEd25519(jwsString string, publicKey ed25519.PublicKey) ([]byte, er
 	return payload, nil
 }
 
-// VerifyJWSRSA verifies a RSA JWS compact serialization signature and returns the payload
+// VerifyJWSRSA verifies a RSA JWS compact serialization signature and returns the payload.
+// Supports all RSA signature algorithms: RS256, RS384, RS512 (PKCS#1 v1.5) and PS256, PS384, PS512 (RSA-PSS).
+// The algorithm is determined from the JWS header.
 func VerifyJWSRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
-	// Verify the JWS using RS256 algorithm
-	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.RS256(), publicKey))
+	// Parse the JWS to extract the algorithm from the header
+	msg, err := jws.Parse([]byte(jwsString))
+	if err != nil {
+		return nil, WrapSignatureError(err, "failed to parse JWS")
+	}
+
+	// Get the algorithm from the first signature
+	if len(msg.Signatures()) == 0 {
+		return nil, NewValidationError("no signatures found in JWS")
+	}
+	alg, ok := msg.Signatures()[0].ProtectedHeaders().Algorithm()
+	if !ok {
+		return nil, NewValidationError("no algorithm specified in JWS header")
+	}
+
+	// Verify using the algorithm from the header
+	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(alg, publicKey))
 	if err != nil {
 		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}

@@ -44,7 +44,7 @@ type EnvelopeTransferChainEntry struct {
 }
 
 // ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
-func (e *EnvelopeTransferChainEntry) ValidateStructure() error {
+func (e *EnvelopeTransferChainEntry) ValidateStructure(entryNumber int) error {
 	if e.EblPlatform == "" {
 		return NewEnvelopeError("eblPlatform is required")
 	}
@@ -58,13 +58,18 @@ func (e *EnvelopeTransferChainEntry) ValidateStructure() error {
 	// Validate first vs subsequent entry rules
 	hasIssuanceManifest := e.IssuanceManifestSignedContent != nil
 	hasPreviousEntry := e.PreviousEnvelopeTransferChainEntrySignedContentChecksum != nil
+	isFirstEntry := entryNumber == 0
+
+	if isFirstEntry && !hasIssuanceManifest {
+		return NewEnvelopeError("issuanceManifestSignedContent is required for first entry")
+	}
+
+	if !isFirstEntry && !hasPreviousEntry {
+		return NewEnvelopeError("previousEnvelopeTransferChainEntrySignedContentChecksum is required on all entries apart from the first entry")
+	}
 
 	if hasIssuanceManifest && hasPreviousEntry {
 		return NewEnvelopeError("entry cannot have both issuanceManifestSignedContent and previousEnvelopeTransferChainEntrySignedContentChecksum")
-	}
-
-	if !hasIssuanceManifest && !hasPreviousEntry {
-		return NewEnvelopeError("entry must have either issuanceManifestSignedContent (first entry) or previousEnvelopeTransferChainEntrySignedContentChecksum (subsequent entry)")
 	}
 
 	// First entry specific validation
@@ -479,9 +484,25 @@ func (b *EnvelopeTransferChainEntryBuilder) Build() (*EnvelopeTransferChainEntry
 		entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum = &prevChecksum
 	}
 
-	// Validate the final entry (this will check first/subsequent entry rules)
-	if err := entry.ValidateStructure(); err != nil {
-		return nil, WrapEnvelopeError(err, "invalid transfer chain entry")
+	if b.isFirstEntry && entry.IssuanceManifestSignedContent == nil {
+		return nil, NewInternalError("IssuanceManifestSignedContent is required for first entry")
+	}
+	if !b.isFirstEntry && entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum == nil {
+		return nil, NewInternalError("PreviousEnvelopeTransferChainEntrySignedContentChecksum is required in all entries apart from the first entry")
+	}
+	if entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != nil && entry.IssuanceManifestSignedContent != nil {
+		return nil, NewInternalError("entry cannot have both issuance manifest and previous entry checksum")
+	}
+
+	// Validate CTR rules
+	if entry.ControlTrackingRegistry != nil {
+		if !b.isFirstEntry {
+			return nil, NewEnvelopeError("controlTrackingRegistry should only be present in first entry")
+		}
+		// Validate CTR URL format
+		if _, err := url.Parse(*entry.ControlTrackingRegistry); err != nil {
+			return nil, WrapEnvelopeError(err, "invalid controlTrackingRegistry URL")
+		}
 	}
 
 	return entry, nil

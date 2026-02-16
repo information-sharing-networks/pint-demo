@@ -14,13 +14,14 @@ WHERE last_transfer_chain_entry_checksum = $1;
 SELECT * FROM envelopes 
 WHERE id = $1;
 
--- name: CreateEnvelope :one
--- Create a new envelope record for a transfer session
+-- name: CreateEnvelopeIfNew :one
+-- Create a new envelope record for a transfer session if it doen't already exist for the current envelope state
 INSERT INTO envelopes (
     id,
     created_at,
     updated_at,
     transport_document_checksum,
+    envelope_state,
     sent_by_platform_code,
     last_transfer_chain_entry_checksum,
     envelope_manifest_signed_content,
@@ -33,6 +34,7 @@ INSERT INTO envelopes (
     NOW(),
     NOW(),
     sqlc.arg(transport_document_checksum),
+    sqlc.arg(envelope_state),
     sqlc.arg(sent_by_platform_code),
     sqlc.arg(last_transfer_chain_entry_checksum),
     sqlc.arg(envelope_manifest_signed_content),
@@ -40,7 +42,7 @@ INSERT INTO envelopes (
     sqlc.arg(response_code),
     sqlc.arg(response_reason),
     sqlc.arg(trust_level)
-) RETURNING *;
+) ON CONFLICT (last_transfer_chain_entry_checksum, envelope_state) DO NOTHING RETURNING *;
 
 -- name: UpdateEnvelopeResponse :exec
 -- Update envelope response code and reason
@@ -50,4 +52,5 @@ SET
     response_reason = $3,
     updated_at = NOW()
 WHERE id = $1;
+
 

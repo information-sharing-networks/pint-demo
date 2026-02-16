@@ -13,7 +13,7 @@ import (
 
 // PartyRequest represents the request body for creating/updating a party
 type PartyRequest struct {
-	PartyName string `json:"party_name"`
+	PartyName string `json:"partyName"`
 	Active    bool   `json:"active"`
 }
 
@@ -22,7 +22,7 @@ type PartyResponse struct {
 	ID        string `json:"id"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
-	PartyName string `json:"party_name"`
+	PartyName string `json:"partyName"`
 	Active    bool   `json:"active"`
 }
 

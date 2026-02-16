@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -140,10 +141,11 @@ func TestStartTransfer(t *testing.T) {
 			// immediate acceptance - no additional documents, check the RECE response
 			if resp.StatusCode == http.StatusOK {
 
-				var signedResponse pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
-					t.Fatalf("Failed to decode response: %v", err)
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("Failed to read response body: %v", err)
 				}
+				signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 				payload := decodeSignedFinishedResponse(t, signedResponse)
 				if test.isRetry {
 					if payload.ResponseCode != pint.ResponseCodeDUPE {
@@ -157,8 +159,12 @@ func TestStartTransfer(t *testing.T) {
 				if len(payload.MissingAdditionalDocumentChecksums) != test.expectedMissingDocs {
 					t.Errorf("Expected %d missing additional documents, got %d", test.expectedMissingDocs, len(payload.MissingAdditionalDocumentChecksums))
 				}
-				if len(payload.ReceivedAdditionalDocumentChecksums) != test.expectedReceivedDocs {
-					t.Errorf("Expected %d received additional documents, got %d", test.expectedReceivedDocs, len(payload.ReceivedAdditionalDocumentChecksums))
+				received := 0
+				if payload.ReceivedAdditionalDocumentChecksums != nil {
+					received = len(*payload.ReceivedAdditionalDocumentChecksums)
+				}
+				if received != test.expectedReceivedDocs {
+					t.Errorf("Expected %d received additional documents, got %d", test.expectedReceivedDocs, len(*payload.ReceivedAdditionalDocumentChecksums))
 				}
 				t.Logf("transfer accepted with 200/%v response", payload.ResponseCode)
 
@@ -359,11 +365,12 @@ func TestStartTransfer(t *testing.T) {
 			t.Fatalf("Expected status 422, got %d", resp.StatusCode)
 		}
 
-		// Decode the signed response
-		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-			t.Fatalf("Failed to decode signed response: %v", err)
+		// Read the signed response
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		// Decode the JWS payload
 		payload := decodeSignedFinishedResponse(t, SignedResponse)
@@ -441,11 +448,12 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusUnprocessableEntity {
-				// Decode the signed error response
-				var signedResponse pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
-					t.Fatalf("Failed to decode signed response: %v", err)
+				// Read the signed error response
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("Failed to read response body: %v", err)
 				}
+				signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 				// Decode the JWS payload
 				payload := decodeSignedFinishedResponse(t, signedResponse)
@@ -535,11 +543,12 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusUnprocessableEntity {
-				// Decode the signed error response
-				var signedResponse pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
-					t.Fatalf("Failed to decode signed response: %v", err)
+				// Read the signed error response
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("Failed to read response body: %v", err)
 				}
+				signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 				// Decode the JWS payload
 				payload := decodeSignedFinishedResponse(t, signedResponse)

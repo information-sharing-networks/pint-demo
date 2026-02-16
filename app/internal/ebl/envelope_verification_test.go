@@ -371,7 +371,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "envelope transfer chain is empty",
 		},
 		{
-			name: "returns BENV when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
+			name: "returns DISE when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
 			tamperEnvelope: func(env *EblEnvelope) error {
 				// Decode the last transfer chain entry (which has a TRANSFER transaction)
 				lastIdx := len(env.EnvelopeTransferChain) - 1
@@ -465,7 +465,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			publicKeyPath:   validPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  false,
-			wantErrCode:     "BENV",
+			wantErrCode:     "DISE",
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
 		},
 	}
@@ -895,7 +895,7 @@ func TestVerifyEnvelope_SenderPlatformMismatch(t *testing.T) {
 	// Should still return partial result for duplicate detection
 	if result == nil {
 		t.Error("Expected partial result even on error, got nil")
-	} else if result.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
+	} else if result.LastTransferChainEntrySignedContentChecksum == "" {
 		t.Error("Expected LastEnvelopeTransferChainEntrySignedContentChecksum to be set in partial result")
 	}
 

@@ -3,3 +3,6 @@ EBL1,https://ed25519-eblplatform.example.com/,,ea8904dc74e9395a
 CAR1,https://ed25519-carrier.example.com/,,90c692d328071e01
 EBL2,https://rsa-eblplatform.example.com/,,7f6dc8fe0df74997
 CAR2,https://rsa-carrier.example.com/,https://rsa-carrier.example.com/.well-known/jwks.json,
+CARR,https://ctk-carrier.example.com/,,cd4353893e5552ec
+BOLE,https://ct-bole.example.com/,,62672234fc926888
+CARX,https://conformance-eblplatform.example.com/,,d554a38fd3bbe54f

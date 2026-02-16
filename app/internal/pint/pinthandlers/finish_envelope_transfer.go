@@ -49,20 +49,18 @@ func NewFinishEnvelopeTransferHandler(
 
 // createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
 // This is used for 200/409/422 (RECE,DUPE,MDOC,DISE & BSIG,BENV) responses.
-func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (*pint.SignedEnvelopeTransferFinishedResponse, error) {
+func (h *FinishEnvelopeTransferHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return "", fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	jws, err := crypto.SignJSON(jsonBytes, h.signingKey, h.x5cCertChain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign response: %w", err)
+		return "", fmt.Errorf("failed to sign response: %w", err)
 	}
 
-	return &pint.SignedEnvelopeTransferFinishedResponse{
-		SignedContent: jws,
-	}, nil
+	return pint.SignedEnvelopeTransferFinishedResponse(jws), nil
 }
 
 // HandleFinishEnvelopeTransfer godoc
@@ -187,6 +185,11 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		return
 	}
 
+	// if no documents were received, return an empty list
+	if len(receivedDocs) == 0 {
+		receivedDocs = []string{}
+	}
+
 	// Step 6: Check if envelope has already been accepted (DUPE case)
 	// If response_code is already RECE, this is a duplicate finish-transfer request
 	if envelope.ResponseCode != nil && *envelope.ResponseCode == string(pint.ResponseCodeRECE) {
@@ -196,14 +199,14 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
 			ResponseCode: pint.ResponseCodeDUPE,
 			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &envelope.LastTransferChainEntrySignedContent,
-			ReceivedAdditionalDocumentChecksums:                        receivedDocs,
+			ReceivedAdditionalDocumentChecksums:                        &receivedDocs,
 		})
 		if err != nil {
 			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
 			return
 		}
 
-		pint.RespondWithPayload(w, http.StatusOK, signedResponse)
+		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
 		return
 	}
 
@@ -228,12 +231,12 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 	signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 		LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
 		ResponseCode:                        pint.ResponseCodeRECE,
-		ReceivedAdditionalDocumentChecksums: receivedDocs,
+		ReceivedAdditionalDocumentChecksums: &receivedDocs,
 	})
 	if err != nil {
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create RECE response"))
 		return
 	}
 
-	pint.RespondWithPayload(w, http.StatusOK, signedResponse)
+	pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
 }

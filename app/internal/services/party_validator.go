@@ -77,8 +77,8 @@ func NewPartyValidator(cfg *config.ServerEnvironment, queries *database.Queries)
 
 // PartyValidatorLocal validates parties by calling the local admin GET parties endpoint
 //
-//	GET {baseURL}/admin/parties?code_list_provider={provider}&party_code={code}
-//	Response: {"id": "...", "party_name": "...", "active": true}
+//	GET {baseURL}/admin/parties?codeListProvider={provider}&partyCode={code}
+//	Response: {"id": "...", "partyName": "...", "active": true}
 //	404 if party not found or inactive
 type PartyValidatorLocal struct {
 	baseURL    string
@@ -88,7 +88,7 @@ type PartyValidatorLocal struct {
 // partyResponse represents the response from the admin GET /admin/parties endpoint
 type partyResponse struct {
 	ID        string `json:"id"`
-	PartyName string `json:"party_name"`
+	PartyName string `json:"partyName"`
 	Active    bool   `json:"active"`
 }
 
@@ -101,10 +101,10 @@ func (h *PartyValidatorLocal) callPartyService(ctx context.Context, identifyingC
 	}
 
 	q := u.Query()
-	q.Set("code_list_provider", identifyingCode.CodeListProvider)
-	q.Set("party_code", identifyingCode.PartyCode)
+	q.Set("codeListProvider", identifyingCode.CodeListProvider)
+	q.Set("partyCode", identifyingCode.PartyCode)
 	if identifyingCode.CodeListName != nil {
-		q.Set("code_list_name", *identifyingCode.CodeListName)
+		q.Set("codeListName", *identifyingCode.CodeListName)
 	}
 	u.RawQuery = q.Encode()
 

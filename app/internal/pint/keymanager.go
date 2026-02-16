@@ -133,6 +133,10 @@ type KeyManagerConfig struct {
 	// HTTPTimeout is the timeout for HTTP requests to fetch JWK sets.
 	HTTPTimeout time.Duration
 
+	// LookupTimeout is the timeout for on-demand key lookups during request processing.
+	// This should be shorter than HTTPTimeout to fail fast during request handling.
+	LookupTimeout time.Duration
+
 	// SkipJWKCache disables JWK cache initialization (useful for testing)
 	SkipJWKCache bool
 
@@ -144,11 +148,12 @@ type KeyManagerConfig struct {
 }
 
 // NewKeymanagerConfig creates a new keymanager Config with the specified parameters.
-func NewKeymanagerConfig(RegistryPath string, manualKeysDir string, httpTimeout time.Duration, skipJWKCache bool, minRefreshInterval, maxRefreshInterval time.Duration) *KeyManagerConfig {
+func NewKeymanagerConfig(RegistryPath string, manualKeysDir string, httpTimeout, lookupTimeout time.Duration, skipJWKCache bool, minRefreshInterval, maxRefreshInterval time.Duration) *KeyManagerConfig {
 	return &KeyManagerConfig{
 		eblSolutionProvidersRegistryPath: RegistryPath,
 		ManualKeysDir:                    manualKeysDir,
 		HTTPTimeout:                      httpTimeout,
+		LookupTimeout:                    lookupTimeout,
 		SkipJWKCache:                     skipJWKCache,
 		JWKCacheMinRefreshInterval:       minRefreshInterval,
 		JWKCacheMaxRefreshInterval:       maxRefreshInterval,
@@ -541,10 +546,17 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 		return NewValidationError("JWS header does not contain an algorithm (alg is required for signature verification)")
 	}
 
+	k.logger.Debug("FetchKeys called",
+		slog.String("kid", kid),
+		slog.String("alg", alg.String()))
+
 	// 1. Check manual keys first
 	k.mu.RLock()
 	if keyInfo, exists := k.manualKeys[kid]; exists {
 		k.mu.RUnlock()
+		k.logger.Debug("found manual key",
+			slog.String("kid", kid),
+			slog.String("provider", keyInfo.Provider.PlatformCode))
 		sink.Key(alg, keyInfo.Key)
 		return nil
 	}
@@ -552,18 +564,40 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 
 	// 2. Check remote keys from jwkCache
 	if k.jwkCache != nil {
+		k.logger.Debug("checking remote keys", slog.String("kid", kid))
+
+		// Create a timeout context for the lookup operation
+		lookupCtx, cancel := context.WithTimeout(ctx, k.config.LookupTimeout)
+		defer cancel()
+
 		for _, provider := range k.eblSolutionProviders {
 			if provider.JWKSEndpoint == "" {
 				continue
 			}
 
+			k.logger.Debug("attempting JWK lookup",
+				slog.String("kid", kid),
+				slog.String("provider", provider.PlatformCode),
+				slog.String("endpoint", provider.JWKSEndpoint))
+
 			// Get latest keyset from cache (auto-refreshed by jwx library)
-			keySet, err := k.jwkCache.Lookup(ctx, provider.JWKSEndpoint)
+			// This may trigger an on-demand fetch if the cache is empty or stale
+			keySet, err := k.jwkCache.Lookup(lookupCtx, provider.JWKSEndpoint)
 			if err != nil {
-				k.logger.Debug("failed to lookup JWK set from cache",
-					slog.String("code", provider.PlatformCode),
-					slog.String("jwk_url", provider.JWKSEndpoint),
-					slog.String("error", err.Error()))
+				// Check if it's a timeout error
+				if lookupCtx.Err() == context.DeadlineExceeded {
+					k.logger.Warn("JWK lookup timed out",
+						slog.String("kid", kid),
+						slog.String("provider", provider.PlatformCode),
+						slog.String("endpoint", provider.JWKSEndpoint),
+						slog.Duration("timeout", k.config.LookupTimeout))
+				} else {
+					k.logger.Debug("failed to lookup JWK set from cache",
+						slog.String("kid", kid),
+						slog.String("provider", provider.PlatformCode),
+						slog.String("endpoint", provider.JWKSEndpoint),
+						slog.String("error", err.Error()))
+				}
 				continue
 			}
 
@@ -577,8 +611,15 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 				sink.Key(alg, key)
 				return nil
 			}
+
+			k.logger.Debug("key not found in provider's keyset",
+				slog.String("kid", kid),
+				slog.String("provider", provider.PlatformCode))
 		}
 	}
+
+	k.logger.Warn("key not found in any provider",
+		slog.String("kid", kid))
 
 	return NewKeyError(fmt.Sprintf("key not found: %s", kid))
 }

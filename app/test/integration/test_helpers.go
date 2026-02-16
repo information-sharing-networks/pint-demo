@@ -25,7 +25,7 @@ func decodeSignedFinishedResponse(t *testing.T, SignedResponse pint.SignedEnvelo
 	t.Helper()
 
 	// JWS format is header.payload.signature
-	parts := strings.Split(SignedResponse.SignedContent, ".")
+	parts := strings.Split(string(SignedResponse), ".")
 	if len(parts) != 3 {
 		t.Fatalf("Invalid JWS format: expected 3 parts, got %d", len(parts))
 	}

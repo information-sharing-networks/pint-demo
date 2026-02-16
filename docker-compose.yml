@@ -95,6 +95,7 @@ services:
       - JWK_CACHE_MIN_REFRESH
       - JWK_CACHE_MAX_REFRESH
       - JWK_CACHE_HTTP_TIMEOUT
+      - JWK_CACHE_LOOKUP_TIMEOUT
       - REGISTRY_FETCH_TIMEOUT
 
       # Party validation configuration

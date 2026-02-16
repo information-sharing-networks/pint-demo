@@ -211,7 +211,7 @@ type TransferChainEntryInput struct {
 	Transactions []Transaction
 }
 
-// CreateTransferChainEntry creates and signs a transfer chain entry.
+// CreateTransferChainEntrySignedContent creates and signs a transfer chain entry.
 //
 // Parameters:
 //   - input: The data for the transfer chain entry (transport document checksum, platform, transactions, etc.)
@@ -221,7 +221,7 @@ type TransferChainEntryInput struct {
 // Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification).
 //
 // Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain.
-func CreateTransferChainEntry(
+func CreateTransferChainEntrySignedContent(
 	input TransferChainEntryInput,
 	privateKey any,
 	certChain []*x509.Certificate,

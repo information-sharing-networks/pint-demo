@@ -151,7 +151,8 @@ This app implements a hybrid approach to key distribution:
 - **Dynamic JWK endpoints**: Automatically fetches and caches public keys from configured JWKS endpoints. The list of endpoints is retrieved from the DCSA registry.
 - **Manual keys**: Supports manually configured keys for testing or private networks where keys are exchanged out of band.
 
-Keys are looked up by the KID retrieved from JWS headers. The KID is derived from the public key thumbprint (the first 8 bytes of the SHA-256 hash in hex format).
+Keys are looked up by the KID retrieved from JWS headers. The KID is derived from the first 8 bytes of the public key RFC 7638 JWK thumbprints
+   (see `app/internal/crypto/jwk.go` for the implementation details).
 
 ### Platform registry
 This implementation relies on a platform registry that contains the list of all approved eBL PINT participants (carriers, banks and ebl platforms). 
@@ -162,8 +163,8 @@ The registry is used for two purposes:
 
 This list is configured via the `DCSA_REGISTRY_PATH` environment variable.
 
-For the purpose of this demo the registry is based on a local file (`app/test/testdata/platform-registry/eblsolutionproviders.csv`),
- but in a real deployment the registry would be served from a secure endpoint and cover all participants in the PINT network.
+For the purpose of this demo the registry is based on a local file (`app/test/testdata/platform-registry/eblsolutionproviders.csv`)
+ - in a real deployment the registry would cover all participants in the PINT network, and would most likely be served via a secure endpoint.
 
 ### Trust model and non-repudiation
 This app implements an experimental approach to verifying the legal entities operating platforms in PINT exchanges. While DCSA does not mandate a specific verification method, this implementation extends their signature approach by enabling platforms to include x5c headers in the JWS.

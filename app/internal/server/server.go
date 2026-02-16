@@ -108,23 +108,28 @@ func NewServer(
 			return nil, fmt.Errorf("failed to load x5c cert chain: %w", err)
 		}
 		server.x5cCertChain = certChain
+
+		if err := server.CheckX5CConfig(); err != nil {
+			return nil, fmt.Errorf("x5c configuration is invalid: %w", err)
+		}
+
 		logger.Info("loaded x5c certificate chain",
 			slog.String("path", cfg.X5CCertPath),
 			slog.Int("certs", len(certChain)))
-	}
 
-	// configure root CAs
-	if cfg.X5CCustomRootsPath == "" {
-		logger.Info("using system root CAs for x5c validation")
-	} else {
-		server.x5cCustomRoots, err = crypto.LoadCustomRootCAs(cfg.X5CCustomRootsPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load custom root CAs: %w", err)
+		// configure root CAs - ignore if not using x5c headers
+		if cfg.X5CCustomRootsPath == "" {
+			logger.Info("using system root CAs for x5c validation")
+		} else {
+			server.x5cCustomRoots, err = crypto.LoadCustomRootCAs(cfg.X5CCustomRootsPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load custom root CAs: %w", err)
+			}
+			logger.Info("loaded custom root CAs for x5c validation",
+				slog.String("path", cfg.X5CCustomRootsPath))
 		}
-		logger.Info("loaded custom root CAs for x5c validation",
-			slog.String("path", cfg.X5CCustomRootsPath))
-	}
 
+	}
 	// initialize key manager
 	if err := server.initKeyManager(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize KeyManager: %w", err)
@@ -171,6 +176,7 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 		s.config.RegistryPath,
 		s.config.ManualKeysDir,
 		s.config.JWKCacheHTTPTimeout,
+		s.config.JWKCacheLookupTimeout,
 		s.config.SkipJWKCache,
 		s.config.JWKCacheMinRefresh,
 		s.config.JWKCacheMaxRefresh,
@@ -323,6 +329,39 @@ func (s *Server) createJWKSet() (jwk.Set, error) {
 	}
 
 	return jwkSet, nil
+}
+
+// CheckX5CConfig checks that the x5c configuration is valid and the key in the certificate chain matches the signing key.
+func (s *Server) CheckX5CConfig() error {
+	// Extract public key from leaf certificate
+	certPublicKey := s.x5cCertChain[0].PublicKey
+
+	// Compare public keys
+	switch key := s.signingKey.(type) {
+	case ed25519.PrivateKey:
+		certKey, ok := certPublicKey.(ed25519.PublicKey)
+		if !ok {
+			return fmt.Errorf("x5c certificate contains %T key, but expected ed25519.PublicKey", certPublicKey)
+		}
+		// Extract public key from private key and compare
+		signingPublicKey := key.Public().(ed25519.PublicKey)
+		if !signingPublicKey.Equal(certKey) {
+			return fmt.Errorf("x5c certificate public key does not match the provided Ed25519 signing key")
+		}
+	case *rsa.PrivateKey:
+		certKey, ok := certPublicKey.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("x5c certificate contains %T key, but expected *rsa.PublicKey", certPublicKey)
+		}
+		// Compare RSA keys by checking N and E
+		if certKey.N.Cmp(key.PublicKey.N) != 0 || certKey.E != key.PublicKey.E {
+			return fmt.Errorf("x5c certificate public key does not match provided RSA key")
+		}
+	default:
+		return fmt.Errorf("unsupported key type: %T", key)
+	}
+
+	return nil
 }
 
 // Start starts the server and shuts down gracefully when the context is cancelled.

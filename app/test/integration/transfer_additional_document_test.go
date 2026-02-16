@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -71,17 +72,18 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		// Accepted or duplicate - decode signed EnvelopeTransferFinishedResponse
-		var signedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&signedResponse); err != nil {
-			t.Fatalf("Failed to decode 200 response: %v", err)
+		// Accepted or duplicate - read signed EnvelopeTransferFinishedResponse
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		payload := decodeSignedFinishedResponse(t, signedResponse)
 
 		return additionalDocumentsState{
 			missingDocs:  payload.MissingAdditionalDocumentChecksums,
-			receivedDocs: payload.ReceivedAdditionalDocumentChecksums,
+			receivedDocs: *payload.ReceivedAdditionalDocumentChecksums,
 			responseCode: &payload.ResponseCode,
 		}
 	}
@@ -145,7 +147,6 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read eBL visualization: %v", err)
 	}
-
 	invoiceContent, err := os.ReadFile(invoicePath)
 	if err != nil {
 		t.Fatalf("Failed to read invoice: %v", err)
@@ -213,7 +214,13 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			url := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/additional-documents/" + tt.documentChecksum
 			base64Content := base64.StdEncoding.EncodeToString(tt.documentContent)
 
-			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader([]byte(base64Content)))
+			// use the json package to marshal the base64Content as json string
+			jsonContent, err := json.Marshal(base64Content)
+			if err != nil {
+				t.Fatalf("Failed to marshal base64 content: %v", err)
+			}
+
+			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader([]byte(jsonContent)))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
@@ -285,11 +292,12 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		// Decode the signed response
-		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-			t.Fatalf("Failed to decode signed response: %v", err)
+		// Read the signed response
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		// Decode the JWS payload
 		payload := decodeSignedFinishedResponse(t, SignedResponse)
@@ -300,8 +308,8 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 		}
 
 		// Verify all documents are in received list
-		if len(payload.ReceivedAdditionalDocumentChecksums) != 3 {
-			t.Errorf("Expected 3 received documents, got %d", len(payload.ReceivedAdditionalDocumentChecksums))
+		if len(*payload.ReceivedAdditionalDocumentChecksums) != 3 {
+			t.Errorf("Expected 3 received documents, got %d", len(*payload.ReceivedAdditionalDocumentChecksums))
 		}
 
 		// Verify no missing documents
@@ -309,7 +317,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Errorf("Expected 0 missing documents, got %d", len(payload.MissingAdditionalDocumentChecksums))
 		}
 
-		t.Logf("Transfer finished with RECE response (received: %d)", len(payload.ReceivedAdditionalDocumentChecksums))
+		t.Logf("Transfer finished with RECE response (received: %d)", len(*payload.ReceivedAdditionalDocumentChecksums))
 	})
 
 	// Retry finish-transfer to verify DUPE response
@@ -331,11 +339,12 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		// Decode the signed response
-		var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-			t.Fatalf("Failed to decode signed response: %v", err)
+		// Read the signed response
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
 		}
+		SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 		// Decode the JWS payload
 		payload := decodeSignedFinishedResponse(t, SignedResponse)
@@ -422,7 +431,7 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 		expectedStatusCode   int
 		expectedResponseCode *pint.ResponseCode // nil for non-PINT error responses
 		checkReason          bool
-		skipBase64Encoding   bool // If true, send raw content without base64 encoding
+		skipEncoding         bool // If true, send raw content
 	}{
 		{
 			name:                 "returns INCD when checksum mismatch",
@@ -434,12 +443,12 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 			checkReason:          true,
 		},
 		{
-			name:               "error: invalid base64 returns 400",
+			name:               "error: invalid request body returns 400",
 			envelopeRef:        envelopeRef,
 			documentChecksum:   packingListChecksum,
 			documentContent:    []byte("!!invalid base64!!"),
 			expectedStatusCode: http.StatusBadRequest,
-			skipBase64Encoding: true,
+			skipEncoding:       true,
 		},
 		{
 			name:                 "returns BENV when document not in manifest",
@@ -478,12 +487,17 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 
 			// Encode content as base64 unless skipBase64Encoding is set
 			var body []byte
-			if tt.skipBase64Encoding {
+			if tt.skipEncoding {
 				body = tt.documentContent
 			} else {
-				body = []byte(base64.StdEncoding.EncodeToString(tt.documentContent))
-			}
+				b := []byte(base64.StdEncoding.EncodeToString(tt.documentContent))
 
+				// use the json package to marshal the body as json string
+				body, err = json.Marshal(b)
+				if err != nil {
+					t.Fatalf("Failed to marshal body: %v", err)
+				}
+			}
 			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(body))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
@@ -503,10 +517,11 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 
 			// If we expect a PINT response code, verify it
 			if tt.expectedResponseCode != nil {
-				var SignedResponse pint.SignedEnvelopeTransferFinishedResponse
-				if err := json.NewDecoder(resp.Body).Decode(&SignedResponse); err != nil {
-					t.Fatalf("Failed to decode signed response: %v", err)
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("Failed to read response body: %v", err)
 				}
+				SignedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
 
 				payload := decodeSignedFinishedResponse(t, SignedResponse)
 
