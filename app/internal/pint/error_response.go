@@ -227,31 +227,25 @@ func errorResponseFromCrypto(err *crypto.CryptoError, r *http.Request, requestID
 	}
 }
 
+// mapEblErrorCode maps ebl.ErrorCode to HTTP status code, pint error code, and sanitized error text.
+// Note: ebl.ErrorCode (BSIG, BENV, DISE) is used directly as the ResponseCode for signed rejections.
+func mapEblErrorCode(code ebl.ErrorCode) (statusCode int, pintErrorCode ErrorCode, errorText string) {
+	switch code {
+	case ebl.ErrCodeSignature: // BSIG
+		return http.StatusBadRequest, ErrCodeBadSignature, "Bad Signature"
+	case ebl.ErrCodeEnvelope: // BENV
+		return http.StatusBadRequest, ErrCodeInvalidEnvelope, "Invalid Envelope"
+	case ebl.ErrCodeDispute: // DISE
+		return http.StatusConflict, ErrCodeDispute, "Dispute"
+	default:
+		return http.StatusInternalServerError, ErrCodeInternalError, "Internal Error"
+	}
+}
+
 // errorResponseFromEbl maps ebl.Error to DCSA error response
 // the error code text is sanitized for the response, but the full error message is logged server-side
 func errorResponseFromEbl(err *ebl.EblError, r *http.Request, requestID string) *ErrorResponse {
-	var statusCode int
-	var errorCode ErrorCode
-	var errorCodeText string
-
-	switch err.Code() {
-	case ebl.ErrCodeSignature:
-		statusCode = http.StatusBadRequest
-		errorCode = ErrCodeBadSignature
-		errorCodeText = "Bad Signature"
-	case ebl.ErrCodeEnvelope:
-		statusCode = http.StatusBadRequest
-		errorCode = ErrCodeInvalidEnvelope
-		errorCodeText = "Invalid Envelope"
-	case ebl.ErrCodeDispute:
-		statusCode = http.StatusConflict
-		errorCode = ErrCodeDispute
-		errorCodeText = "Dispute"
-	default:
-		statusCode = http.StatusInternalServerError
-		errorCode = ErrCodeInternalError
-		errorCodeText = "Internal Error"
-	}
+	statusCode, errorCode, errorCodeText := mapEblErrorCode(err.Code())
 
 	return &ErrorResponse{
 		HTTPMethod:                   r.Method,

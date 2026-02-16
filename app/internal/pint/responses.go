@@ -69,7 +69,7 @@ func RespondWithSignedRejection(w http.ResponseWriter, r *http.Request, statusCo
 	reqLogger := logger.ContextRequestLogger(r.Context())
 
 	// Determine log level based on response code
-	// BSIG/BENV are warnings (expected validation failures)
+	// BSIG/BENV/DISE are warnings (expected validation failures)
 	// MDOC/INCD are info (temporary states that may resolve)
 	logLevel := slog.LevelWarn
 	if responseCode == ResponseCodeMDOC || responseCode == ResponseCodeINCD {

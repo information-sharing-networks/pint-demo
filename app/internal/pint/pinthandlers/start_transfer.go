@@ -336,14 +336,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		var responseCode pint.ResponseCode
 		var eblErr *ebl.EblError
 		if errors.As(err, &eblErr) {
-			switch eblErr.Code() {
-			case ebl.ErrCodeSignature:
-				responseCode = pint.ResponseCodeBSIG
-			case ebl.ErrCodeEnvelope:
-				responseCode = pint.ResponseCodeBENV
-			case ebl.ErrCodeDispute:
-				responseCode = pint.ResponseCodeDISE
-			}
+			// ebl.ErrorCode (BSIG, BENV, DISE) is the same as ResponseCode - just convert the type
+			responseCode = pint.ResponseCode(eblErr.Code())
 		}
 		if responseCode == "" || verificationResult == nil {
 			// internal error
