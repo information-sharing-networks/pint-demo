@@ -316,6 +316,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 				if pgErr.Code == "23505" {
 					// Handle duplicate key error
 					returnErr = fmt.Errorf("party identifier code already exists")
+					return
 				}
 			}
 			reqLogger.Error("failed to create party identifying code", slog.String("error", err.Error()))

@@ -30,9 +30,18 @@ CREATE TABLE party_identifying_codes (
     
     CONSTRAINT fk_party_identifying_codes_party FOREIGN KEY (party_id)
         REFERENCES parties(id)
-        ON DELETE CASCADE,
-    CONSTRAINT unique_identifying_code UNIQUE(code_list_provider, code_list_name,  party_code)
+        ON DELETE CASCADE
 );
+
+-- For non-NULL code_list_name
+CREATE UNIQUE INDEX unique_identifying_code_with_name 
+ON party_identifying_codes(code_list_provider, code_list_name, party_code)
+WHERE code_list_name IS NOT NULL;
+
+-- For NULL code_list_name
+CREATE UNIQUE INDEX unique_identifying_code_without_name 
+ON party_identifying_codes(code_list_provider, party_code)
+WHERE code_list_name IS NULL;
 
 CREATE INDEX idx_party_identifying_codes_party ON party_identifying_codes(party_id);
 CREATE INDEX idx_party_identifying_codes_lookup ON party_identifying_codes(code_list_provider, party_code);
