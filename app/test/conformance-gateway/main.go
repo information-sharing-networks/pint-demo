@@ -27,8 +27,8 @@ Usage: keys-from-pem -p <private-key-pem-file> -o <output-dir> -s <server-name>
 	cmd.Flags().StringP("private-key-pem", "p", "", "Path to private key PEM file")
 	cmd.Flags().StringP("output-dir", "o", "", "Output directory for public key JWK file")
 	cmd.Flags().StringP("server-name", "s", "", "Server name")
-	cmd.MarkFlagRequired("private-key-pem")
-	cmd.MarkFlagRequired("output-dir")
+	_ = cmd.MarkFlagRequired("private-key-pem")
+	_ = cmd.MarkFlagRequired("output-dir")
 
 	cmd.Run = func(cmd *cobra.Command, args []string) {
 		privateKeyPEM, _ := cmd.Flags().GetString("private-key-pem")
@@ -37,13 +37,21 @@ Usage: keys-from-pem -p <private-key-pem-file> -o <output-dir> -s <server-name>
 		filename := fmt.Sprintf("%s/%s.public.jwk", outputDir, serverName)
 
 		// open the private key PEM file
-		pemData, err := os.ReadFile(privateKeyPEM)
+		// use root to open the file
+		root, err := os.OpenRoot(".")
+		if err != nil {
+			fmt.Printf("Error opening root directory: %v\n", err)
+			os.Exit(1)
+		}
+		defer root.Close()
+		pemData, err := root.ReadFile(privateKeyPEM)
 		if err != nil {
 			fmt.Printf("Error reading private key PEM file: %v\n", err)
 			os.Exit(1)
 		}
 
 		// Load private key (RSA or Ed25519 keys)
+
 		privateKey, err := parsePrivateKey(pemData)
 		if err != nil {
 			fmt.Printf("Error parsing private key: %v\n", err)
@@ -87,7 +95,7 @@ Usage: keys-from-pem -p <private-key-pem-file> -o <output-dir> -s <server-name>
 
 	}
 	// run the command
-	cmd.Execute()
+	_ = cmd.Execute()
 }
 
 func parsePrivateKey(pemData []byte) (any, error) {
