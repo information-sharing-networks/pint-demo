@@ -137,6 +137,28 @@ func (q *Queries) GetPartyByPartyName(ctx context.Context, partyName string) (Pa
 	return i, err
 }
 
+const PartyIdentifyingCodeExists = `-- name: PartyIdentifyingCodeExists :one
+SELECT EXISTS(
+    SELECT 1 FROM party_identifying_codes
+    WHERE code_list_provider = $1
+      AND party_code = $2
+      AND (code_list_name = $3 OR code_list_name IS NULL)
+)
+`
+
+type PartyIdentifyingCodeExistsParams struct {
+	CodeListProvider string  `json:"code_list_provider"`
+	PartyCode        string  `json:"party_code"`
+	CodeListName     *string `json:"code_list_name"`
+}
+
+func (q *Queries) PartyIdentifyingCodeExists(ctx context.Context, arg PartyIdentifyingCodeExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, PartyIdentifyingCodeExists, arg.CodeListProvider, arg.PartyCode, arg.CodeListName)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const UpdateParty = `-- name: UpdateParty :one
 UPDATE parties
 SET ( updated_at, party_name, active ) = (NOW(), $2, $3)

@@ -35,3 +35,11 @@ WHERE pic.code_list_provider = sqlc.arg('code_list_provider')
   AND p.active = TRUE
 LIMIT 1;
 
+
+-- name: PartyIdentifyingCodeExists :one
+SELECT EXISTS(
+    SELECT 1 FROM party_identifying_codes
+    WHERE code_list_provider = $1
+      AND party_code = $2
+      AND (code_list_name = $3 OR code_list_name IS NULL)
+);

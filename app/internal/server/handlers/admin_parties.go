@@ -301,6 +301,21 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 			return
 		}
 
+		exists, err := queries.PartyIdentifyingCodeExists(r.Context(), database.PartyIdentifyingCodeExistsParams{
+			CodeListProvider: req.CodeListProvider,
+			PartyCode:        req.PartyCode,
+			CodeListName:     req.CodeListName,
+		})
+		if err != nil {
+			reqLogger.Error("failed to check if party identifying code exists", slog.String("error", err.Error()))
+			http.Error(w, "Failed to check if party identifying code exists", http.StatusInternalServerError)
+			return
+		}
+		if exists {
+			http.Error(w, "Party identifying code already exists", http.StatusConflict)
+			return
+		}
+
 		code, err := queries.CreatePartyIdentifyingCode(r.Context(), database.CreatePartyIdentifyingCodeParams{
 			PartyID:          partyID,
 			CodeListProvider: req.CodeListProvider,
@@ -309,18 +324,8 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 		})
 		if err != nil {
 			// check for duplicates
-			var pgErr *pgconn.PgError
-			returnErr := fmt.Errorf("failed to create party identifying code - internal error")
-			if errors.As(err, &pgErr) {
-				// Check for unique violation error code
-				if pgErr.Code == "23505" {
-					// Handle duplicate key error
-					returnErr = fmt.Errorf("party identifier code already exists")
-					return
-				}
-			}
 			reqLogger.Error("failed to create party identifying code", slog.String("error", err.Error()))
-			http.Error(w, returnErr.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
