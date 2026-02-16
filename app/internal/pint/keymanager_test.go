@@ -53,7 +53,7 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 		t.Fatalf("failed to create key manager: %v", err)
 	}
 
-	expectedProviderCount := 6 // EBL1, CAR1, EBL2, CAR2, BOLE, CARR
+	expectedProviderCount := 7 // EBL1, CAR1, EBL2, CAR2, BOLE, CARR, CARX
 	if len(km.eblSolutionProviders) != expectedProviderCount {
 		t.Fatalf("expected %d eBL solution providers, got %d", expectedProviderCount, len(km.eblSolutionProviders))
 	}
