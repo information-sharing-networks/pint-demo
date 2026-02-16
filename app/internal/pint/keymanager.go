@@ -546,17 +546,10 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 		return NewValidationError("JWS header does not contain an algorithm (alg is required for signature verification)")
 	}
 
-	k.logger.Debug("FetchKeys called",
-		slog.String("kid", kid),
-		slog.String("alg", alg.String()))
-
 	// 1. Check manual keys first
 	k.mu.RLock()
 	if keyInfo, exists := k.manualKeys[kid]; exists {
 		k.mu.RUnlock()
-		k.logger.Debug("found manual key",
-			slog.String("kid", kid),
-			slog.String("provider", keyInfo.Provider.PlatformCode))
 		sink.Key(alg, keyInfo.Key)
 		return nil
 	}
@@ -574,11 +567,6 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 			if provider.JWKSEndpoint == "" {
 				continue
 			}
-
-			k.logger.Debug("attempting JWK lookup",
-				slog.String("kid", kid),
-				slog.String("provider", provider.PlatformCode),
-				slog.String("endpoint", provider.JWKSEndpoint))
 
 			// Get latest keyset from cache (auto-refreshed by jwx library)
 			// This may trigger an on-demand fetch if the cache is empty or stale
@@ -604,10 +592,6 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 			// Find key by kid
 			key, found := keySet.LookupKeyID(kid)
 			if found {
-				k.logger.Debug("found remote key",
-					slog.String("kid", kid),
-					slog.String("provider", provider.PlatformCode))
-
 				sink.Key(alg, key)
 				return nil
 			}
@@ -617,9 +601,6 @@ func (k *KeyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.S
 				slog.String("provider", provider.PlatformCode))
 		}
 	}
-
-	k.logger.Warn("key not found in any provider",
-		slog.String("kid", kid))
 
 	return NewKeyError(fmt.Sprintf("key not found: %s", kid))
 }
