@@ -147,7 +147,6 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read eBL visualization: %v", err)
 	}
-
 	invoiceContent, err := os.ReadFile(invoicePath)
 	if err != nil {
 		t.Fatalf("Failed to read invoice: %v", err)
@@ -215,7 +214,13 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 			url := testEnv.baseURL + "/v3/envelopes/" + envelopeRef + "/additional-documents/" + tt.documentChecksum
 			base64Content := base64.StdEncoding.EncodeToString(tt.documentContent)
 
-			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader([]byte(base64Content)))
+			// use the json package to marshal the base64Content as json string
+			jsonContent, err := json.Marshal(base64Content)
+			if err != nil {
+				t.Fatalf("Failed to marshal base64 content: %v", err)
+			}
+
+			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader([]byte(jsonContent)))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
@@ -426,7 +431,7 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 		expectedStatusCode   int
 		expectedResponseCode *pint.ResponseCode // nil for non-PINT error responses
 		checkReason          bool
-		skipBase64Encoding   bool // If true, send raw content without base64 encoding
+		skipEncoding         bool // If true, send raw content
 	}{
 		{
 			name:                 "returns INCD when checksum mismatch",
@@ -438,12 +443,12 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 			checkReason:          true,
 		},
 		{
-			name:               "error: invalid base64 returns 400",
+			name:               "error: invalid request body returns 400",
 			envelopeRef:        envelopeRef,
 			documentChecksum:   packingListChecksum,
 			documentContent:    []byte("!!invalid base64!!"),
 			expectedStatusCode: http.StatusBadRequest,
-			skipBase64Encoding: true,
+			skipEncoding:       true,
 		},
 		{
 			name:                 "returns BENV when document not in manifest",
@@ -482,12 +487,17 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 
 			// Encode content as base64 unless skipBase64Encoding is set
 			var body []byte
-			if tt.skipBase64Encoding {
+			if tt.skipEncoding {
 				body = tt.documentContent
 			} else {
-				body = []byte(base64.StdEncoding.EncodeToString(tt.documentContent))
-			}
+				b := []byte(base64.StdEncoding.EncodeToString(tt.documentContent))
 
+				// use the json package to marshal the body as json string
+				body, err = json.Marshal(b)
+				if err != nil {
+					t.Fatalf("Failed to marshal body: %v", err)
+				}
+			}
 			req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(body))
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
