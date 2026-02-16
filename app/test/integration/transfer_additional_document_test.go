@@ -451,12 +451,12 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 			skipEncoding:       true,
 		},
 		{
-			name:                 "returns BENV when document not in manifest",
+			name:                 "returns INCD when document not in manifest",
 			envelopeRef:          envelopeRef,
 			documentChecksum:     "0000000000000000000000000000000000000000000000000000000000000000",
 			documentContent:      []byte("some content"),
-			expectedStatusCode:   http.StatusUnprocessableEntity,
-			expectedResponseCode: &[]pint.ResponseCode{pint.ResponseCodeBENV}[0],
+			expectedStatusCode:   http.StatusConflict,
+			expectedResponseCode: &[]pint.ResponseCode{pint.ResponseCodeINCD}[0],
 		},
 		{
 			name:               "error: invalid envelope reference returns 400",

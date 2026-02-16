@@ -211,17 +211,17 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			reason := "document checksum not declared in envelope manifest"
+			reason := "unrelated document (document checksum not declared in envelope manifest)"
 			signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 				LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
-				ResponseCode: pint.ResponseCodeBENV,
+				ResponseCode: pint.ResponseCodeINCD,
 				Reason:       &reason,
 			})
 			if err != nil {
 				pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 				return
 			}
-			pint.RespondWithSignedRejection(w, r, http.StatusUnprocessableEntity, signedResponse, pint.ResponseCodeBENV, reason)
+			pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeINCD, reason)
 			return
 		}
 		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to lookup expected document"))

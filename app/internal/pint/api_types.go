@@ -95,7 +95,7 @@ const (
 	// ResponseCodeBENV indicates rejection due to envelope issues
 	ResponseCodeBENV ResponseCode = "BENV"
 
-	// ResponseCodeINCD indicates inconclusive document (checksum/size mismatch, not rejected)
+	// ResponseCodeINCD indicates inconclusive document (checksum/size mismatch, unexpected document received etc.)
 	ResponseCodeINCD ResponseCode = "INCD"
 
 	// ResponseCodeMDOC indicates missing additional documents (not rejected)
