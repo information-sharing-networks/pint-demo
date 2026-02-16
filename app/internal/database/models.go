@@ -34,13 +34,11 @@ type Envelope struct {
 	EnvelopeState             string             `json:"envelope_state"`
 	SentByPlatformCode        string             `json:"sent_by_platform_code"`
 	// UNIQUE constraint prevents duplicate transfers of same chain.
-	LastTransferChainEntryChecksum      string `json:"last_transfer_chain_entry_checksum"`
-	EnvelopeManifestSignedContent       string `json:"envelope_manifest_signed_content"`
-	LastTransferChainEntrySignedContent string `json:"last_transfer_chain_entry_signed_content"`
-	// Response code sent to sender. NULL = transfer pending (no final response sent yet). RECE/DUPE = accepted. BSIG/BENV/INCD/MDOC/DISE = rejected.
-	ResponseCode   *string `json:"response_code"`
-	ResponseReason *string `json:"response_reason"`
-	TrustLevel     int32   `json:"trust_level"`
+	LastTransferChainEntryChecksum      string             `json:"last_transfer_chain_entry_checksum"`
+	EnvelopeManifestSignedContent       string             `json:"envelope_manifest_signed_content"`
+	LastTransferChainEntrySignedContent string             `json:"last_transfer_chain_entry_signed_content"`
+	TrustLevel                          int32              `json:"trust_level"`
+	AcceptedAt                          pgtype.Timestamptz `json:"accepted_at"`
 }
 
 type Party struct {

@@ -22,8 +22,6 @@ INSERT INTO envelopes (
     last_transfer_chain_entry_checksum,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content,
-    response_code,
-    response_reason,
     trust_level
 ) VALUES (
     gen_random_uuid(),
@@ -35,22 +33,18 @@ INSERT INTO envelopes (
     $4,
     $5,
     $6,
-    $7,
-    $8,
-    $9
-) ON CONFLICT (last_transfer_chain_entry_checksum, envelope_state) DO NOTHING RETURNING id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level
+    $7
+) ON CONFLICT (last_transfer_chain_entry_checksum, envelope_state) DO NOTHING RETURNING id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at
 `
 
 type CreateEnvelopeIfNewParams struct {
-	TransportDocumentChecksum           string  `json:"transport_document_checksum"`
-	EnvelopeState                       string  `json:"envelope_state"`
-	SentByPlatformCode                  string  `json:"sent_by_platform_code"`
-	LastTransferChainEntryChecksum      string  `json:"last_transfer_chain_entry_checksum"`
-	EnvelopeManifestSignedContent       string  `json:"envelope_manifest_signed_content"`
-	LastTransferChainEntrySignedContent string  `json:"last_transfer_chain_entry_signed_content"`
-	ResponseCode                        *string `json:"response_code"`
-	ResponseReason                      *string `json:"response_reason"`
-	TrustLevel                          int32   `json:"trust_level"`
+	TransportDocumentChecksum           string `json:"transport_document_checksum"`
+	EnvelopeState                       string `json:"envelope_state"`
+	SentByPlatformCode                  string `json:"sent_by_platform_code"`
+	LastTransferChainEntryChecksum      string `json:"last_transfer_chain_entry_checksum"`
+	EnvelopeManifestSignedContent       string `json:"envelope_manifest_signed_content"`
+	LastTransferChainEntrySignedContent string `json:"last_transfer_chain_entry_signed_content"`
+	TrustLevel                          int32  `json:"trust_level"`
 }
 
 // Create a new envelope record for a transfer session if it doen't already exist for the current envelope state
@@ -62,8 +56,6 @@ func (q *Queries) CreateEnvelopeIfNew(ctx context.Context, arg CreateEnvelopeIfN
 		arg.LastTransferChainEntryChecksum,
 		arg.EnvelopeManifestSignedContent,
 		arg.LastTransferChainEntrySignedContent,
-		arg.ResponseCode,
-		arg.ResponseReason,
 		arg.TrustLevel,
 	)
 	var i Envelope
@@ -77,9 +69,8 @@ func (q *Queries) CreateEnvelopeIfNew(ctx context.Context, arg CreateEnvelopeIfN
 		&i.LastTransferChainEntryChecksum,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
-		&i.ResponseCode,
-		&i.ResponseReason,
 		&i.TrustLevel,
+		&i.AcceptedAt,
 	)
 	return i, err
 }
@@ -100,7 +91,7 @@ func (q *Queries) ExistsEnvelopeByLastChainEntryChecksum(ctx context.Context, la
 }
 
 const GetEnvelopeByLastChainEntryChecksum = `-- name: GetEnvelopeByLastChainEntryChecksum :one
-SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level FROM envelopes 
+SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
 WHERE last_transfer_chain_entry_checksum = $1
 `
 
@@ -117,15 +108,14 @@ func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastT
 		&i.LastTransferChainEntryChecksum,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
-		&i.ResponseCode,
-		&i.ResponseReason,
 		&i.TrustLevel,
+		&i.AcceptedAt,
 	)
 	return i, err
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, response_code, response_reason, trust_level FROM envelopes 
+SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
 WHERE id = $1
 `
 
@@ -143,30 +133,20 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, id uuid.UUID) (Env
 		&i.LastTransferChainEntryChecksum,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
-		&i.ResponseCode,
-		&i.ResponseReason,
 		&i.TrustLevel,
+		&i.AcceptedAt,
 	)
 	return i, err
 }
 
-const UpdateEnvelopeResponse = `-- name: UpdateEnvelopeResponse :exec
+const MarkEnvelopeAccepted = `-- name: MarkEnvelopeAccepted :exec
 UPDATE envelopes
-SET
-    response_code = $2,
-    response_reason = $3,
-    updated_at = NOW()
-WHERE id = $1
+SET accepted_at = NOW()
+WHERE id = $1 AND accepted_at IS NULL
 `
 
-type UpdateEnvelopeResponseParams struct {
-	ID             uuid.UUID `json:"id"`
-	ResponseCode   *string   `json:"response_code"`
-	ResponseReason *string   `json:"response_reason"`
-}
-
-// Update envelope response code and reason
-func (q *Queries) UpdateEnvelopeResponse(ctx context.Context, arg UpdateEnvelopeResponseParams) error {
-	_, err := q.db.Exec(ctx, UpdateEnvelopeResponse, arg.ID, arg.ResponseCode, arg.ResponseReason)
+// Mark an envelope as accepted by setting accepted_at timestamp
+func (q *Queries) MarkEnvelopeAccepted(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, MarkEnvelopeAccepted, id)
 	return err
 }

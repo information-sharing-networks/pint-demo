@@ -31,12 +31,12 @@ CREATE TABLE envelopes (
     envelope_manifest_signed_content TEXT NOT NULL, -- JWS of EnvelopeManifest
     last_transfer_chain_entry_signed_content TEXT NOT NULL, -- JWS of last entry
 
-    -- Response tracking (NULL = pending, otherwise the state of the response last sent to the sender)
-    response_code TEXT CHECK (response_code IN ('RECE', 'DUPE', 'BSIG', 'BENV', 'INCD', 'MDOC', 'DISE')),
-    response_reason TEXT, -- Optional reason for rejection
-
     -- Trust level from certificate validation (1=NoX5C, 2=DV, 3=EV/OV)
     trust_level INTEGER NOT NULL CHECK (trust_level IN (1, 2, 3)),
+
+    -- Transfer acceptance tracking (NULL = not yet accepted, timestamp = when transfer was accepted with RECE)
+    accepted_at TIMESTAMP WITH TIME ZONE,
+
 
     CONSTRAINT fk_envelopes_transport_document FOREIGN KEY (transport_document_checksum)
         REFERENCES transport_documents(checksum)
@@ -44,7 +44,6 @@ CREATE TABLE envelopes (
     CONSTRAINT unique_last_transfer_chain_entry_checksum_state UNIQUE(last_transfer_chain_entry_checksum, envelope_state)
 );
 CREATE INDEX idx_envelopes_transport_document ON envelopes(transport_document_checksum);
-CREATE INDEX idx_envelopes_response_code ON envelopes(response_code);
 
 -- transfer_chain_entries - contains the transfer chain entries for all eBLs, linked by transport_document_checksum.
 -- This enables (limited) DISE (dispute) detection by comparing the transfer chain entries of two platforms for the same eBL.
@@ -122,7 +121,6 @@ COMMENT ON TABLE envelopes IS 'Each row = one transfer session. Multiple rows ca
 COMMENT ON TABLE transfer_chain_entries IS 'Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_checksum';
 COMMENT ON TABLE additional_documents IS 'Expected and received additional documents, scoped to specific transfer sessions.';
 
-COMMENT ON COLUMN envelopes.response_code IS 'Response code sent to sender. NULL = transfer pending (no final response sent yet). RECE/DUPE = accepted. BSIG/BENV/INCD/MDOC/DISE = rejected.';
 COMMENT ON COLUMN envelopes.last_transfer_chain_entry_checksum IS 'UNIQUE constraint prevents duplicate transfers of same chain.';
 
 -- +goose Down

@@ -26,8 +26,6 @@ INSERT INTO envelopes (
     last_transfer_chain_entry_checksum,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content,
-    response_code,
-    response_reason,
     trust_level
 ) VALUES (
     gen_random_uuid(),
@@ -39,18 +37,12 @@ INSERT INTO envelopes (
     sqlc.arg(last_transfer_chain_entry_checksum),
     sqlc.arg(envelope_manifest_signed_content),
     sqlc.arg(last_transfer_chain_entry_signed_content),
-    sqlc.arg(response_code),
-    sqlc.arg(response_reason),
     sqlc.arg(trust_level)
 ) ON CONFLICT (last_transfer_chain_entry_checksum, envelope_state) DO NOTHING RETURNING *;
 
--- name: UpdateEnvelopeResponse :exec
--- Update envelope response code and reason
+-- name: MarkEnvelopeAccepted :exec
+-- Mark an envelope as accepted by setting accepted_at timestamp
 UPDATE envelopes
-SET
-    response_code = $2,
-    response_reason = $3,
-    updated_at = NOW()
-WHERE id = $1;
-
+SET accepted_at = NOW()
+WHERE id = $1 AND accepted_at IS NULL;
 

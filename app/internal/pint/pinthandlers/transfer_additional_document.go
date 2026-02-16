@@ -188,9 +188,16 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	// Step 4: Verify envelope is still pending (response_code is NULL)
-	if envelope.ResponseCode != nil {
-		reason := fmt.Sprintf("envelope transfer already completed with response code: %s", *envelope.ResponseCode)
+	// Step 4: Verify envelope is still pending (all documents not yet received)
+	// Check if all documents have already been received
+	missingDocs, err := h.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
+	if err != nil {
+		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to check for missing documents"))
+		return
+	}
+
+	if len(missingDocs) == 0 {
+		reason := "envelope transfer already completed - all documents received"
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
 			ResponseCode: pint.ResponseCodeBENV,

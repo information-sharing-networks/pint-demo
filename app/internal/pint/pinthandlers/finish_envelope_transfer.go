@@ -191,8 +191,8 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 	}
 
 	// Step 6: Check if envelope has already been accepted (DUPE case)
-	// If response_code is already RECE, this is a duplicate finish-transfer request
-	if envelope.ResponseCode != nil && *envelope.ResponseCode == string(pint.ResponseCodeRECE) {
+	if envelope.AcceptedAt.Valid {
+		// Already accepted - this is a duplicate finish request
 		reqLogger.Info("Envelope transfer already accepted, returning DUPE")
 
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -210,15 +210,9 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		return
 	}
 
-	// Step 7: Update envelope response code to RECE (acceptance)
-	receCode := string(pint.ResponseCodeRECE)
-	err = h.queries.UpdateEnvelopeResponse(ctx, database.UpdateEnvelopeResponseParams{
-		ID:             envelope.ID,
-		ResponseCode:   &receCode,
-		ResponseReason: nil,
-	})
-	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to update envelope response"))
+	// Step 7: Mark envelope as accepted
+	if err := h.queries.MarkEnvelopeAccepted(ctx, envelope.ID); err != nil {
+		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
 		return
 	}
 

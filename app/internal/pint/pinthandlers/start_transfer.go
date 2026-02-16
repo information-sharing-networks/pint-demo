@@ -537,13 +537,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Determine response type: immediate accept (RECE) if no additional docs needed, otherwise pending (NULL)
-	var responseCode *string
-	if len(additionalDocs) == 0 {
-		rece := string(pint.ResponseCodeRECE)
-		responseCode = &rece
-	}
-
 	// Step 10: Create a record of the envelope transfer if it hasn't been received previously
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
@@ -554,8 +547,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		LastTransferChainEntryChecksum:      verificationResult.LastTransferChainEntrySignedContentChecksum,
 		EnvelopeManifestSignedContent:       string(envelope.EnvelopeManifestSignedContent),
 		LastTransferChainEntrySignedContent: string(lastTransferEntrySignedContent),
-		ResponseCode:                        responseCode, // RECE if immediate accept, NULL if pending
-		ResponseReason:                      nil,
 		TrustLevel:                          int32(verificationResult.TrustLevel),
 	})
 	if err != nil {
@@ -646,6 +637,12 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Step 13 - handle request with no additional documents (immediate acceptance - 200/RECE)
 	if len(additionalDocs) == 0 {
+		// Mark envelope as accepted
+		if err := s.queries.MarkEnvelopeAccepted(ctx, storedEnvelope.ID); err != nil {
+			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
+			return
+		}
+
 		// Create and sign the RECE response
 		receivedDocs := []string{}
 		signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{

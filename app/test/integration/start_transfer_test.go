@@ -178,11 +178,13 @@ func TestStartTransfer(t *testing.T) {
 					t.Fatalf("Expected envelope reference to be set")
 				}
 
-				// Verify response_code is RECE in database (immediate accept)
-				if envelope.ResponseCode == nil {
-					t.Errorf("Expected envelope response_code to be 'RECE', got NULL")
-				} else if *envelope.ResponseCode != string(pint.ResponseCodeRECE) {
-					t.Errorf("Expected envelope response_code to be 'RECE', got '%s'", *envelope.ResponseCode)
+				// Verify transfer is complete (no missing documents)
+				missingDocs, err := testEnv.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
+				if err != nil {
+					t.Fatalf("Failed to check missing documents: %v", err)
+				}
+				if len(missingDocs) != 0 {
+					t.Errorf("Expected no missing documents (immediate accept), got %d", len(missingDocs))
 				}
 
 				// Verify trust level is stored correctly (3 = TrustLevelEVOV)
@@ -253,9 +255,13 @@ func TestStartTransfer(t *testing.T) {
 						parsedResponse.TransportDocumentChecksum, envelope.TransportDocumentChecksum)
 				}
 
-				// Verify envelope is pending (response_code is NULL)
-				if envelope.ResponseCode != nil {
-					t.Errorf("Expected envelope response_code to be NULL (pending), got '%s'", *envelope.ResponseCode)
+				// Verify envelope is pending (has missing documents)
+				missingDocs, err := testEnv.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
+				if err != nil {
+					t.Fatalf("Failed to check missing documents: %v", err)
+				}
+				if len(missingDocs) == 0 {
+					t.Errorf("Expected missing documents (pending transfer), got none")
 				}
 
 				// Verify trust level is stored correctly (3 = TrustLevelEVOV)
