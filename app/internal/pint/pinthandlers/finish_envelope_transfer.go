@@ -164,7 +164,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		reason := fmt.Sprintf("cannot accept envelope transfer: %d additional document(s) not yet received", len(missingDocs))
 
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode:                       pint.ResponseCodeMDOC,
 			Reason:                             &reason,
 			MissingAdditionalDocumentChecksums: missingDocs,
@@ -196,7 +196,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		reqLogger.Info("Envelope transfer already accepted, returning DUPE")
 
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeDUPE,
 			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &envelope.LastTransferChainEntrySignedContent,
 			ReceivedAdditionalDocumentChecksums:                        &receivedDocs,
@@ -223,7 +223,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 
 	// Step 8: Create and return signed RECE response
 	signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-		LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+		LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 		ResponseCode:                        pint.ResponseCodeRECE,
 		ReceivedAdditionalDocumentChecksums: &receivedDocs,
 	})

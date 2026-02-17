@@ -160,11 +160,11 @@ func getAdditionalDocumentList(manifest *ebl.EnvelopeManifest) []additionalDocum
 // This function generates the response to the sender and sends it:
 //   - When there are no additional documents to be transferred return (200 OK, signed response with a response_code of DUPE).
 //   - When there are additional documents still to be transferred (201 Created, unsigned response with the current state).
-func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseWriter, lastChainChecksum string) error {
+func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseWriter, lastChainEntrySignedContentChecksum string) error {
 	reqLogger := logger.ContextRequestLogger(ctx)
 
 	// Retrieve the existing envelope to check its status
-	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntryChecksum(ctx, lastChainChecksum)
+	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntryChecksum(ctx, lastChainEntrySignedContentChecksum)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve duplicate envelope: %w", err)
 	}
@@ -182,7 +182,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 	if len(missingChecksums) == 0 {
 		// Already accepted previously - return DUPE
 		signedResponse, err := s.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeDUPE,
 			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &existingEnvelope.LastTransferChainEntrySignedContent,
 			MissingAdditionalDocumentChecksums:                         missingChecksums,
@@ -195,7 +195,7 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
 
 		reqLogger.Info("Retry of already-accepted envelope (all docs already received)",
-			slog.String("last_chain_checksum", lastChainChecksum),
+			slog.String("last_chain_checksum", lastChainEntrySignedContentChecksum),
 			slog.String("existing_envelope_reference", existingEnvelope.ID.String()),
 			slog.Int("received_documents", len(receivedChecksums)),
 		)
@@ -206,14 +206,14 @@ func (s *StartTransferHandler) handleRetry(ctx context.Context, w http.ResponseW
 	response := &pint.EnvelopeTransferStartedResponse{
 		EnvelopeReference:                                   existingEnvelope.ID.String(),
 		TransportDocumentChecksum:                           existingEnvelope.TransportDocumentChecksum,
-		LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainChecksum,
+		LastEnvelopeTransferChainEntrySignedContentChecksum: lastChainEntrySignedContentChecksum,
 		MissingAdditionalDocumentChecksums:                  missingChecksums,
 	}
 
 	pint.RespondWithPayload(w, http.StatusCreated, response)
 
 	reqLogger.Info("Retry of pending envelope transfer",
-		slog.String("last_chain_checksum", lastChainChecksum),
+		slog.String("last_chain_checksum", lastChainEntrySignedContentChecksum),
 		slog.String("existing_envelope_reference", existingEnvelope.ID.String()),
 		slog.Int("missing_documents", len(missingChecksums)),
 		slog.Int("received_documents", len(receivedChecksums)),
@@ -541,18 +541,18 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	storedEnvelope, err := txQueries.CreateEnvelopeIfNew(ctx, database.CreateEnvelopeIfNewParams{
-		TransportDocumentChecksum:           verificationResult.TransportDocumentChecksum,
-		EnvelopeState:                       string(lastTransaction.ActionCode),
-		SentByPlatformCode:                  verificationResult.LastTransferChainEntry.EblPlatform,
-		LastTransferChainEntryChecksum:      verificationResult.LastTransferChainEntrySignedContentChecksum,
-		EnvelopeManifestSignedContent:       string(envelope.EnvelopeManifestSignedContent),
-		LastTransferChainEntrySignedContent: string(lastTransferEntrySignedContent),
-		TrustLevel:                          int32(verificationResult.TrustLevel),
+		TransportDocumentChecksum:                   verificationResult.TransportDocumentChecksum,
+		EnvelopeState:                               string(lastTransaction.ActionCode),
+		SentByPlatformCode:                          verificationResult.LastTransferChainEntry.EblPlatform,
+		LastTransferChainEntrySignedContentChecksum: verificationResult.LastTransferChainEntrySignedContentChecksum,
+		EnvelopeManifestSignedContent:               string(envelope.EnvelopeManifestSignedContent),
+		LastTransferChainEntrySignedContent:         string(lastTransferEntrySignedContent),
+		TrustLevel:                                  int32(verificationResult.TrustLevel),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			reqLogger.Info("Envelope already received",
-				slog.String("last_transfer_chain_entry_checksum", verificationResult.LastTransferChainEntrySignedContentChecksum),
+				slog.String("last_transfer_chain_entry_signed_content_checksum", verificationResult.LastTransferChainEntrySignedContentChecksum),
 				slog.String("envelope_state", string(lastTransaction.ActionCode)),
 				slog.String("platform_code", s.platformCode),
 				slog.String("sender_platform_code", verificationResult.LastTransferChainEntry.EblPlatform),
@@ -659,7 +659,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			slog.String("response_code", "RECE"),
 			slog.String("envelope_reference", storedEnvelope.ID.String()),
 			slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
-			slog.String("last_transfer_chain_entry_checksum", lastChainEntrySignedContentChecksum),
+			slog.String("last_transfer_chain_entry_signed_content_checksum", lastChainEntrySignedContentChecksum),
 		)
 
 		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
@@ -684,7 +684,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	reqLogger.Info("Envelope transfer started pending additional documents",
 		slog.String("envelope_reference", storedEnvelope.ID.String()),
 		slog.String("transport_document_checksum", verificationResult.TransportDocumentChecksum),
-		slog.String("last_transfer_chain_entry_checksum", lastChainEntrySignedContentChecksum),
+		slog.String("last_transfer_chain_entry_signed_content_checksum", lastChainEntrySignedContentChecksum),
 	)
 
 	pint.RespondWithPayload(w, http.StatusCreated, response)

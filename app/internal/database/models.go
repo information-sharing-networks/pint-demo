@@ -34,11 +34,11 @@ type Envelope struct {
 	EnvelopeState             string             `json:"envelope_state"`
 	SentByPlatformCode        string             `json:"sent_by_platform_code"`
 	// UNIQUE constraint prevents duplicate transfers of same chain.
-	LastTransferChainEntryChecksum      string             `json:"last_transfer_chain_entry_checksum"`
-	EnvelopeManifestSignedContent       string             `json:"envelope_manifest_signed_content"`
-	LastTransferChainEntrySignedContent string             `json:"last_transfer_chain_entry_signed_content"`
-	TrustLevel                          int32              `json:"trust_level"`
-	AcceptedAt                          pgtype.Timestamptz `json:"accepted_at"`
+	LastTransferChainEntrySignedContentChecksum string             `json:"last_transfer_chain_entry_signed_content_checksum"`
+	EnvelopeManifestSignedContent               string             `json:"envelope_manifest_signed_content"`
+	LastTransferChainEntrySignedContent         string             `json:"last_transfer_chain_entry_signed_content"`
+	TrustLevel                                  int32              `json:"trust_level"`
+	AcceptedAt                                  pgtype.Timestamptz `json:"accepted_at"`
 }
 
 type Party struct {
@@ -59,7 +59,7 @@ type PartyIdentifyingCode struct {
 	CodeListName     *string            `json:"code_list_name"`
 }
 
-// Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_checksum
+// Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_signed_content_checksum
 type TransferChainEntry struct {
 	ID                        uuid.UUID          `json:"id"`
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
