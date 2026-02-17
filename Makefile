@@ -52,12 +52,14 @@ docker-down:
 	@echo "🐳 Stopping Docker containers..."
 	@docker compose down
 
-# drop the db volume and restart the containers
+# drop the db volume, restart the app container with latest dependencies, restart the containers
 docker-reset:
 	@echo "🔄 Resetting database..."
 	$(MAKE) docker-down
 	@docker volume rm pint-demo_db-data-dev || true
-	$(MAKE) docker-up
+	@echo "🐳 Rebuilding app container..."
+	@docker compose build app
+	@docker compose up
 
 restart:
 	@echo "🐳 Restarting app container..."
