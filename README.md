@@ -73,6 +73,9 @@ DATABASE_URL="postgres://pint-dev:@db:5432/pint_demo?sslmode=disable"
 # use the local service for development and testing:
 PARTY_SERVICE_NAME="local"
 PARTY_SERVICE_BASE_URL="http://localhost:${PORT}/admin/parties"
+
+# Go version - extracted from app/go.mod (required for docker-compose)
+export GO_VERSION=$(grep '^go ' app/go.mod | awk '{print $2}')
 ```
 
 

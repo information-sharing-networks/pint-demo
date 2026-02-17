@@ -28,8 +28,12 @@ services:
   app:
     build:
       context: .
+      args:
+        # GO_VERSION should be extracted from app/go.mod and exported.
+        GO_VERSION: ${GO_VERSION}
       dockerfile_inline: |
-        FROM golang:1.25.7-alpine
+        ARG GO_VERSION
+        FROM golang:${GO_VERSION}-alpine
 
         # Install system dependencies in one layer for better caching
         RUN apk add --no-cache bash postgresql-client curl jq vim git
@@ -49,7 +53,7 @@ services:
             go install golang.org/x/vuln/cmd/govulncheck && \
             cd / && rm -rf /build
 
-        WORKDIR /pint-demo 
+        WORKDIR /pint-demo
 
     container_name: pint-server
     volumes:

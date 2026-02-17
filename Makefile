@@ -2,6 +2,8 @@
 
 .PHONY: help build run-receiver run-sender test clean migrate sqlc docker-up docker-down restart logs psql check fmt vet
 
+export GO_VERSION := $(shell grep '^go ' app/go.mod | awk '{print $$2}')
+
 # Docker compose service name
 APP_SERVICE = app
 DB_ACCOUNT = pint-dev
@@ -10,11 +12,14 @@ DB_NAME = pint_demo
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
+	@echo 'Go version: $(GO_VERSION) (from app/go.mod)'
+	@echo ''
 	@echo 'Available targets:'
 	@echo "  make help            - Show this help message"
 	@echo "  make docker-up       - Start Docker containers"
 	@echo "  make docker-down     - Stop Docker containers"
 	@echo "  make docker-reset    - Drop the database and restart the containers"
+	@echo "  make docker-build    - Build the app container"
 	@echo "  make restart         - Restart the app container"
 	@echo "  make logs            - Follow docker logs"
 	@echo "  make psql            - Run psql against the dev database"
@@ -32,8 +37,7 @@ help: ## Show this help message
 	@echo "  make check           - Run all pre-commit checks (recommended before committing)"
 	@echo "  make clean           - Clean build artifacts"
 
-# Docker management
-docker-up:
+check-env:
 	@if [ ! -f .env ]; then \
 		echo "Error: a .env file is needed running the app in dev mode"; \
 		echo ""; \
@@ -45,21 +49,33 @@ docker-up:
 		echo "See README.md for more details."; \
 		exit 1; \
 	fi
+
+# Docker management
+docker-up:
+	@$(MAKE) check-env
 	@echo "🐳 Starting Docker containers..."
-	@docker compose up 
+	@echo "Using Go version: $(GO_VERSION)"
+	@GO_VERSION=$(GO_VERSION) docker compose up
 
 docker-down:
 	@echo "🐳 Stopping Docker containers..."
 	@docker compose down
 
+docker-build:
+	@echo "🐳 Building app container..."
+	@echo "Using Go version: $(GO_VERSION)"
+	@GO_VERSION=$(GO_VERSION) docker compose build app
+
 # drop the db volume, restart the app container with latest dependencies, restart the containers
 docker-reset:
+	@$(MAKE) check-env
 	@echo "🔄 Resetting database..."
 	$(MAKE) docker-down
 	@docker volume rm pint-demo_db-data-dev || true
 	@echo "🐳 Rebuilding app container..."
-	@docker compose build app
-	@docker compose up
+	@echo "Using Go version: $(GO_VERSION)"
+	@GO_VERSION=$(GO_VERSION) docker compose build app
+	@GO_VERSION=$(GO_VERSION) docker compose up
 
 restart:
 	@echo "🐳 Restarting app container..."
