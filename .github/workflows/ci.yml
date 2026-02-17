@@ -118,6 +118,12 @@ jobs:
       - name: Run gosec
         run: gosec -exclude-generated ./... 
 
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
