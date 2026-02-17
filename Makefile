@@ -52,12 +52,14 @@ docker-down:
 	@echo "🐳 Stopping Docker containers..."
 	@docker compose down
 
-# drop the db volume and restart the containers
+# drop the db volume, restart the app container with latest dependencies, restart the containers
 docker-reset:
 	@echo "🔄 Resetting database..."
 	$(MAKE) docker-down
 	@docker volume rm pint-demo_db-data-dev || true
-	$(MAKE) docker-up
+	@echo "🐳 Rebuilding app container..."
+	@docker compose build app
+	@docker compose up
 
 restart:
 	@echo "🐳 Restarting app container..."
@@ -123,6 +125,12 @@ security:
 	@echo "🔄 Running security analysis..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && gosec -exclude-generated ./..."
 
+
+# Run vulnerability scan
+vuln:
+	@echo "🔍 Running vulnerability scan..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && govulncheck -json ./..."
+
 # Run tests
 test:
 	@echo "🧪 Running tests (note tests require a local installation of go)..."
@@ -133,7 +141,7 @@ test:
 
 
 # Run all checks
-check: generate fmt vet test lint security
+check: generate fmt vet test lint security vuln
 	@echo ""
 	@echo "✅ All checks passed! Ready to commit."
 

@@ -13,3 +13,12 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    groups:
+      tools:
+        patterns:
+          - "github.com/air-verse/air"
+          - "github.com/pressly/goose/v3"
+          - "github.com/sqlc-dev/sqlc"
+          - "github.com/swaggo/swag"
+          - "honnef.co/go/tools/*"
+          - "github.com/securego/gosec/*"
