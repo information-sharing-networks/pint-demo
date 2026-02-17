@@ -129,7 +129,7 @@ security:
 # Run vulnerability scan
 vuln:
 	@echo "🔍 Running vulnerability scan..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && govulncheck ./..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && govulncheck -json ./..."
 
 # Run tests
 test:
