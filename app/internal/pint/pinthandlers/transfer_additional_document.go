@@ -199,7 +199,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	if len(missingDocs) == 0 {
 		reason := "envelope transfer already completed - all documents received"
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeBENV,
 			Reason:       &reason,
 		})
@@ -220,7 +220,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		if errors.Is(err, pgx.ErrNoRows) {
 			reason := "unrelated document (document checksum not declared in envelope manifest)"
 			signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-				LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+				LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 				ResponseCode: pint.ResponseCodeINCD,
 				Reason:       &reason,
 			})
@@ -256,7 +256,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	if actualChecksum != documentChecksum {
 		reason := fmt.Sprintf("document checksum mismatch: expected %s, got %s", documentChecksum, actualChecksum)
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeINCD,
 			Reason:       &reason,
 		})
@@ -273,7 +273,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	if actualSize != expectedDoc.ExpectedSize {
 		reason := fmt.Sprintf("document size mismatch: expected %d bytes, got %d bytes", expectedDoc.ExpectedSize, actualSize)
 		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntryChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeINCD,
 			Reason:       &reason,
 		})

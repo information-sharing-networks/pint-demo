@@ -290,9 +290,9 @@ func TestStartTransfer(t *testing.T) {
 				}
 
 				// Verify the response checksum matches what's stored in the database
-				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != envelope.LastTransferChainEntryChecksum {
+				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != envelope.LastTransferChainEntrySignedContentChecksum {
 					t.Errorf("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to match database value: expected %s, got %s",
-						envelope.LastTransferChainEntryChecksum, parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum)
+						envelope.LastTransferChainEntrySignedContentChecksum, parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum)
 				}
 
 				// check the response identifies the expected missing docs

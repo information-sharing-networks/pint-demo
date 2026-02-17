@@ -11,7 +11,7 @@ CREATE TABLE transport_documents (
 -- envelopes - each row represents an transfer of a eBL received by this platform
 -- The same eBL can be transferred multiple times and go back and forth between platforms.
 -- Each transfer has a unique chain of transactions (transfer chain entries) that are cryptographically linked
--- and uniquely identified by the last_transfer_chain_entry_checksum
+-- and uniquely identified by the last_transfer_chain_entry_signed_content_checksum
 CREATE TABLE envelopes (
     id UUID PRIMARY KEY, -- Used as 'envelope_reference' in API responses
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -25,11 +25,11 @@ CREATE TABLE envelopes (
 
     -- Transfer metadata
     sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
-    last_transfer_chain_entry_checksum TEXT NOT NULL UNIQUE, -- Prevents duplicate transfers
+    last_transfer_chain_entry_signed_content_checksum TEXT NOT NULL UNIQUE, -- uniquely identifies a specific transfer attempt
 
     -- Signed content (JWS strings - kept for audit trail)
     envelope_manifest_signed_content TEXT NOT NULL, -- JWS of EnvelopeManifest
-    last_transfer_chain_entry_signed_content TEXT NOT NULL, -- JWS of last entry
+    last_transfer_chain_entry_signed_content TEXT NOT NULL, -- JWS of last entry 
 
     -- Trust level from certificate validation (1=NoX5C, 2=DV, 3=EV/OV)
     trust_level INTEGER NOT NULL CHECK (trust_level IN (1, 2, 3)),
@@ -40,8 +40,7 @@ CREATE TABLE envelopes (
 
     CONSTRAINT fk_envelopes_transport_document FOREIGN KEY (transport_document_checksum)
         REFERENCES transport_documents(checksum)
-        ON DELETE CASCADE,
-    CONSTRAINT unique_last_transfer_chain_entry_checksum_state UNIQUE(last_transfer_chain_entry_checksum, envelope_state)
+        ON DELETE CASCADE
 );
 CREATE INDEX idx_envelopes_transport_document ON envelopes(transport_document_checksum);
 
@@ -118,10 +117,10 @@ CREATE INDEX idx_additional_documents_envelope ON additional_documents(envelope_
 
 COMMENT ON TABLE transport_documents IS 'Registry of unique eBL documents. Same eBL can be transferred multiple times.';
 COMMENT ON TABLE envelopes IS 'Each row = one transfer session. Multiple rows can exist for same transport_document_checksum.';
-COMMENT ON TABLE transfer_chain_entries IS 'Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_checksum';
+COMMENT ON TABLE transfer_chain_entries IS 'Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_signed_content_checksum';
 COMMENT ON TABLE additional_documents IS 'Expected and received additional documents, scoped to specific transfer sessions.';
 
-COMMENT ON COLUMN envelopes.last_transfer_chain_entry_checksum IS 'UNIQUE constraint prevents duplicate transfers of same chain.';
+COMMENT ON COLUMN envelopes.last_transfer_chain_entry_signed_content_checksum IS 'UNIQUE constraint prevents duplicate transfers of same chain.';
 
 -- +goose Down
 DROP TABLE IF EXISTS additional_documents CASCADE;
