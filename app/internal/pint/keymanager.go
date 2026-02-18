@@ -433,7 +433,7 @@ func (k *KeyManager) loadManualKeys() error {
 		}
 
 		if !isValidPublicKey {
-			k.logger.Warn("skipping: file does not contain a RSA or ED25519 public key - skipping",
+			k.logger.Debug("skipping: file does not contain a RSA or ED25519 public key - skipping",
 				slog.String("file", filename),
 				slog.String("key_type", keyType))
 			continue
@@ -450,16 +450,11 @@ func (k *KeyManager) loadManualKeys() error {
 
 		// if no registry entry found, skip the key
 		if eblSolutionProvider == nil {
-			k.logger.Warn("skipping: kid not found in the platform registry - skipping",
+			k.logger.Debug("skipping: kid not found in the platform registry - skipping",
 				slog.String("file", filename),
 				slog.String("kid", keyID))
 			continue
 		}
-
-		k.logger.Info("public key loaded to keymanager ",
-			slog.String("file", filename),
-			slog.String("kid", keyID),
-			slog.String("key_type", keyType))
 
 		// Store key indexed by kid
 		k.manualKeys[keyID] = &PublicKeyInfo{
@@ -468,9 +463,11 @@ func (k *KeyManager) loadManualKeys() error {
 			KeyID:    keyID,
 		}
 
-		k.logger.Debug("loaded manual key",
-			slog.String("code", eblSolutionProvider.PlatformCode),
-			slog.String("kid", keyID))
+		k.logger.Info("loaded manual key",
+			slog.String("file", filename),
+			slog.String("platform_code", eblSolutionProvider.PlatformCode),
+			slog.String("kid", keyID),
+			slog.String("key_type", keyType))
 	}
 
 	return nil
@@ -495,8 +492,6 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 
 		// check if the provider has a JWK endpoint configured
 		if provider.JWKSEndpoint == "" {
-			k.logger.Debug("no JWK endpoint configured for provider - skipping",
-				slog.String("code", provider.PlatformCode))
 			continue
 		}
 
