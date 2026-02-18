@@ -176,8 +176,6 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 			return nil, crypto.WrapValidationError(err, "eBLVisualisationByCarrier")
 		}
 
-		// TODO check mime type is consistent with binary content?
-
 		// the checksum is calculated from the decoded binary content
 		visualisationChecksum, err := crypto.HashFromBase64(
 			b.eBLVisualisationByCarrier.Content,

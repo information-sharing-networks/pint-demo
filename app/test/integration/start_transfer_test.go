@@ -19,8 +19,6 @@ import (
 )
 
 // TestStartTransfer does an end-2-end test of the POST /v3/envelopes endpointd
-// TODO tests for multiple/inconsistent/missing identifying codes
-// TODO move recipient party tests to use new helper
 func TestStartTransfer(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2")
 	defer testEnv.shutdown()

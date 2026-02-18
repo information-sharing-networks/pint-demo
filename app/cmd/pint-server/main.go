@@ -94,7 +94,6 @@ func run() error {
 
 	appLogger := logger.InitLogger(logger.ParseLogLevel(cfg.LogLevel), cfg.Environment)
 
-	// TODO log full env
 	appLogger.Info("Configuration loaded",
 		slog.String("ENVIRONMENT", cfg.Environment),
 		slog.String("HOST", cfg.Host),
@@ -104,6 +103,10 @@ func run() error {
 		slog.String("REGISTRY_PATH", cfg.RegistryPath),
 		slog.String("MANUAL_KEYS_DIR", cfg.ManualKeysDir),
 		slog.String("PLATFORM_CODE", cfg.PlatformCode),
+		slog.String("MIN_TRUST_LEVEL", cfg.MinTrustLevel.String()),
+		slog.String("SIGNING_KEY_PATH", cfg.SigningKeyPath),
+		slog.String("X5C_CERT_PATH", cfg.X5CCertPath),
+		slog.String("X5C_CUSTOM_ROOTS_PATH", cfg.X5CCustomRootsPath),
 	)
 
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), cfg.DatabasePingTimeout)

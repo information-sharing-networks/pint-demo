@@ -31,8 +31,6 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-// TODO  CreateEnvelopeTransferWithKeys etc (use in memory keys rather than files)
-
 // EnvelopeTransferInput contains the business data needed to create a DCSA envelope transfer.
 type EnvelopeTransferInput struct {
 

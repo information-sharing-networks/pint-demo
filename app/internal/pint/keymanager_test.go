@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +38,6 @@ func getKeyIDFromJWKFile(t *testing.T, path string) string {
 	return kid
 }
 
-// TODO hard-coded count of providers in the test registry - should be made more robust
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
 	url := "../../test/testdata/platform-registry/eblsolutionproviders.csv"
@@ -53,7 +53,16 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 		t.Fatalf("failed to create key manager: %v", err)
 	}
 
-	expectedProviderCount := 7 // EBL1, CAR1, EBL2, CAR2, BOLE, CARR, CARX
+	// count rows in the csv file (minus header) - they should all load to keymanager
+	// read the csv file and count the rows
+
+	data, err := os.ReadFile(url)
+	if err != nil {
+		t.Fatalf("failed to read csv file %s: %v", url, err)
+	}
+	lines := strings.Split(string(data), "\n")
+
+	expectedProviderCount := len(lines) - 1
 	if len(km.eblSolutionProviders) != expectedProviderCount {
 		t.Fatalf("expected %d eBL solution providers, got %d", expectedProviderCount, len(km.eblSolutionProviders))
 	}

@@ -202,11 +202,8 @@ func (s *Server) setupMiddleware() {
 	s.router.Use(chimiddleware.Recoverer)
 	s.router.Use(logger.RequestLogging(s.logger))
 	s.router.Use(middleware.SecurityHeaders(s.config.Environment))
-	s.router.Use(middleware.RequestSizeLimit(s.config.MaxRequestSize)) // TODO - have separate limit for different routes?
+	s.router.Use(middleware.RequestSizeLimit(s.config.MaxRequestSize))
 	s.router.Use(middleware.RateLimit(s.config.RateLimitRPS, s.config.RateLimitBurst))
-
-	// TODO: handle timeouts
-	//s.router.Use(middleware.Timeout(60 * time.Second))
 }
 
 // registerCommonRoutes registers infrastructure routes (health, jwks, version, docs)

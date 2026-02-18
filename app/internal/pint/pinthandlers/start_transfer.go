@@ -256,6 +256,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	// Step 4. Establish the list of missing documents
+	// since the handler allows for retries of transfers, some docments may already be received
 	additionalDocuments := getAdditionalDocumentList(verifiedEnvelope.Manifest)
 	receivedDocumentChecksums := []string{}
 	missingDocuments := []additionalDocument{}
@@ -275,16 +276,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			missingDocumentChecksums = append(missingDocumentChecksums, doc.checksum)
 		}
 	}
-
-	// TODO - the handler allows for supporting documents to be sent before the transfer is active,
-	// but the actual document transfer endpoint uploads documents scoped by envelope (transfer) id.
-	// This was done on purpose to ensure the sender is actually in possession of the document before
-	// we accept the transfer.
-	//
-	// However, the spec expects a 'receivedDocuments' field to be supplied in the response for
-	// new records and, since this implies the server might already have docs before a transfer starts,
-	// the handler is set up to handle existing docs in case the doc transfer endpoint
-	// logic is changed in the future.
 
 	// Step 5. Handle retries
 	if envelopeAlreadyReceived {
@@ -577,7 +568,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// Step 12. Create transfer chain entries
 	for i, entryJWS := range envelope.EnvelopeTransferChain {
 
-		// todo - fix this bug (we need to create a checksum based on the payload not the JWS string)
+		// check the hash of the JWS string matches the expected checksum
 		entryChecksum, err := crypto.Hash([]byte(entryJWS))
 		if err != nil {
 			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate entry checksum"))

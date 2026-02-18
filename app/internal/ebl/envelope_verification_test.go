@@ -575,7 +575,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 // TestVerifyEnvelopeTransfer_BrokenChainLink tests that verification detects when
 // a transfer chain entry has an invalid previousEnvelopeTransferChainEntrySignedContentChecksum.
 //
-// TODO: this test (and the one following) would be better done with an independently generated test envelope since the current test
+// Note: this test (and the one following) would be better done with an independently generated test envelope since the current test
 // relies on the app's manifest builder to create an envelope with bad transfer chains
 func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	// Load test keys and certs

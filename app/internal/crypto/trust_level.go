@@ -102,7 +102,6 @@ func DetermineTrustLevel(jwsString string) (TrustLevel, error) {
 		return TrustLevelNoX5C, NewInternalError("leaf certificate is nil")
 	}
 
-	// TODO - do we need more robust EV/OV detection?
 	// Check if the certificate has an Organization field in the Subject
 	// OV and EV certificates require this field; DV certificates typically don't have it
 	if len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] != "" {

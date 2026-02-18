@@ -50,10 +50,10 @@ func Hash(data []byte) (string, error) {
 // Note: Size limits are enforced at the HTTP layer via middleware.RequestSizeLimit.
 // This function assumes the content has already passed size validation.
 //
-// TODO: this function requires the entire base64-encoded string in memory
+// Note: this function requires the entire base64-encoded string in memory
 // (unavoidable for eblVisualisationByCarrier.Content since JSON unmarshaling already loaded it)
 // The streaming decode avoids creating a second copy of the decoded bytes.
-// Revisit when handling associated docs - those could potentially be streamed from client...
+// review if there are performance issues.
 func HashFromBase64(encoded string) (string, error) {
 
 	if len(encoded) == 0 {

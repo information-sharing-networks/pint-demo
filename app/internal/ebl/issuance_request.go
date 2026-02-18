@@ -112,7 +112,6 @@ func CreateIssuanceRequest(
 }
 
 // loadEblVisualisationFile reads a file and creates an EBLVisualisationByCarrier.
-// TODO - move to a separate document.go file?
 func loadEblVisualisationFile(filePath string) (*EBLVisualisationByCarrier, error) {
 	dir := filepath.Dir(filePath)
 	filename := filepath.Base(filePath)
