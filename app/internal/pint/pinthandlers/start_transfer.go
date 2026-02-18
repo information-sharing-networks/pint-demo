@@ -112,7 +112,7 @@ func NewStartTransferHandler(
 //	@Description	Retry handling - if the sender retries a transfer that has already been accepted,
 //	@Description	the receiver will return a signed response with a 200 status code and and response code `DUPE`.
 //	@Description	The payload is the same structure as the original response, but additionally includes
-//	@Description	the a `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
+//	@Description	a `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` field which the sender can use
 //	@Description	to confirm which transfer was accepted.
 //	@Description
 //	@Description	**Error Responses**

@@ -1,6 +1,6 @@
 # Docker-based Makefile for pint-demo
 
-.PHONY: help build run-receiver run-sender test clean db-migrate db-reset sqlc docker-up docker-down restart logs psql check fmt vet vuln
+.PHONY: help build run-server run-client test clean db-migrate db-reset sqlc docker-up docker-down restart logs psql check fmt vet vuln
 
 export GO_VERSION := $(shell grep '^go ' app/go.mod | awk '{print $$2}')
 
@@ -28,8 +28,8 @@ help: ## Show this help message
 	@echo "  make swag-fmt        - format swag comments"
 	@echo "  make db-migrate      - Run database migrations (goose up)"
 	@echo "  make db-reset        - Reset database and reapply migrations (goose down-to 0 > up)"
-	@echo "  make run-receiver    - Run receiver locally (expects docker db to be running)"
-	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
+	@echo "  make run-server      - Run PINT server locally (expects docker db to be running)"
+	@echo "  make run-client      - Run client CLI locally (expects docker db to be running)"
 	@echo "  make test            - Run tests"
 	@echo "  make fmt             - Format code"
 	@echo "  make lint            - Run staticcheck"
@@ -109,13 +109,13 @@ db-reset:
 	@$(MAKE) db-migrate
 
 # Run receiver locally (expects docker db to be running)
-run-receiver:
-	@echo "🚀 Running receiver locally..."
+run-server:
+	@echo "🚀 Running server locally..."
 	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-server/main.go
 
 # Run sender CLI locally (expects docker db to be running)
-run-sender:
-	@echo "🚀 Running sender CLI locally..."
+run-client:
+	@echo "🚀 Running client CLI locally..."
 	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-client/main.go
 
 # Format code

@@ -289,28 +289,29 @@ func CreateTransferChainEntrySignedContent(
 	return signedContent, nil
 }
 
-// CreateTransferTransaction is a helper function to create a TRANSFER transaction.
+// CreateIssueTransaction is a helper function to create an ISSUE transaction.
 //
-// Parameters:
-//   - actor: The party performing the transfer (must be on the sending platform).
-//   - recipient: The party receiving the transfer (may be on a different platform).
-func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+// This is used in when the carrier issues the eBL to the recipient (shipper).
+//
+// Returns a Transaction ready to include in the first transfer chain entry.
+func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     "TRANSFER",
+		ActionCode:     EnvelopeStateIssue,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 	}
 }
 
-// CreateIssueTransaction is a helper function to create an ISSUE transaction.
+// CreateTransferTransaction is a helper function to create a TRANSFER transaction.
 //
-// This is used in the first transfer chain entry when the carrier issues the eBL.
+// This is used when the actor transfers the eBL to another party. The recipient may be
+// on another platform.
 //
-// Returns a Transaction ready to include in the first transfer chain entry.
-func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+// Returns a Transaction ready to include in a transfer chain entry.
+func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     "ISSUE",
+		ActionCode:     EnvelopeStateTransfer,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -319,14 +320,42 @@ func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transact
 
 // CreateEndorseTransaction is a helper function to create an ENDORSE transaction.
 //
-// This is used when a party endorses the eBL to another party.
+// This is used when the actor endorses the eBL to a named party.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     "ENDORSE",
+		ActionCode:     EnvelopeStateEndorse,
 		Actor:          actor,
 		Recipient:      &recipient,
+		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}
+}
+
+// CreateEndorseToOrderTransaction is a helper function to create an ENDORSE_TO_ORDER transaction.
+//
+// This is used when the actor endorses the document to order of the recipient, allowing the recipient to further endorse the eBL to another party)
+//
+// Returns a Transaction ready to include in a transfer chain entry.
+func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
+		ActionCode:     EnvelopeStateEndorseToOrder,
+		Actor:          actor,
+		Recipient:      &recipient,
+		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}
+}
+
+// CreateBlankEndorseTransaction is a helper function to create a BLANK_ENDORSE transaction.
+//
+// This is used when the actor endorses the document without specifying a named endorsee.
+//
+// Returns a Transaction ready to include in a transfer chain entry.
+func CreateBlankEndorseTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
+		ActionCode:     EnvelopeStateBlankEndorse,
+		Actor:          actor,
+		Recipient:      nil,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 	}
 }
@@ -338,9 +367,38 @@ func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty) Transa
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateSignTransaction(actor ActorParty) Transaction {
 	return Transaction{
-		ActionCode:     "SIGN",
+		ActionCode:     EnvelopeStateSign,
 		Actor:          actor,
 		Recipient:      nil, // SIGN transactions don't have a recipient
+		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}
+}
+
+// CreateSurrenderForAmendmentTransaction is a helper function to create a SURRENDER_FOR_AMENDMENT transaction.
+//
+// This is used when the actor surrenders the eBL for amendment.
+//
+// Returns a Transaction ready to include in a transfer chain entry.
+func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient RecipientParty, reasonCode SurrenderReasonCode) Transaction {
+	return Transaction{
+		ActionCode:     EnvelopeStateSurrenderForAmendment,
+		Actor:          actor,
+		Recipient:      &recipient,
+		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		ReasonCode:     &reasonCode,
+	}
+}
+
+// CreateSurrenderForDeliveryTransaction is a helper function to create a SURRENDER_FOR_DELIVERY transaction.
+//
+// This is used when the actor surrenders the eBL for delivery.
+//
+// Returns a Transaction ready to include in a transfer chain entry.
+func CreateSurrenderForDeliveryTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
+		ActionCode:     EnvelopeStateSurrenderForDelivery,
+		Actor:          actor,
+		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 	}
 }

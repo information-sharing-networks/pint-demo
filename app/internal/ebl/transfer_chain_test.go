@@ -16,7 +16,7 @@ func createTestEntry() *EnvelopeTransferChainEntry {
 		TransportDocumentChecksum: "583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006",
 		Transactions: []Transaction{
 			{
-				ActionCode: "ISSUE",
+				ActionCode: EnvelopeStateIssue,
 				Actor: ActorParty{
 					PartyName:   "Test Carrier",
 					EblPlatform: "WAVE",
@@ -256,7 +256,7 @@ func TestTransaction_Validate(t *testing.T) {
 		{
 			name: "valid transaction with all required fields",
 			tx: Transaction{
-				ActionCode: "ISSUE",
+				ActionCode: EnvelopeStateIssue,
 				Actor: ActorParty{
 					PartyName:   "Test Actor",
 					EblPlatform: "WAVE",
@@ -274,7 +274,7 @@ func TestTransaction_Validate(t *testing.T) {
 		{
 			name: "valid transaction with recipient",
 			tx: Transaction{
-				ActionCode: "TRANSFER",
+				ActionCode: EnvelopeStateTransfer,
 				Actor: ActorParty{
 					PartyName:   "Test Actor",
 					EblPlatform: "WAVE",
@@ -320,7 +320,7 @@ func TestTransaction_Validate(t *testing.T) {
 		{
 			name: "missing actionDateTime",
 			tx: Transaction{
-				ActionCode: "ISSUE",
+				ActionCode: EnvelopeStateIssue,
 				Actor: ActorParty{
 					PartyName:   "Test Actor",
 					EblPlatform: "WAVE",
@@ -338,7 +338,7 @@ func TestTransaction_Validate(t *testing.T) {
 		{
 			name: "invalid actor - missing partyName",
 			tx: Transaction{
-				ActionCode: "ISSUE",
+				ActionCode: EnvelopeStateIssue,
 				Actor: ActorParty{
 					EblPlatform: "WAVE",
 					IdentifyingCodes: []IdentifyingCode{
@@ -356,7 +356,7 @@ func TestTransaction_Validate(t *testing.T) {
 		{
 			name: "invalid actor - missing eblPlatform",
 			tx: Transaction{
-				ActionCode: "ISSUE",
+				ActionCode: EnvelopeStateIssue,
 				Actor: ActorParty{
 					PartyName: "Test Actor",
 					IdentifyingCodes: []IdentifyingCode{
@@ -374,7 +374,7 @@ func TestTransaction_Validate(t *testing.T) {
 		{
 			name: "invalid actor - missing identifyingCodes",
 			tx: Transaction{
-				ActionCode: "ISSUE",
+				ActionCode: EnvelopeStateIssue,
 				Actor: ActorParty{
 					PartyName:   "Test Actor",
 					EblPlatform: "WAVE",
@@ -571,7 +571,7 @@ func stringPtr(s string) *string {
 
 func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	validTransaction := Transaction{
-		ActionCode:     "ISSU",
+		ActionCode:     EnvelopeStateIssue,
 		Actor:          testActor,
 		ActionDateTime: "2024-01-15T10:30:00.000Z",
 	}
@@ -730,7 +730,7 @@ var (
 		},
 	}
 	testTransaction = Transaction{
-		ActionCode:     "ISSU",
+		ActionCode:     EnvelopeStateIssue,
 		Actor:          testActor,
 		Recipient:      &testRecipient,
 		ActionDateTime: "2024-01-15T10:30:00.000Z",
