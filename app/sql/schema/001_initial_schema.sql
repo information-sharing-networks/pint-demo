@@ -13,21 +13,32 @@ CREATE TABLE transport_documents (
 -- Each transfer has a unique chain of transactions (transfer chain entries) that are cryptographically linked
 -- and uniquely identified by the last_transfer_chain_entry_signed_content_checksum
 CREATE TABLE envelopes (
-    id UUID PRIMARY KEY, -- Used as 'envelope_reference' in API responses
+    -- Used as an opaque ID ('envelope_reference') in API responses 
+    id UUID PRIMARY KEY, 
+
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-
-    -- Links to the eBL document being transferred
-    transport_document_checksum TEXT NOT NULL,
 
     -- envelope_state - the state of the eBL at the time of the transfer.
     envelope_state TEXT NOT NULL CHECK (envelope_state IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY')),
 
-    -- Transfer metadata
-    sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
-    last_transfer_chain_entry_signed_content_checksum TEXT NOT NULL UNIQUE, -- uniquely identifies a specific transfer attempt
+    -- Links to the eBL document being transferred
+    transport_document_checksum TEXT NOT NULL,
 
-    -- Signed content (JWS strings - kept for audit trail)
+    -- SHA-256 checksum of the payload of the last transfer chain entry JWS token
+    -- this uniquely identifies a specific transfer attempt and is used to detect duplicate transfer attempts. 
+    -- (id/envelope_reference is a proxy for this field).
+    last_transfer_chain_entry_signed_content_payload_checksum TEXT NOT NULL UNIQUE, 
+
+    -- this is the original checksum of the jws token of the last transfer chain entry.
+    -- Note it is not guaranteed that this will be sent again on retries, 
+    -- since the sender may use non-deterministic signature algorithms (e.g PS256), in which case the
+    -- checksum will change even if they use the same payload and private key.
+    last_transfer_chain_entry_signed_content_checksum TEXT NOT NULL, 
+
+    sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
+
+    -- Signed content (JWS tokens) - kept for audit trail
     envelope_manifest_signed_content TEXT NOT NULL, -- JWS of EnvelopeManifest
     last_transfer_chain_entry_signed_content TEXT NOT NULL, -- JWS of last entry 
 
@@ -36,7 +47,6 @@ CREATE TABLE envelopes (
 
     -- Transfer acceptance tracking (NULL = not yet accepted, timestamp = when transfer was accepted with RECE)
     accepted_at TIMESTAMP WITH TIME ZONE,
-
 
     CONSTRAINT fk_envelopes_transport_document FOREIGN KEY (transport_document_checksum)
         REFERENCES transport_documents(checksum)

@@ -801,20 +801,21 @@ paths:
         - Sender must transfer documents, then call "Finish envelope transfer" endpoint
         - Only at finish will the transfer be accepted or rejected with a signed response
 
-        Retry handling - if the sender attempts to start a transfer for an eBL that already has an active transfer,
-        the receiver assumes the sender has lost track of the state of the transfer.
-        In this case, the request is treated as a retry and the existing envelope
-        reference and current missing documents are returned with HTTP 201.
+        Retry handling - if the sender retries a transfer that is active but not yet complete
+        due to outstanding additional documents the receiver will return an unsnigned response with a 201 status code.
+        The response body will contain the current state of the transfer, including a list of the missing documents.
 
-        `200 OK` - Transfer accepted immediately (with signed response)
+        `200 OK` - Transfer accepted (with signed response)
         - No additional documents required, or receiver already has all documents
         - The response body contains a JWS (JSON Web Signature) token, where
         the payload contains the response details.
 
-        The payload includes the `responseCode`: `RECE` (accepted) or `DUPE` (duplicate).
-        `DUPE` means this transfer was previously received and accepted - in this case the response
-        also includes the last accepted transfer chain entry
-        `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
+        The payload includes the `responseCode`: `RECE` (accepted).
+
+        Retry handling - if the sender retries a transfer that has already been accepted,
+        the receiver will return a signed response with a 200 status code and and response code `DUPE`.
+        The payload is the same structure as the original response, but additionally includes
+        the a `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
         to confirm which transfer was accepted.
 
         **Error Responses**

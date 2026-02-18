@@ -31,7 +31,7 @@ func RequestSizeLimit(maxBytes int64) func(http.Handler) http.Handler {
 				err := pint.NewRequestTooLargeError(
 					fmt.Sprintf("Request body size (%d bytes) exceeds maximum allowed size (%d bytes)", r.ContentLength, maxBytes),
 				)
-				pint.RespondWithError(w, r, err)
+				pint.RespondWithErrorResponse(w, r, err)
 				return
 			}
 
@@ -88,7 +88,7 @@ func RateLimit(requestsPerSecond int32, burst int32) func(http.Handler) http.Han
 				)
 
 				err := pint.NewRateLimitError("Too many requests. Please try again later.")
-				pint.RespondWithError(w, r, err)
+				pint.RespondWithErrorResponse(w, r, err)
 				return
 			}
 			next.ServeHTTP(w, r)

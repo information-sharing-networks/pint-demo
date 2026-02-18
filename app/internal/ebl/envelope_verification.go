@@ -171,8 +171,17 @@ type EnvelopeVerificationResult struct {
 	// Used for tracking the shipment status and database storage.
 	TransportDocumentReference string
 
+	// LastTransferChainEntrySignedContentPayloadChecksum is the SHA-256 checksum of the payload of the last transfer chain entry JWS token
+	// this uniquely identifies a specific transfer attempt and is used to detect duplicate transfer attempts.
+	// (envelopes.id is a proxy for this field in the database).
+	LastTransferChainEntrySignedContentPayloadChecksum string
+
 	// LastTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
-	// This is required in API responses and for duplicate detection
+	// This checksum is used to ensure the transfer chain entry has not been tampered with.
+	//
+	// Note this is not used for duplicate detection (see LastTransferChainEntrySignedContentPayloadChecksum)
+	// because the payload checksum includes the signature which will change on retries
+	// for the same payload/private key where non-deterministic signature algorithms are used (e.g. PS256).
 	LastTransferChainEntrySignedContentChecksum string
 
 	// TrustLevel indicates the trust level achieved by the signature
@@ -314,7 +323,29 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	result.FirstTransferChainEntry = transferChain[0]
 	result.LastTransferChainEntry = transferChain[len(transferChain)-1]
 
-	// Step 8: Verify carrier's issuance manifest and document checksum
+	// Step 8: Extract the payload from the last transfer chain entry JWS token
+	// the checksum of the payload is used to uniquely identify this transfer
+	lastEntryPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
+		string(input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]),
+		input.KeyProvider,
+		input.RootCAs,
+	)
+	if err != nil {
+		return result, WrapSignatureError(err, "failed to verify last transfer chain entry")
+	}
+
+	// canonicalize the payload before hashing
+	canonicalPayload, err := crypto.CanonicalizeJSON(lastEntryPayloadBytes)
+	if err != nil {
+		return result, WrapInternalError(err, "failed to canonicalize last transfer chain entry payload")
+	}
+
+	result.LastTransferChainEntrySignedContentPayloadChecksum, err = crypto.Hash(canonicalPayload)
+	if err != nil {
+		return result, WrapInternalError(err, "failed to hash last transfer chain entry payload")
+	}
+
+	// Step 9: Verify carrier's issuance manifest and document checksum
 	if err := verifyIssuanceManifest(
 		result.FirstTransferChainEntry,
 		input.KeyProvider,
@@ -323,7 +354,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		return result, WrapEnvelopeError(err, "issuance manifest verification failed")
 	}
 
-	// Step 9: verify manifest checksum matches last transfer chain entry
+	// Step 10: verify manifest checksum matches last transfer chain entry
 	// This prevents a situation where the transfer contains a valid chain + valid manifest + valid transport document but the
 	// the components are from different transfers (i.e the manifest and last chain entry must agree on which transport document they are refering to)
 	if manifest.TransportDocumentChecksum != result.LastTransferChainEntry.TransportDocumentChecksum {
@@ -331,7 +362,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 			manifest.TransportDocumentChecksum, result.LastTransferChainEntry.TransportDocumentChecksum))
 	}
 
-	// Step 10: Extract and validate recipient platform from last transaction
+	// Step 11: Extract and validate recipient platform from last transaction
 	// (the recipient in the latest transaction identifies the intended receiving platform)
 	lastEntry := result.LastTransferChainEntry
 	if len(lastEntry.Transactions) == 0 {
@@ -366,7 +397,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		return result, WrapSignatureError(err, "failed to parse last transfer chain entry header")
 	}
 
-	// Step 11: Verify that the manifest and last transfer chain entry were signed by the same key.
+	// Step 12: Verify that the manifest and last transfer chain entry were signed by the same key.
 	// This prevents the sender substituting a different transfer chain signed by another platform.
 	if manifestHeader.KeyID != lastEntryHeader.KeyID {
 		return result, NewEnvelopeError(fmt.Sprintf(
@@ -379,7 +410,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	result.SenderPlatform = senderPlatform
 	result.SenderKeyID = manifestHeader.KeyID
 
-	// Step 12: Verify the receiving platform in the envelope is the current platform
+	// Step 13: Verify the receiving platform in the envelope is the current platform
 	// This prevents a platform from accepting an envelope that was not addressed to it
 	if result.RecipientPlatform != input.RecipientPlatformCode {
 		return result, NewEnvelopeError(fmt.Sprintf(
