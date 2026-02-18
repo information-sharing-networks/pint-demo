@@ -1,6 +1,6 @@
 # Docker-based Makefile for pint-demo
 
-.PHONY: help build run-receiver run-sender test clean migrate sqlc docker-up docker-down restart logs psql check fmt vet
+.PHONY: help build run-receiver run-sender test clean db-migrate db-reset sqlc docker-up docker-down restart logs psql check fmt vet vuln
 
 export GO_VERSION := $(shell grep '^go ' app/go.mod | awk '{print $$2}')
 
@@ -26,7 +26,8 @@ help: ## Show this help message
 	@echo "  make sqlc            - Generate sqlc code"
 	@echo "  make docs            - Generate swagger documentation"
 	@echo "  make swag-fmt        - format swag comments"
-	@echo "  make migrate         - Run database migrations (up)"
+	@echo "  make db-migrate      - Run database migrations (goose up)"
+	@echo "  make db-reset        - Reset database and reapply migrations (goose down-to 0 > up)"
 	@echo "  make run-receiver    - Run receiver locally (expects docker db to be running)"
 	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
 	@echo "  make test            - Run tests"
@@ -96,9 +97,16 @@ sqlc:
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && sqlc generate"
 
 # Run database migrations
-migrate:
+db-migrate:
 	@echo "🔄 Running database migrations..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none up"
+
+
+# Reset database and reapply migrations
+db-reset:
+	@echo "🔄 Resetting database..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none down-to 0"
+	@$(MAKE) db-migrate
 
 # Run receiver locally (expects docker db to be running)
 run-receiver:
