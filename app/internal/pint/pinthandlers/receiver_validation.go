@@ -51,18 +51,18 @@ func (h *ReceiverValidationHandler) HandleReceiverValidation(w http.ResponseWrit
 	// Parse request body
 	var req services.PartyIdentifyingCode
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "failed to decode request JSON"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode request JSON"))
 		return
 	}
 	defer r.Body.Close()
 
 	//  Validate required fields
 	if req.CodeListProvider == "" {
-		pint.RespondWithError(w, r, pint.NewMalformedRequestError("codeListProvider is required"))
+		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("codeListProvider is required"))
 		return
 	}
 	if req.PartyCode == "" {
-		pint.RespondWithError(w, r, pint.NewMalformedRequestError("partyCode is required"))
+		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("partyCode is required"))
 		return
 	}
 
@@ -71,12 +71,12 @@ func (h *ReceiverValidationHandler) HandleReceiverValidation(w http.ResponseWrit
 	if err != nil {
 		if errors.Is(err, services.ErrPartyNotFound) {
 			// Return 404 for unknown/inactive parties
-			pint.RespondWithError(w, r, pint.NewUnknownPartyError("party not found or inactive"))
+			pint.RespondWithErrorResponse(w, r, pint.NewUnknownPartyError("party not found or inactive"))
 			return
 		}
 
 		// Internal error
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to validate party"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to validate party"))
 		return
 	}
 
@@ -85,5 +85,5 @@ func (h *ReceiverValidationHandler) HandleReceiverValidation(w http.ResponseWrit
 		PartyName: partyName,
 	}
 
-	pint.RespondWithPayload(w, http.StatusOK, response)
+	pint.RespondWithJSONPayload(w, http.StatusOK, response)
 }

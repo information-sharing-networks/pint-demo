@@ -5,6 +5,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -31,6 +32,17 @@ func TestStartTransfer(t *testing.T) {
 
 	// test envelope with no additional documents
 	testEnvelopeNoDocsPath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
+
+	// signing key is ed25519
+	signingKeyPath := "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+
+	signingKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(signingKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read signing key: %v", err)
+	}
+	// get the public key for verification
+
+	publicKey := signingKey.Public().(ed25519.PublicKey)
 
 	testData := []struct {
 		name                 string
@@ -116,7 +128,20 @@ func TestStartTransfer(t *testing.T) {
 
 			// Calculate expected last chain entry checksum (hash of the JWS string)
 			lastChainEntryJWS := transferChain[len(transferChain)-1]
-			expectedLastChainChecksum, err := crypto.Hash([]byte(lastChainEntryJWS))
+
+			// get the payload from the JWS string
+			// decode the payload from the JWS string
+			payloadBytes, err := crypto.VerifyJWSEd25519(lastChainEntryJWS, publicKey)
+			if err != nil {
+				t.Fatalf("Failed to decode last chain entry: %v", err)
+			}
+
+			// cannoicalize and hash the payload to get the expected checksum
+			canonicalPayload, err := crypto.CanonicalizeJSON(payloadBytes)
+			if err != nil {
+				t.Fatalf("Failed to canonicalize last chain entry: %v", err)
+			}
+			expectedLastChainChecksum, err := crypto.Hash(canonicalPayload)
 			if err != nil {
 				t.Fatalf("Failed to hash last chain entry: %v", err)
 			}
@@ -169,7 +194,7 @@ func TestStartTransfer(t *testing.T) {
 				t.Logf("transfer accepted with 200/%v response", payload.ResponseCode)
 
 				// get the envelope reference from the last transfer chain entry checksum (the response does not contain the envelope reference)
-				envelope, err := testEnv.queries.GetEnvelopeByLastChainEntryChecksum(ctx, expectedLastChainChecksum)
+				envelope, err := testEnv.queries.GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx, expectedLastChainChecksum)
 				if err != nil {
 					t.Fatalf("Failed to retrieve envelope from database: %v", err)
 				}
@@ -228,9 +253,13 @@ func TestStartTransfer(t *testing.T) {
 						expectedTransportDocChecksum, parsedResponse.TransportDocumentChecksum)
 				}
 
-				// Verify lastEnvelopeTransferChainEntrySignedContentChecksum matches the actual SHA-256 of the last chain entry
-				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != expectedLastChainChecksum {
-					t.Errorf("LastEnvelopeTransferChainEntrySignedContentChecksum mismatch:\n  expected: %s\n  got:      %s",
+				// check we can find the envelope by the last chain entry payload checksum on the database
+				envelope, err := testEnv.queries.GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx, expectedLastChainChecksum)
+				if err != nil {
+					t.Fatalf("Failed to retrieve envelope from database: %v", err)
+				}
+				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != envelope.LastTransferChainEntrySignedContentChecksum {
+					t.Errorf("LastEnvelopeTransferChainEntrySignedContentChecksum mismatch:\n  expected: %s\n  but database has:      %s",
 						expectedLastChainChecksum, parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum)
 				}
 
@@ -245,9 +274,9 @@ func TestStartTransfer(t *testing.T) {
 					t.Fatalf("Failed to parse envelope reference UUID: %v", err)
 				}
 
-				envelope, err := testEnv.queries.GetEnvelopeByReference(ctx, envelopeRef)
-				if err != nil {
-					t.Fatalf("Failed to retrieve envelope from database: %v", err)
+				if envelope.ID != envelopeRef {
+					t.Errorf("Expected envelope reference to match database record: expected %s, got %s",
+						envelopeRef, envelope.ID)
 				}
 
 				if envelope.TransportDocumentChecksum != parsedResponse.TransportDocumentChecksum {

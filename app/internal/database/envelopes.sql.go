@@ -11,13 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
-const CreateEnvelopeIfNew = `-- name: CreateEnvelopeIfNew :one
+const CreateEnvelope = `-- name: CreateEnvelope :one
 INSERT INTO envelopes (
     id,
     created_at,
     updated_at,
     transport_document_checksum,
     envelope_state,
+    last_transfer_chain_entry_signed_content_payload_checksum,
     sent_by_platform_code,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content_checksum,
@@ -33,26 +34,31 @@ INSERT INTO envelopes (
     $4,
     $5,
     $6,
-    $7
-) ON CONFLICT (last_transfer_chain_entry_signed_content_checksum) DO NOTHING RETURNING id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_signed_content_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at
+    $7,
+    $8
+) RETURNING id, created_at, updated_at, envelope_state, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, sent_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at
 `
 
-type CreateEnvelopeIfNewParams struct {
-	TransportDocumentChecksum                   string `json:"transport_document_checksum"`
-	EnvelopeState                               string `json:"envelope_state"`
-	SentByPlatformCode                          string `json:"sent_by_platform_code"`
-	EnvelopeManifestSignedContent               string `json:"envelope_manifest_signed_content"`
-	LastTransferChainEntrySignedContentChecksum string `json:"last_transfer_chain_entry_signed_content_checksum"`
-	LastTransferChainEntrySignedContent         string `json:"last_transfer_chain_entry_signed_content"`
-	TrustLevel                                  int32  `json:"trust_level"`
+type CreateEnvelopeParams struct {
+	TransportDocumentChecksum                          string `json:"transport_document_checksum"`
+	EnvelopeState                                      string `json:"envelope_state"`
+	LastTransferChainEntrySignedContentPayloadChecksum string `json:"last_transfer_chain_entry_signed_content_payload_checksum"`
+	SentByPlatformCode                                 string `json:"sent_by_platform_code"`
+	EnvelopeManifestSignedContent                      string `json:"envelope_manifest_signed_content"`
+	LastTransferChainEntrySignedContentChecksum        string `json:"last_transfer_chain_entry_signed_content_checksum"`
+	LastTransferChainEntrySignedContent                string `json:"last_transfer_chain_entry_signed_content"`
+	TrustLevel                                         int32  `json:"trust_level"`
 }
 
 // Create a new envelope record for a transfer session if it doen't already exist.
-// A new envelope transfer is created for every new transfer chain entry received (based on the last transfer chain entry checksum)
-func (q *Queries) CreateEnvelopeIfNew(ctx context.Context, arg CreateEnvelopeIfNewParams) (Envelope, error) {
-	row := q.db.QueryRow(ctx, CreateEnvelopeIfNew,
+// A new envelope transfer is created for every new transfer chain entry received
+// (based on the checksum of the payload of the last transfer chain entry JWS token)
+// envelopes.id is used as the envelope reference in the API responses.
+func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) (Envelope, error) {
+	row := q.db.QueryRow(ctx, CreateEnvelope,
 		arg.TransportDocumentChecksum,
 		arg.EnvelopeState,
+		arg.LastTransferChainEntrySignedContentPayloadChecksum,
 		arg.SentByPlatformCode,
 		arg.EnvelopeManifestSignedContent,
 		arg.LastTransferChainEntrySignedContentChecksum,
@@ -64,10 +70,11 @@ func (q *Queries) CreateEnvelopeIfNew(ctx context.Context, arg CreateEnvelopeIfN
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TransportDocumentChecksum,
 		&i.EnvelopeState,
-		&i.SentByPlatformCode,
+		&i.TransportDocumentChecksum,
+		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
+		&i.SentByPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
@@ -76,37 +83,41 @@ func (q *Queries) CreateEnvelopeIfNew(ctx context.Context, arg CreateEnvelopeIfN
 	return i, err
 }
 
-const ExistsEnvelopeByLastChainEntryChecksum = `-- name: ExistsEnvelopeByLastChainEntryChecksum :one
+const ExistsEnvelopeByLastChainEntrySignedContentPayloadChecksum = `-- name: ExistsEnvelopeByLastChainEntrySignedContentPayloadChecksum :one
 SELECT EXISTS(
     SELECT 1 FROM envelopes 
-    WHERE last_transfer_chain_entry_signed_content_checksum = $1
+    WHERE last_transfer_chain_entry_signed_content_payload_checksum = $1
 )
 `
 
-// Check if an transfer with this last_transfer_chain_entry_signed_content_checksum already exists
-func (q *Queries) ExistsEnvelopeByLastChainEntryChecksum(ctx context.Context, lastTransferChainEntrySignedContentChecksum string) (bool, error) {
-	row := q.db.QueryRow(ctx, ExistsEnvelopeByLastChainEntryChecksum, lastTransferChainEntrySignedContentChecksum)
+// last_transfer_chain_entry_signed_content_payload_checksum is the checksum of the payload of the last transfer chain entry JWS token
+// and is unique for each transfer attempt
+func (q *Queries) ExistsEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx context.Context, lastTransferChainEntrySignedContentPayloadChecksum string) (bool, error) {
+	row := q.db.QueryRow(ctx, ExistsEnvelopeByLastChainEntrySignedContentPayloadChecksum, lastTransferChainEntrySignedContentPayloadChecksum)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
-const GetEnvelopeByLastChainEntryChecksum = `-- name: GetEnvelopeByLastChainEntryChecksum :one
-SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_signed_content_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
-WHERE last_transfer_chain_entry_signed_content_checksum = $1
+const GetEnvelopeByLastChainEntrySignedContentPayloadChecksum = `-- name: GetEnvelopeByLastChainEntrySignedContentPayloadChecksum :one
+SELECT id, created_at, updated_at, envelope_state, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, sent_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
+WHERE last_transfer_chain_entry_signed_content_payload_checksum = $1
 `
 
-func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastTransferChainEntrySignedContentChecksum string) (Envelope, error) {
-	row := q.db.QueryRow(ctx, GetEnvelopeByLastChainEntryChecksum, lastTransferChainEntrySignedContentChecksum)
+// last_transfer_chain_entry_signed_content_payload_checksum is the checksum of the payload of the last transfer chain entry JWS token
+// and is unique for each transfer attempt
+func (q *Queries) GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx context.Context, lastTransferChainEntrySignedContentPayloadChecksum string) (Envelope, error) {
+	row := q.db.QueryRow(ctx, GetEnvelopeByLastChainEntrySignedContentPayloadChecksum, lastTransferChainEntrySignedContentPayloadChecksum)
 	var i Envelope
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TransportDocumentChecksum,
 		&i.EnvelopeState,
-		&i.SentByPlatformCode,
+		&i.TransportDocumentChecksum,
+		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
+		&i.SentByPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
@@ -116,7 +127,7 @@ func (q *Queries) GetEnvelopeByLastChainEntryChecksum(ctx context.Context, lastT
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, updated_at, transport_document_checksum, envelope_state, sent_by_platform_code, last_transfer_chain_entry_signed_content_checksum, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
+SELECT id, created_at, updated_at, envelope_state, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, sent_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
 WHERE id = $1
 `
 
@@ -128,10 +139,11 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, id uuid.UUID) (Env
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TransportDocumentChecksum,
 		&i.EnvelopeState,
-		&i.SentByPlatformCode,
+		&i.TransportDocumentChecksum,
+		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
+		&i.SentByPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,

@@ -465,7 +465,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			publicKeyPath:   validPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  false,
-			wantErrCode:     "DISE",
+			wantErrCode:     string(ErrCodeDispute),
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
 		},
 	}

@@ -49,9 +49,9 @@ func NewTransferAdditionalDocumentHandler(
 	}
 }
 
-// createSignedFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
+// signEnvelopeTransferFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
 // This is used for 409/422 (INCD & BSIG,BENV) responses.
-func (h *TransferAdditionalDocumentHandler) createSignedFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (pint.SignedEnvelopeTransferFinishedResponse, error) {
+func (h *TransferAdditionalDocumentHandler) signEnvelopeTransferFinishedResponse(response pint.EnvelopeTransferFinishedResponse) (pint.SignedEnvelopeTransferFinishedResponse, error) {
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal response: %w", err)
@@ -132,13 +132,13 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	documentChecksum := chi.URLParam(r, "documentChecksum")
 
 	if envelopeRefStr == "" || documentChecksum == "" {
-		pint.RespondWithError(w, r, pint.NewMalformedRequestError("missing URL parameters"))
+		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("missing URL parameters"))
 		return
 	}
 
 	envelopeRef, err := uuid.Parse(envelopeRefStr)
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "invalid envelope reference"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "invalid envelope reference"))
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	// Note: Request size is already limited by middleware.RequestSizeLimit
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "failed to read request body"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to read request body"))
 		return
 	}
 	defer r.Body.Close()
@@ -161,19 +161,19 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	var base64Content string
 	err = json.Unmarshal(bodyBytes, &base64Content)
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "failed to decode base64 content"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode base64 content"))
 		return
 	}
 
 	// Decode the base64 string to get the actual binary document content (PDF, image, etc.)
 	documentContent, err := base64.StdEncoding.DecodeString(base64Content)
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapMalformedRequestError(err, "invalid base64 content"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "invalid base64 content"))
 		return
 	}
 
 	if len(documentContent) == 0 {
-		pint.RespondWithError(w, r, pint.NewMalformedRequestError("document content is empty"))
+		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("document content is empty"))
 		return
 	}
 
@@ -181,10 +181,10 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	envelope, err := h.queries.GetEnvelopeByReference(ctx, envelopeRef)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			pint.RespondWithError(w, r, pint.NewValidationError("envelope not found"))
+			pint.RespondWithErrorResponse(w, r, pint.NewValidationError("envelope not found"))
 			return
 		}
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to lookup envelope"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to lookup envelope"))
 		return
 	}
 
@@ -192,22 +192,22 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	// Check if all documents have already been received
 	missingDocs, err := h.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to check for missing documents"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for missing documents"))
 		return
 	}
 
 	if len(missingDocs) == 0 {
 		reason := "envelope transfer already completed - all documents received"
-		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+		signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeBENV,
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 			return
 		}
-		pint.RespondWithSignedRejection(w, r, http.StatusUnprocessableEntity, signedResponse, pint.ResponseCodeBENV, reason)
+		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
 		return
 	}
 
@@ -219,19 +219,19 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			reason := "unrelated document (document checksum not declared in envelope manifest)"
-			signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+			signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 				LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 				ResponseCode: pint.ResponseCodeINCD,
 				Reason:       &reason,
 			})
 			if err != nil {
-				pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
+				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 				return
 			}
-			pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeINCD, reason)
+			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
 			return
 		}
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to lookup expected document"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to lookup expected document"))
 		return
 	}
 
@@ -248,23 +248,23 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	// Step 7: Compute SHA-256 checksum of the decoded content
 	actualChecksum, err := crypto.Hash(documentContent)
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to compute document checksum"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to compute document checksum"))
 		return
 	}
 
 	// Step 8: Verify checksum matches URL parameter
 	if actualChecksum != documentChecksum {
 		reason := fmt.Sprintf("document checksum mismatch: expected %s, got %s", documentChecksum, actualChecksum)
-		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+		signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeINCD,
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
 			return
 		}
-		pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeINCD, reason)
+		pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
 		return
 	}
 
@@ -272,16 +272,16 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	actualSize := int64(len(documentContent))
 	if actualSize != expectedDoc.ExpectedSize {
 		reason := fmt.Sprintf("document size mismatch: expected %d bytes, got %d bytes", expectedDoc.ExpectedSize, actualSize)
-		signedResponse, err := h.createSignedFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+		signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeINCD,
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
 			return
 		}
-		pint.RespondWithSignedRejection(w, r, http.StatusConflict, signedResponse, pint.ResponseCodeINCD, reason)
+		pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
 		return
 	}
 
@@ -292,7 +292,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		DocumentContent:  documentContent,
 	})
 	if err != nil {
-		pint.RespondWithError(w, r, pint.WrapInternalError(err, "failed to store document"))
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to store document"))
 		return
 	}
 

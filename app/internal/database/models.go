@@ -27,14 +27,15 @@ type AdditionalDocument struct {
 
 // Each row = one transfer session. Multiple rows can exist for same transport_document_checksum.
 type Envelope struct {
-	ID                        uuid.UUID          `json:"id"`
-	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
-	TransportDocumentChecksum string             `json:"transport_document_checksum"`
-	EnvelopeState             string             `json:"envelope_state"`
-	SentByPlatformCode        string             `json:"sent_by_platform_code"`
+	ID                                                 uuid.UUID          `json:"id"`
+	CreatedAt                                          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                                          pgtype.Timestamptz `json:"updated_at"`
+	EnvelopeState                                      string             `json:"envelope_state"`
+	TransportDocumentChecksum                          string             `json:"transport_document_checksum"`
+	LastTransferChainEntrySignedContentPayloadChecksum string             `json:"last_transfer_chain_entry_signed_content_payload_checksum"`
 	// UNIQUE constraint prevents duplicate transfers of same chain.
 	LastTransferChainEntrySignedContentChecksum string             `json:"last_transfer_chain_entry_signed_content_checksum"`
+	SentByPlatformCode                          string             `json:"sent_by_platform_code"`
 	EnvelopeManifestSignedContent               string             `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContent         string             `json:"last_transfer_chain_entry_signed_content"`
 	TrustLevel                                  int32              `json:"trust_level"`
