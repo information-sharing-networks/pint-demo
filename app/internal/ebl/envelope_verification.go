@@ -185,8 +185,9 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	result := &EnvelopeVerificationResult{}
 
 	// Step 0: get the last transfer chain entry from the transfer chain
-	// this is the linked list node we are processing in this request.
-	// (the transfer chain is an array of JWS tokens - one for each transfer of the eBL)
+	// the transfer chain is an array of JWS tokens - one for each transfer of the eBL.
+	// The entries are linked by the previousEnvelopeTransferChainEntrySignedContentChecksum field
+	// the last entry in the array is the most recent transfer (the one we are processing in this request)
 	if len(input.Envelope.EnvelopeTransferChain) == 0 {
 		return nil, NewEnvelopeError("envelope transfer chain is empty")
 	}
@@ -196,7 +197,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 		return nil, WrapInternalError(err, "failed to retrieve last entry checksum")
 	}
 
-	// always return a result struct from this point - the only required field is the last entry checksum.
+	// always return a result struct from this point - the only required field is this checksum
 	// If verification fails later, the result struct will contain additional information about the failure
 	result.LastTransferChainEntrySignedContentChecksum = lastEntryJWSChecksum
 

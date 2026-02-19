@@ -229,7 +229,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// this checksum is needed as part of the response payload whether the transfer is accepted or rejected
+	// this checksum is needed as part of the response payload
 	if verifiedEnvelope.LastTransferChainEntrySignedContentChecksum == "" {
 		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to verify envelope - last chain entry signed content checksum is empty"))
 		return
