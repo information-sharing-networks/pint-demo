@@ -128,10 +128,10 @@ make check     # Run all tests and checks
 If there are updates to the go dependencies (go.mod), you will need to rebuild the app container:
 
 ```bash
-docker compose up build app
+make docker=build
 ```
 
-to delete the database and restart the containers:
+to delete the database, rebuild the app and restart the containers:
 ```bash
 make docker-reset
 ```
@@ -143,7 +143,7 @@ DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable"
 docker compose exec app bash -c 'cd /pint-demo/app && goose -dir sql/schema postgres "$DATABASE_URL" down"
 ```
 
-auto-reload is enabled in dev mode, so changes to the code will be reloaded automatically (this regenerates the sqlc code and restarts the server)
+auto-reload is enabled in dev mode, so changes to the code will be reloaded automatically (this regenerates the api doco and sqlc code and restarts the server)
 
 the swagger documentation is available at http://localhost:8080/docs
 
