@@ -128,7 +128,7 @@ make check     # Run all tests and checks
 If there are updates to the go dependencies (go.mod), you will need to rebuild the app container:
 
 ```bash
-make docker=build
+make docker-build
 ```
 
 to delete the database, rebuild the app and restart the containers:
