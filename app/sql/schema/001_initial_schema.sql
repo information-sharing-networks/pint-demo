@@ -54,15 +54,16 @@ CREATE TABLE envelopes (
 );
 CREATE INDEX idx_envelopes_transport_document ON envelopes(transport_document_checksum);
 
--- transfer_chain_entries - contains the transfer chain entries for all eBLs, linked by transport_document_checksum.
--- This enables (limited) DISE (dispute) detection by comparing the transfer chain entries of two platforms for the same eBL.
--- The chain forms a linked list via previous_entry_checksum, allowing reconstruction.
--- of the full history by walking backwards from any entry.
---
--- Note the calling application is responsible for ensuring this table does not contain forks or broken chains.
+-- transfer_chain_entries - contains the transfer chain entries for all eBLs.
+-- Each entry is uniquely identified by its payload checksum (signed_content_payload_checksum).
+-- The chain forms a linked list via previous_signed_content_checksum (which references the JWS checksum).
+-- The sequence field allows efficient reconstruction without walking the linked list.
 CREATE TABLE transfer_chain_entries (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    -- the payload checksum uniquely identifies this entry
+    -- (independent of signature, so resends with different signatures are treated as duplicates)
+    signed_content_payload_checksum TEXT PRIMARY KEY,
+    
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 
     -- Links to the eBL document (CRITICAL for DISE detection)
     transport_document_checksum TEXT NOT NULL,
@@ -70,14 +71,19 @@ CREATE TABLE transfer_chain_entries (
     -- Links to the envelope/transfer that brought this entry to our platform
     envelope_id UUID NOT NULL,
 
-    -- The signed content and its checksum
-    signed_content TEXT NOT NULL, -- JWS of EnvelopeTransferChainEntry
-    entry_checksum TEXT NOT NULL UNIQUE, -- SHA-256 of signed_content
+    -- The JWS token (first version we received)
+    signed_content TEXT NOT NULL, -- JWS compact serialization
 
-    -- Blockchain-like linking
-    previous_entry_checksum TEXT, -- NULL for first entry (ISSUE transaction)
+    -- The JWS checksum (used for chain linking)
+    -- This is the checksum of the entire JWS string (header.payload.signature)
+    -- and is used in previous_signed_content_checksum to link entries together
+    signed_content_checksum TEXT NOT NULL UNIQUE,
 
-    -- Position in the chain for this envelope
+    -- Cryptographic link to previous entry (references signed_content_checksum, not PK!)
+    -- NULL for first entry (ISSUE transaction)
+    previous_signed_content_checksum TEXT,
+
+    -- Position in the canonical chain (for efficient reconstruction)
     sequence INTEGER NOT NULL,
 
     CONSTRAINT fk_transfer_chain_entries_envelope FOREIGN KEY (envelope_id)
@@ -86,13 +92,17 @@ CREATE TABLE transfer_chain_entries (
     CONSTRAINT fk_transfer_chain_entries_transport_document FOREIGN KEY (transport_document_checksum)
         REFERENCES transport_documents(checksum)
         ON DELETE CASCADE,
-    CONSTRAINT fk_transfer_chain_entries_previous FOREIGN KEY (previous_entry_checksum)
-        REFERENCES transfer_chain_entries(entry_checksum)
-        ON DELETE RESTRICT, -- Don't allow deleting entries that are referenced
-    CONSTRAINT unique_sequence_per_envelope UNIQUE(envelope_id, sequence)
+    CONSTRAINT fk_transfer_chain_entries_previous FOREIGN KEY (previous_signed_content_checksum)
+        REFERENCES transfer_chain_entries(signed_content_checksum)
+        ON DELETE RESTRICT,
+    
+    -- Enforce single canonical chain per eBL
+    CONSTRAINT unique_sequence_per_transport_document UNIQUE(transport_document_checksum, sequence)
 );
+
 CREATE INDEX idx_transfer_chain_entries_transport_document ON transfer_chain_entries(transport_document_checksum);
-CREATE INDEX idx_transfer_chain_entries_envelope ON transfer_chain_entries(envelope_id, sequence);
+CREATE INDEX idx_transfer_chain_entries_envelope ON transfer_chain_entries(envelope_id);
+CREATE INDEX idx_transfer_chain_entries_jws_checksum ON transfer_chain_entries(signed_content_checksum);
 
 -- additional_documents - Tracks expected and received additional documents (supporting docs and eBL visualisation)
 -- for each envelope transfer. Documents are scoped to a specific transfer session.

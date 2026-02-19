@@ -11,70 +11,69 @@ import (
 	"github.com/google/uuid"
 )
 
-const CreateTransferChainEntryIfNew = `-- name: CreateTransferChainEntryIfNew :one
+const CreateTransferChainEntry = `-- name: CreateTransferChainEntry :one
 INSERT INTO transfer_chain_entries (
-    id,
-    created_at,
+    signed_content_payload_checksum,
     transport_document_checksum,
     envelope_id,
     signed_content,
-    entry_checksum,
-    previous_entry_checksum,
+    signed_content_checksum,
+    previous_signed_content_checksum,
     sequence
 ) VALUES (
-    gen_random_uuid(),
-    NOW(),
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
-) ON CONFLICT (entry_checksum) DO NOTHING
-    RETURNING id, created_at, transport_document_checksum, envelope_id, signed_content, entry_checksum, previous_entry_checksum, sequence
+    $6,
+    $7
+) RETURNING signed_content_payload_checksum, created_at, transport_document_checksum, envelope_id, signed_content, signed_content_checksum, previous_signed_content_checksum, sequence
 `
 
-type CreateTransferChainEntryIfNewParams struct {
-	TransportDocumentChecksum string    `json:"transport_document_checksum"`
-	EnvelopeID                uuid.UUID `json:"envelope_id"`
-	SignedContent             string    `json:"signed_content"`
-	EntryChecksum             string    `json:"entry_checksum"`
-	PreviousEntryChecksum     *string   `json:"previous_entry_checksum"`
-	Sequence                  int32     `json:"sequence"`
+type CreateTransferChainEntryParams struct {
+	SignedContentPayloadChecksum  string    `json:"signed_content_payload_checksum"`
+	TransportDocumentChecksum     string    `json:"transport_document_checksum"`
+	EnvelopeID                    uuid.UUID `json:"envelope_id"`
+	SignedContent                 string    `json:"signed_content"`
+	SignedContentChecksum         string    `json:"signed_content_checksum"`
+	PreviousSignedContentChecksum *string   `json:"previous_signed_content_checksum"`
+	Sequence                      int32     `json:"sequence"`
 }
 
 // Create a new transfer chain entry
-func (q *Queries) CreateTransferChainEntryIfNew(ctx context.Context, arg CreateTransferChainEntryIfNewParams) (TransferChainEntry, error) {
-	row := q.db.QueryRow(ctx, CreateTransferChainEntryIfNew,
+func (q *Queries) CreateTransferChainEntry(ctx context.Context, arg CreateTransferChainEntryParams) (TransferChainEntry, error) {
+	row := q.db.QueryRow(ctx, CreateTransferChainEntry,
+		arg.SignedContentPayloadChecksum,
 		arg.TransportDocumentChecksum,
 		arg.EnvelopeID,
 		arg.SignedContent,
-		arg.EntryChecksum,
-		arg.PreviousEntryChecksum,
+		arg.SignedContentChecksum,
+		arg.PreviousSignedContentChecksum,
 		arg.Sequence,
 	)
 	var i TransferChainEntry
 	err := row.Scan(
-		&i.ID,
+		&i.SignedContentPayloadChecksum,
 		&i.CreatedAt,
 		&i.TransportDocumentChecksum,
 		&i.EnvelopeID,
 		&i.SignedContent,
-		&i.EntryChecksum,
-		&i.PreviousEntryChecksum,
+		&i.SignedContentChecksum,
+		&i.PreviousSignedContentChecksum,
 		&i.Sequence,
 	)
 	return i, err
 }
 
 const GetTransferChainEntriesByTransportDocumentChecksum = `-- name: GetTransferChainEntriesByTransportDocumentChecksum :many
-SELECT id, created_at, transport_document_checksum, envelope_id, signed_content, entry_checksum, previous_entry_checksum, sequence FROM transfer_chain_entries
+SELECT signed_content_payload_checksum, created_at, transport_document_checksum, envelope_id, signed_content, signed_content_checksum, previous_signed_content_checksum, sequence FROM transfer_chain_entries
 WHERE transport_document_checksum = $1
-ORDER BY created_at ASC
+ORDER BY sequence ASC
 `
 
 // Get all transfer chain entries for a given eBL
-// Returns entries ordered by creation time
+// Returns entries ordered by sequence
 func (q *Queries) GetTransferChainEntriesByTransportDocumentChecksum(ctx context.Context, transportDocumentChecksum string) ([]TransferChainEntry, error) {
 	rows, err := q.db.Query(ctx, GetTransferChainEntriesByTransportDocumentChecksum, transportDocumentChecksum)
 	if err != nil {
@@ -85,13 +84,13 @@ func (q *Queries) GetTransferChainEntriesByTransportDocumentChecksum(ctx context
 	for rows.Next() {
 		var i TransferChainEntry
 		if err := rows.Scan(
-			&i.ID,
+			&i.SignedContentPayloadChecksum,
 			&i.CreatedAt,
 			&i.TransportDocumentChecksum,
 			&i.EnvelopeID,
 			&i.SignedContent,
-			&i.EntryChecksum,
-			&i.PreviousEntryChecksum,
+			&i.SignedContentChecksum,
+			&i.PreviousSignedContentChecksum,
 			&i.Sequence,
 		); err != nil {
 			return nil, err
@@ -104,30 +103,52 @@ func (q *Queries) GetTransferChainEntriesByTransportDocumentChecksum(ctx context
 	return items, nil
 }
 
-const GetTransferChainEntryByChecksum = `-- name: GetTransferChainEntryByChecksum :one
-SELECT id, created_at, transport_document_checksum, envelope_id, signed_content, entry_checksum, previous_entry_checksum, sequence FROM transfer_chain_entries
-WHERE entry_checksum = $1
+const GetTransferChainEntryByJWSChecksum = `-- name: GetTransferChainEntryByJWSChecksum :one
+SELECT signed_content_payload_checksum, created_at, transport_document_checksum, envelope_id, signed_content, signed_content_checksum, previous_signed_content_checksum, sequence FROM transfer_chain_entries
+WHERE signed_content_checksum = $1
 `
 
-// Get a specific transfer chain entry by its checksum
-func (q *Queries) GetTransferChainEntryByChecksum(ctx context.Context, entryChecksum string) (TransferChainEntry, error) {
-	row := q.db.QueryRow(ctx, GetTransferChainEntryByChecksum, entryChecksum)
+// Get a specific transfer chain entry by its JWS checksum
+func (q *Queries) GetTransferChainEntryByJWSChecksum(ctx context.Context, signedContentChecksum string) (TransferChainEntry, error) {
+	row := q.db.QueryRow(ctx, GetTransferChainEntryByJWSChecksum, signedContentChecksum)
 	var i TransferChainEntry
 	err := row.Scan(
-		&i.ID,
+		&i.SignedContentPayloadChecksum,
 		&i.CreatedAt,
 		&i.TransportDocumentChecksum,
 		&i.EnvelopeID,
 		&i.SignedContent,
-		&i.EntryChecksum,
-		&i.PreviousEntryChecksum,
+		&i.SignedContentChecksum,
+		&i.PreviousSignedContentChecksum,
+		&i.Sequence,
+	)
+	return i, err
+}
+
+const GetTransferChainEntryByPayloadChecksum = `-- name: GetTransferChainEntryByPayloadChecksum :one
+SELECT signed_content_payload_checksum, created_at, transport_document_checksum, envelope_id, signed_content, signed_content_checksum, previous_signed_content_checksum, sequence FROM transfer_chain_entries
+WHERE signed_content_payload_checksum = $1
+`
+
+// Get a specific transfer chain entry by its payload checksum
+func (q *Queries) GetTransferChainEntryByPayloadChecksum(ctx context.Context, signedContentPayloadChecksum string) (TransferChainEntry, error) {
+	row := q.db.QueryRow(ctx, GetTransferChainEntryByPayloadChecksum, signedContentPayloadChecksum)
+	var i TransferChainEntry
+	err := row.Scan(
+		&i.SignedContentPayloadChecksum,
+		&i.CreatedAt,
+		&i.TransportDocumentChecksum,
+		&i.EnvelopeID,
+		&i.SignedContent,
+		&i.SignedContentChecksum,
+		&i.PreviousSignedContentChecksum,
 		&i.Sequence,
 	)
 	return i, err
 }
 
 const ListTransferChainEntries = `-- name: ListTransferChainEntries :many
-SELECT id, created_at, transport_document_checksum, envelope_id, signed_content, entry_checksum, previous_entry_checksum, sequence FROM transfer_chain_entries
+SELECT signed_content_payload_checksum, created_at, transport_document_checksum, envelope_id, signed_content, signed_content_checksum, previous_signed_content_checksum, sequence FROM transfer_chain_entries
 WHERE envelope_id = $1
 ORDER BY sequence ASC
 `
@@ -144,13 +165,13 @@ func (q *Queries) ListTransferChainEntries(ctx context.Context, envelopeID uuid.
 	for rows.Next() {
 		var i TransferChainEntry
 		if err := rows.Scan(
-			&i.ID,
+			&i.SignedContentPayloadChecksum,
 			&i.CreatedAt,
 			&i.TransportDocumentChecksum,
 			&i.EnvelopeID,
 			&i.SignedContent,
-			&i.EntryChecksum,
-			&i.PreviousEntryChecksum,
+			&i.SignedContentChecksum,
+			&i.PreviousSignedContentChecksum,
 			&i.Sequence,
 		); err != nil {
 			return nil, err

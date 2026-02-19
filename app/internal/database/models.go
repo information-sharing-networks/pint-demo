@@ -62,14 +62,14 @@ type PartyIdentifyingCode struct {
 
 // Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_signed_content_checksum
 type TransferChainEntry struct {
-	ID                        uuid.UUID          `json:"id"`
-	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
-	TransportDocumentChecksum string             `json:"transport_document_checksum"`
-	EnvelopeID                uuid.UUID          `json:"envelope_id"`
-	SignedContent             string             `json:"signed_content"`
-	EntryChecksum             string             `json:"entry_checksum"`
-	PreviousEntryChecksum     *string            `json:"previous_entry_checksum"`
-	Sequence                  int32              `json:"sequence"`
+	SignedContentPayloadChecksum  string             `json:"signed_content_payload_checksum"`
+	CreatedAt                     pgtype.Timestamptz `json:"created_at"`
+	TransportDocumentChecksum     string             `json:"transport_document_checksum"`
+	EnvelopeID                    uuid.UUID          `json:"envelope_id"`
+	SignedContent                 string             `json:"signed_content"`
+	SignedContentChecksum         string             `json:"signed_content_checksum"`
+	PreviousSignedContentChecksum *string            `json:"previous_signed_content_checksum"`
+	Sequence                      int32              `json:"sequence"`
 }
 
 // Registry of unique eBL documents. Same eBL can be transferred multiple times.
