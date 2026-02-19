@@ -273,6 +273,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 
 		partyID, err := uuid.Parse(partyIDStr)
 		if err != nil {
+			reqLogger.Error("invalid party ID", slog.String("error", err.Error()))
 			http.Error(w, "Invalid party ID", http.StatusBadRequest)
 			return
 		}
@@ -281,6 +282,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 		_, err = queries.GetPartyByID(r.Context(), partyID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
+				reqLogger.Error("party not found", slog.String("party_id", partyIDStr))
 				http.Error(w, "No party found with this id", http.StatusNotFound)
 				return
 			}
@@ -291,12 +293,13 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 
 		var req PartyIdentifyingCodeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			reqLogger.Error("failed to decode request body", slog.String("error", err.Error()))
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		fmt.Printf("debug req: %+v\n", req)
 		if req.CodeListProvider == "" || req.PartyCode == "" {
+			reqLogger.Warn("codeListProvider and partyCode are required")
 			http.Error(w, "codeListProvider and partyCode are required", http.StatusBadRequest)
 			return
 		}
@@ -312,6 +315,7 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 			return
 		}
 		if exists {
+			reqLogger.Warn("party identifying code already exists")
 			http.Error(w, "Party identifying code already exists", http.StatusConflict)
 			return
 		}
@@ -323,7 +327,6 @@ func HandleCreatePartyIdentifyingCode(queries *database.Queries) http.HandlerFun
 			CodeListName:     req.CodeListName,
 		})
 		if err != nil {
-			// check for duplicates
 			reqLogger.Error("failed to create party identifying code", slog.String("error", err.Error()))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
