@@ -25,6 +25,9 @@ pint-client
 # keys, secrets and env
 **/.env*
 
+# but allow .env.example
+!.env-example
+
 # Ignore all key files by default
 *.pem
 *.key
