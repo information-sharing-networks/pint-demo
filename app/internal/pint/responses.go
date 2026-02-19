@@ -18,7 +18,7 @@ import (
 // It logs the full error details server-side and sends a sanitized response to the client
 func RespondWithErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
 	// Map the error to DCSA format
-	errorResponse := MapErrorToResponse(err, r)
+	errorResponse := MapErrorToErrorResponse(err, r)
 
 	// Log the full error details server-side
 	reqLogger := logger.ContextRequestLogger(r.Context())

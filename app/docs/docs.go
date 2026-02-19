@@ -357,7 +357,7 @@ const docTemplate = `{
         },
         "/v3/envelopes": {
             "post": {
-                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started but not yet accepted (unsigned JSON response)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender retries a transfer that is active but not yet complete\ndue to outstanding additional documents the receiver will return an unsnigned response with a 201 status code.\nThe response body will contain the current state of the transfer, including a list of the missing documents.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted).\n\nRetry handling - if the sender retries a transfer that has already been accepted,\nthe receiver will return a signed response with a 200 status code and and response code ` + "`" + `DUPE` + "`" + `.\nThe payload is the same structure as the original response, but additionally includes\nthe a ` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with ` + "`" + `responseCode` + "`" + ` of ` + "`" + `BSIG` + "`" + ` (signature failure)\nor ` + "`" + `BENV` + "`" + ` (envelope validation failure). Details of the error are in the payload of the JWS.\n\n**Trust Level Failures**\n\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifest JWS.\n- Trust level 1 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n- Trust level 2 means the JWS must contain a valid certificate,\n(Domain Validation (DV) certificates are allowed).\n- Trust level 3 is the highest trust level, and means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will return a ` + "`" + `422 Unprocessable Entity` + "`" + ` (BSIG) response.\n\nNote that if an x5c cert is included, it must be signed by a trusted root CA and the\npublic key in the certificate must match the key used to sign the JWS.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned error response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n` + "`" + `400 Bad Request` + "`" + ` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n` + "`" + `500 Internal Server Error` + "`" + ` errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected.\n- Only determine transfer acceptance/rejection from signed responses.\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the ` + "`" + `responseCode` + "`" + ` in the signed response, the ` + "`" + `responseCode` + "`" + ` takes precedence.",
+                "description": "Initiates an eBL envelope transfer. The sender provides the transport document (eBL),\nsigned envelope manifest, and complete transfer chain.\n\nThe receiving platform validates signatures, checksums, and transfer chain integrity.\n\n**Success Responses:**\n\n` + "`" + `201 Created` + "`" + ` - Transfer started but not yet accepted (unsigned JSON response)\n- The envelope transfer is now active\n- Additional documents listed in the EnvelopeManifest are required\n- Sender must transfer documents, then call \"Finish envelope transfer\" endpoint\n- Only at finish will the transfer be accepted or rejected with a signed response\n\nRetry handling - if the sender retries a transfer that is active but not yet complete\ndue to outstanding additional documents the receiver will return an unsnigned response with a 201 status code.\nThe response body will contain the current state of the transfer, including a list of the missing documents.\n\n` + "`" + `200 OK` + "`" + ` - Transfer accepted (with signed response)\n- No additional documents required, or receiver already has all documents\n- The response body contains a JWS (JSON Web Signature) token, where\nthe payload contains the response details.\n\nThe payload includes the ` + "`" + `responseCode` + "`" + `: ` + "`" + `RECE` + "`" + ` (accepted).\n\nRetry handling - if the sender retries a transfer that has already been accepted,\nthe receiver will return a signed response with a 200 status code and and response code ` + "`" + `DUPE` + "`" + `.\nThe payload is the same structure as the original response, but additionally includes\na ` + "`" + `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` + "`" + ` field which the sender can use\nto confirm which transfer was accepted.\n\n**Error Responses**\n\n` + "`" + `422 Unprocessable Entity` + "`" + ` indicates the platform has rejected the transfer.\nThe response body contains a JWS token with ` + "`" + `responseCode` + "`" + ` of ` + "`" + `BSIG` + "`" + ` (signature failure)\nor ` + "`" + `BENV` + "`" + ` (envelope validation failure). Details of the error are in the payload of the JWS.\n\n**Trust Level Failures**\n\nThis platform enforces a minimum trust level for signatures,\nbased on the x5c header in the envelope manifest JWS.\n- Trust level 1 is the lowest trust level, and means that a JWS\nwill be accepted even if no x5c header is present.\n- Trust level 2 means the JWS must contain a valid certificate,\n(Domain Validation (DV) certificates are allowed).\n- Trust level 3 is the highest trust level, and means that the JWS must contain a valid Extended Validation (EV)\nor Organization Validation (OV) certificate.\n\nThe trust level is checked after signature verification, and a valid JWS with an insufficient trust\nlevel will return a ` + "`" + `422 Unprocessable Entity` + "`" + ` (BSIG) response.\n\nNote that if an x5c cert is included, it must be signed by a trusted root CA and the\npublic key in the certificate must match the key used to sign the JWS.\n\n**Unsigned Error Responses**\n\nThe only time you get an unsigned error response is when the request is malformed or the\nreceiving platform is having technical difficulties.\n\n` + "`" + `400 Bad Request` + "`" + ` indicates a malformed request (invalid JSON, missing required fields, etc.)\n\n` + "`" + `500 Internal Server Error` + "`" + ` errors indicate temporary technical issues.\nThe sender should retry until they receive a signed response.\n\n**Notes**\n\nIMPORTANT: Unsigned responses cannot be verified as originating from the receiving platform\n(they may come from middleware or infrastructure). Therefore:\n- Do not assume an unsigned error means the transfer was rejected.\n- Only determine transfer acceptance/rejection from signed responses.\n\nThe sending platform must not rely on the HTTP response status code alone as it is not covered by the signature.\nWhen there is a mismatch between the HTTP response status code\nand the ` + "`" + `responseCode` + "`" + ` in the signed response, the ` + "`" + `responseCode` + "`" + ` takes precedence.",
                 "tags": [
                     "PINT"
                 ],
@@ -734,6 +734,52 @@ const docTemplate = `{
                 }
             }
         },
+        "ebl.EnvelopeState": {
+            "type": "string",
+            "enum": [
+                "",
+                "ISSUE",
+                "TRANSFER",
+                "ENDORSE",
+                "ENDORSE_TO_ORDER",
+                "BLANK_ENDORSE",
+                "SIGN",
+                "SURRENDER_FOR_AMENDMENT",
+                "SURRENDER_FOR_DELIVERY",
+                "SACC",
+                "SREJ"
+            ],
+            "x-enum-comments": {
+                "EnvelopeStateSACC": "used by the carrier to accept a surrender request.",
+                "EnvelopeStateSREJ": "used by the carrier to reject a surrender request."
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "used by the carrier to accept a surrender request.",
+                "used by the carrier to reject a surrender request."
+            ],
+            "x-enum-varnames": [
+                "EnvelopeStateUnset",
+                "EnvelopeStateIssue",
+                "EnvelopeStateTransfer",
+                "EnvelopeStateEndorse",
+                "EnvelopeStateEndorseToOrder",
+                "EnvelopeStateBlankEndorse",
+                "EnvelopeStateSign",
+                "EnvelopeStateSurrenderForAmendment",
+                "EnvelopeStateSurrenderForDelivery",
+                "EnvelopeStateSACC",
+                "EnvelopeStateSREJ"
+            ]
+        },
         "ebl.EnvelopeTransferChainEntry": {
             "type": "object",
             "properties": {
@@ -849,6 +895,19 @@ const docTemplate = `{
                 }
             }
         },
+        "ebl.SurrenderReasonCode": {
+            "type": "string",
+            "enum": [
+                "SWTP",
+                "COD",
+                "SWI"
+            ],
+            "x-enum-varnames": [
+                "SurrenderReasonCodeSWTP",
+                "SurrenderReasonCodeCOD",
+                "SurrenderReasonCodeSWI"
+            ]
+        },
         "ebl.TaxLegalReference": {
             "type": "object",
             "properties": {
@@ -871,7 +930,11 @@ const docTemplate = `{
             "properties": {
                 "actionCode": {
                     "description": "actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE, SURRENDER_FOR_DELIVERY, etc.)",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.EnvelopeState"
+                        }
+                    ]
                 },
                 "actionDateTime": {
                     "description": "actionDateTime: RFC3339 timestamp (UTC) when the transaction was created",
@@ -894,8 +957,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "reasonCode": {
-                    "description": "reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)\nSWTP (Switch to paper)\nCOD (Change of destination)\nSWI (Switch BL)",
-                    "type": "string"
+                    "description": "reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)\nPossible values: SWTP (Switch to paper), COD (Change of destination), SWI (Switch BL)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ebl.SurrenderReasonCode"
+                        }
+                    ]
                 },
                 "recipient": {
                     "description": "recipient: The party receiving the action (optional for some action codes like SIGN)",

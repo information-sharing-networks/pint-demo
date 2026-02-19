@@ -502,7 +502,7 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 		)
 		if err != nil {
 			k.logger.Warn("failed to register JWK endpoint",
-				slog.String("code", provider.PlatformCode),
+				slog.String("plarform_code", provider.PlatformCode),
 				slog.String("jwk_url", provider.JWKSEndpoint),
 				slog.String("error", err.Error()))
 			continue
@@ -510,7 +510,7 @@ func (k *KeyManager) initJWKCache(ctx context.Context) error {
 
 		successCount++
 		k.logger.Info("registered JWK endpoint for background fetch",
-			slog.String("code", provider.PlatformCode),
+			slog.String("platform_code", provider.PlatformCode),
 			slog.String("jwk_url", provider.JWKSEndpoint))
 	}
 

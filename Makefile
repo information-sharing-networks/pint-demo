@@ -1,6 +1,6 @@
 # Docker-based Makefile for pint-demo
 
-.PHONY: help build run-receiver run-sender test clean db-migrate db-reset sqlc docker-up docker-down restart logs psql check fmt vet vuln
+.PHONY: help build test clean db-migrate db-reset sqlc docker-up docker-down docker-reset docker-db-up docker-db-down docker-app-up docker-app-down docker-build restart logs psql check fmt vet vuln
 
 export GO_VERSION := $(shell grep '^go ' app/go.mod | awk '{print $$2}')
 
@@ -15,28 +15,30 @@ help: ## Show this help message
 	@echo 'Go version: $(GO_VERSION) (from app/go.mod)'
 	@echo ''
 	@echo 'Available targets:'
-	@echo "  make help            - Show this help message"
-	@echo "  make docker-up       - Start Docker containers"
-	@echo "  make docker-down     - Stop Docker containers"
-	@echo "  make docker-reset    - Drop the database and restart the containers"
-	@echo "  make docker-build    - Build the app container"
-	@echo "  make restart         - Restart the app container"
-	@echo "  make logs            - Follow docker logs"
-	@echo "  make psql            - Run psql against the dev database"
-	@echo "  make sqlc            - Generate sqlc code"
-	@echo "  make docs            - Generate swagger documentation"
-	@echo "  make swag-fmt        - format swag comments"
-	@echo "  make db-migrate      - Run database migrations (goose up)"
-	@echo "  make db-reset        - Reset database and reapply migrations (goose down-to 0 > up)"
-	@echo "  make run-receiver    - Run receiver locally (expects docker db to be running)"
-	@echo "  make run-sender      - Run sender CLI locally (expects docker db to be running)"
-	@echo "  make test            - Run tests"
-	@echo "  make fmt             - Format code"
-	@echo "  make lint            - Run staticcheck"
-	@echo "  make security        - Run gosec security analysis"
-	@echo "  make vet             - Run go vet"
-	@echo "  make check           - Run all pre-commit checks (recommended before committing)"
-	@echo "  make clean           - Clean build artifacts"
+	@echo "  make help             - Show this help message"
+	@echo "  make docker-up        - Start Docker containers"
+	@echo "  make docker-down      - Stop Docker containers"
+	@echo "  make docker-reset     - Drop the database and restart the containers"
+	@echo "  make docker-build     - Build the app container"
+	@echo "  make docker-db-up     - Start the database container (detached mode)"
+	@echo "  make docker-db-down   - Stop the database container"
+	@echo "  make docker-app-up    - Start the app container (detached mode)"
+	@echo "  make docker-app-down  - Stop the app container"
+	@echo "  make logs             - Follow docker app logs"
+	@echo "  make psql             - Run psql against the dev database"
+	@echo "  make sqlc             - Generate sqlc code"
+	@echo "  make docs             - Generate swagger documentation"
+	@echo "  make swag-fmt         - format swag comments"
+	@echo "  make db-migrate       - Run database migrations (goose up)"
+	@echo "  make db-reset         - Reset database and reapply migrations (goose down-to 0 > up)"
+	@echo "  make delete-envelopes - Delete all envelopes from the database"
+	@echo "  make test             - Run tests"
+	@echo "  make fmt              - Format code"
+	@echo "  make lint             - Run staticcheck"
+	@echo "  make security         - Run gosec security analysis"
+	@echo "  make vet              - Run go vet"
+	@echo "  make check            - Run all pre-commit checks (recommended before committing)"
+	@echo "  make clean            - Clean build artifacts"
 
 check-env:
 	@if [ ! -f .env ]; then \
@@ -62,6 +64,22 @@ docker-down:
 	@echo "🐳 Stopping Docker containers..."
 	@docker compose down
 
+docker-up-db:
+	@echo "🐳 Starting database container..."
+	@docker compose up db -d
+
+docker-up-app:
+	@echo "🐳 Starting app container..."
+	@docker compose up app -d
+
+docker-down-db:
+	@echo "🐳 Stopping database container..."
+	@docker compose down db
+
+docker-down-app:
+	@echo "🐳 Stopping app container..."
+	@docker compose down app
+
 docker-build:
 	@echo "🐳 Building app container..."
 	@echo "Using Go version: $(GO_VERSION)"
@@ -84,7 +102,7 @@ restart:
 
 logs:
 	@echo "🐳 Following docker logs..."
-	@docker compose logs -f
+	@docker compose logs -f app
 
 # Database access
 psql:
@@ -95,6 +113,11 @@ psql:
 sqlc:
 	@echo "🔄 Generating sqlc code..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && sqlc generate"
+
+# delete the envelopes from the database
+delete-envelopes:
+	@echo "🗑️ Deleting envelopes..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && psql \$$DATABASE_URL -c 'DELETE FROM ENVELOPES CASCADE;'"
 
 # Run database migrations
 db-migrate:
@@ -107,16 +130,6 @@ db-reset:
 	@echo "🔄 Resetting database..."
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none down-to 0"
 	@$(MAKE) db-migrate
-
-# Run receiver locally (expects docker db to be running)
-run-receiver:
-	@echo "🚀 Running receiver locally..."
-	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-server/main.go
-
-# Run sender CLI locally (expects docker db to be running)
-run-sender:
-	@echo "🚀 Running sender CLI locally..."
-	@cd app && DATABASE_URL="postgres://pint-dev@localhost:15433/pint_demo?sslmode=disable" SECRET_KEY="dev-secret-key-12345" go run cmd/pint-client/main.go
 
 # Format code
 fmt:

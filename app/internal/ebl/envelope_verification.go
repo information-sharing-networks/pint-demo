@@ -57,7 +57,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/lestrrat-go/jwx/v3/jws"
@@ -71,45 +70,6 @@ import (
 type KeyProviderWithLookup interface {
 	jws.KeyProvider
 	LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error)
-}
-
-// EnvelopeState is used to ensure that transfer chain actionCodes are sequenced correctly.
-type EnvelopeState string
-
-const (
-	EnvelopeStateUnset                 EnvelopeState = ""
-	EnvelopeStateIssue                 EnvelopeState = "ISSUE"
-	EnvelopeStateTransfer              EnvelopeState = "TRANSFER"
-	EnvelopeStateEndorse               EnvelopeState = "ENDORSE"
-	EnvelopeStateEndorseToOrder        EnvelopeState = "ENDORSE_TO_ORDER"
-	EnvelopeStateBlankEndorse          EnvelopeState = "BLANK_ENDORSE"
-	EnvelopeStateSign                  EnvelopeState = "SIGN"
-	EnvelopeStateSurrenderForAmendment EnvelopeState = "SURRENDER_FOR_AMENDMENT"
-	EnvelopeStateSurrenderForDelivery  EnvelopeState = "SURRENDER_FOR_DELIVERY"
-	EnvelopeStateSACC                  EnvelopeState = "SACC" // used by the carrier to accept a surrender request.
-	EnvelopeStateSREJ                  EnvelopeState = "SREJ" // used by the carrier to reject a surrender request.
-)
-
-var validEnvelopeStateTransitions = map[EnvelopeState][]EnvelopeState{
-	EnvelopeStateIssue:                 {EnvelopeStateTransfer, EnvelopeStateEndorse},
-	EnvelopeStateTransfer:              {EnvelopeStateTransfer, EnvelopeStateEndorse, EnvelopeStateEndorseToOrder, EnvelopeStateBlankEndorse, EnvelopeStateSign, EnvelopeStateSurrenderForAmendment, EnvelopeStateSurrenderForDelivery},
-	EnvelopeStateEndorse:               {EnvelopeStateTransfer, EnvelopeStateEndorse, EnvelopeStateEndorseToOrder, EnvelopeStateBlankEndorse, EnvelopeStateSign, EnvelopeStateSurrenderForAmendment, EnvelopeStateSurrenderForDelivery},
-	EnvelopeStateSurrenderForAmendment: {EnvelopeStateSACC, EnvelopeStateSREJ},
-	EnvelopeStateSurrenderForDelivery:  {EnvelopeStateSACC, EnvelopeStateSREJ},
-	EnvelopeStateSACC:                  {}, // terminal state
-	EnvelopeStateSREJ:                  {}, // terminal state
-}
-
-// isValidEnvelopeStateTransition checks if a transition from currentState to nextState is valid
-// according to the DCSA specification.
-//
-// Returns true if the transition is allowed, false otherwise.
-func isValidEnvelopeStateTransition(currentState, nextState EnvelopeState) bool {
-	validTransitions, ok := validEnvelopeStateTransitions[currentState]
-	if !ok {
-		return false
-	}
-	return slices.Contains(validTransitions, nextState)
 }
 
 // EnvelopeVerificationInput contains the data needed to verify an envelope transfer.
@@ -224,20 +184,22 @@ type EnvelopeVerificationResult struct {
 func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
 
-	// Step 0: get the last transfer chain entry from the transfer chain - this is the unique identifier for the transfer
-	// (the transfer chain is an array of JWS tokens - one for each transfer of the eBL)
+	// Step 0: get the last transfer chain entry from the transfer chain
+	// the transfer chain is an array of JWS tokens - one for each transfer of the eBL.
+	// The entries are linked by the previousEnvelopeTransferChainEntrySignedContentChecksum field
+	// the last entry in the array is the most recent transfer (the one we are processing in this request)
 	if len(input.Envelope.EnvelopeTransferChain) == 0 {
 		return nil, NewEnvelopeError("envelope transfer chain is empty")
 	}
 	lastEntryJWS := input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]
-	lastEntryChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+	lastEntryJWSChecksum, err := crypto.Hash([]byte(lastEntryJWS))
 	if err != nil {
 		return nil, WrapInternalError(err, "failed to retrieve last entry checksum")
 	}
 
-	// always return a result struct from this point - the only required field is the last entry checksum.
+	// always return a result struct from this point - the only required field is this checksum
 	// If verification fails later, the result struct will contain additional information about the failure
-	result.LastTransferChainEntrySignedContentChecksum = lastEntryChecksum
+	result.LastTransferChainEntrySignedContentChecksum = lastEntryJWSChecksum
 
 	// Step 1: Validate envelope structure (required fields)
 	if err := input.Envelope.ValidateStructure(); err != nil {
@@ -565,14 +527,14 @@ func verifyEnvelopeTransferChain(
 	// Step 1: Verify last entry checksum matches the checksum in the manifest
 	// this prevents an attacker from replacing the last entry with a valid one from a different transfer.
 	lastEntryJWS := envelopeTransferChain[len(envelopeTransferChain)-1]
-	lastEntryChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+	lastEntryJWSChecksum, err := crypto.Hash([]byte(lastEntryJWS))
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to compute last entry checksum")
 	}
 
-	if lastEntryChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
+	if lastEntryJWSChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
 		return nil, NewEnvelopeError(fmt.Sprintf("the last transfer chain entry checksum does not match the manifest: expected %s, got %s",
-			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryChecksum))
+			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryJWSChecksum))
 	}
 
 	// Step 2: The first [`EnvelopeTransferChainEntry`](#/EnvelopeTransferChainEntry) in the `envelopeTransferChain[]` list should contain the `ISSUE` (issuance) transaction as the first transaction in the [`EnvelopeTransferChainEntry.transactions[]`](#/EnvelopeTransferChainEntry) list.
@@ -592,7 +554,7 @@ func verifyEnvelopeTransferChain(
 	if err := json.Unmarshal(firstEntryPayloadBytes, &firstEntry); err != nil {
 		return nil, WrapEnvelopeError(err, "failed to parse first entry payload")
 	}
-	if firstEntry.Transactions[0].ActionCode != "ISSUE" {
+	if firstEntry.Transactions[0].ActionCode != EnvelopeStateIssue {
 		return nil, NewEnvelopeError("first entry should contain an ISSUE transaction")
 	}
 

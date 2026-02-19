@@ -56,13 +56,13 @@ type DetailedError struct {
 	ErrorCodeMessage string    `json:"errorCodeMessage"`
 }
 
-// MapErrorToResponse maps pint.Error, ebl.Error, crypto.Error, or generic errors to a DCSA error response.
+// MapErrorToErrorResponse maps pint.Error, ebl.Error, crypto.Error, or generic errors to a DCSA error response.
 //
 // The error code text is sanitized for the response, but the full error message is logged server-side.
 // The mapping also establishes the appropriate HTTP status code based on the error type.
 //
 // Call this function to set up the error response before sending it to the client (using responses.RespondWithError).
-func MapErrorToResponse(err error, r *http.Request) *ErrorResponse {
+func MapErrorToErrorResponse(err error, r *http.Request) *ErrorResponse {
 	requestID := middleware.GetReqID(r.Context())
 
 	// Check for the most specific error types first (crypto.Error and ebl.Error)
@@ -227,25 +227,21 @@ func errorResponseFromCrypto(err *crypto.CryptoError, r *http.Request, requestID
 	}
 }
 
-// mapEblErrorCode maps ebl.ErrorCode to HTTP status code, pint error code, and sanitized error text.
-// Note: ebl.ErrorCode (BSIG, BENV, DISE) is used directly as the ResponseCode for signed rejections.
-func mapEblErrorCode(code ebl.ErrorCode) (statusCode int, pintErrorCode ErrorCode, errorText string) {
-	switch code {
-	case ebl.ErrCodeSignature: // BSIG
-		return http.StatusBadRequest, ErrCodeBadSignature, "Bad Signature"
-	case ebl.ErrCodeEnvelope: // BENV
-		return http.StatusBadRequest, ErrCodeInvalidEnvelope, "Invalid Envelope"
-	case ebl.ErrCodeDispute: // DISE
-		return http.StatusConflict, ErrCodeDispute, "Dispute"
-	default:
-		return http.StatusInternalServerError, ErrCodeInternalError, "Internal Error"
-	}
-}
-
 // errorResponseFromEbl maps ebl.Error to DCSA error response
 // the error code text is sanitized for the response, but the full error message is logged server-side
 func errorResponseFromEbl(err *ebl.EblError, r *http.Request, requestID string) *ErrorResponse {
-	statusCode, errorCode, errorCodeText := mapEblErrorCode(err.Code())
+
+	// map ebl.ErrorCode to response fields
+	statusCode, errorCode, errorCodeText := http.StatusInternalServerError, ErrCodeInternalError, "Internal Error"
+
+	switch err.Code() {
+	case ebl.ErrCodeSignature:
+		statusCode, errorCode, errorCodeText = http.StatusBadRequest, ErrCodeBadSignature, "Bad Signature"
+	case ebl.ErrCodeEnvelope:
+		statusCode, errorCode, errorCodeText = http.StatusBadRequest, ErrCodeInvalidEnvelope, "Invalid Envelope"
+	case ebl.ErrCodeDispute:
+		statusCode, errorCode, errorCodeText = http.StatusConflict, ErrCodeDispute, "Dispute"
+	}
 
 	return &ErrorResponse{
 		HTTPMethod:                   r.Method,

@@ -112,7 +112,7 @@ func NewStartTransferHandler(
 //	@Description	Retry handling - if the sender retries a transfer that has already been accepted,
 //	@Description	the receiver will return a signed response with a 200 status code and and response code `DUPE`.
 //	@Description	The payload is the same structure as the original response, but additionally includes
-//	@Description	the a `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` which the sender can use
+//	@Description	a `duplicateOfAcceptedEnvelopeTransferChainEntrySignedContent` field which the sender can use
 //	@Description	to confirm which transfer was accepted.
 //	@Description
 //	@Description	**Error Responses**
@@ -229,7 +229,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// this checksum is needed as part of the response payload whether the transfer is accepted or rejected
+	// this checksum is needed as part of the response payload
 	if verifiedEnvelope.LastTransferChainEntrySignedContentChecksum == "" {
 		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to verify envelope - last chain entry signed content checksum is empty"))
 		return
@@ -242,7 +242,39 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
 	)
 
-	// Step 3. See if this transfer was already initiated
+	// Step 3. Check for transfer chain conflicts (DISE detection)
+	// This detects when the same eBL is sent with conflicting transfer chains to the same platform.
+	// Note: This cannot detect double-spends across different platforms (requires CTR).
+	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, verifiedEnvelope.TransportDocumentChecksum)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for existing transfer chain"))
+		return
+	}
+
+	if len(existingEntries) > 0 {
+		// Check if new chain is consistent with existing entries
+		if err := checkTransferChainConsistency(existingEntries, verifiedEnvelope.TransferChain); err != nil {
+			reason = fmt.Sprintf("transfer chain fork detected: %s", err.Error())
+			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+				ResponseCode: pint.ResponseCodeDISE,
+				Reason:       &reason,
+			})
+			if err != nil {
+				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create DISE response"))
+				return
+			}
+			reqLogger.Warn("Transfer chain fork detected",
+				slog.String("response_code", string(pint.ResponseCodeDISE)),
+				slog.String("reason", reason),
+				slog.String("transport_document_checksum", verifiedEnvelope.TransportDocumentChecksum),
+			)
+			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+			return
+		}
+	}
+
+	// Step 4. See if this transfer was already initiated
 	envelopeAlreadyReceived := false
 
 	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx, verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum)
@@ -255,7 +287,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		envelopeAlreadyReceived = true
 	}
 
-	// Step 4. Establish the list of missing documents
+	// Step 5. Establish the list of missing documents
 	// since the handler allows for retries of transfers, some docments may already be received
 	additionalDocuments := getAdditionalDocumentList(verifiedEnvelope.Manifest)
 	receivedDocumentChecksums := []string{}
@@ -277,7 +309,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 5. Handle retries
+	// Step 6. Handle retries
 	if envelopeAlreadyReceived {
 		if len(missingDocuments) == 0 {
 			// All documents have already been received and the transfer was accepted - return DUPE/200
@@ -322,7 +354,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// - does the signature comply with this server's minimum trust level policy?
 	// - do the parties referenced in the last transfer chain entry exist on this platform?
 
-	// Step 6. Validate recipient platform matches this server (failures return 422)
+	// Step 7. Validate recipient platform matches this server (failures return 422)
 	// This prevents a platform from accidentally sending to the wrong platform.
 	if verifiedEnvelope.RecipientPlatform != s.platformCode {
 		reqLogger.Warn("Transfer intended for different platform",
@@ -352,7 +384,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 7. Check trust level meets platform minimum (failures return 422 )
+	// Step 8. Check trust level meets platform minimum (failures return 422 )
 	if verifiedEnvelope.TrustLevel < s.minTrustLevel {
 		reqLogger.Warn("Trust level too low",
 			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
@@ -385,7 +417,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 8: Validate the receiving party exists and is active on the recipient platform.
+	// Step 9: Validate the receiving party exists and is active on the recipient platform.
 	//
 	// Senders may provide multiple identifyingCodes for the recipient - each should uniquely
 	// identify a party, and if multiple codes exist, they must refer to the same legal entity.
@@ -508,7 +540,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 9. Start transactional db work
+	// Step 10. Start transactional db work
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		logger.ContextWithLogAttrs(ctx,
@@ -527,7 +559,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Step 10. Load transport document if it hasn't been received previously
+	// Step 11. Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
 		Checksum:                      verifiedEnvelope.TransportDocumentChecksum,
@@ -547,7 +579,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 11. Create a record of the new envelope transfer if it hasn't been received previously
+	// Step 12. Create a record of the new envelope transfer if it hasn't been received previously
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	newEnvelopeRecord, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
@@ -565,50 +597,82 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 12. Create transfer chain entries
+	// Step 13. Create transfer chain entries
+
+	// the transfer chain is a linked list that can grow (e.g. we first receive
+	// entries 0-3, now we receive entries 0-5) - use this map so we only append the new items.
+	// (otherewise we will get a unique constraint violation)
+	existingPayloadChecksums := make(map[string]bool)
+	for _, entry := range existingEntries {
+		existingPayloadChecksums[entry.SignedContentPayloadChecksum] = true
+	}
+
 	for i, entryJWS := range envelope.EnvelopeTransferChain {
 
-		// check the hash of the JWS string matches the expected checksum
-		entryChecksum, err := crypto.Hash([]byte(entryJWS))
+		// Compute the JWS checksum (hash of entire JWS string including signature)
+		// This is used for chain linking via previous_signed_content_checksum
+		entryJWSChecksum, err := crypto.Hash([]byte(entryJWS))
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate entry checksum"))
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate entry JWS checksum"))
 			return
 		}
 
-		// Get previous entry checksum (NULL for first entry)
-		var previousChecksum *string
+		// Compute the payload checksum (hash of canonical payload without signature)
+		// This is the primary key and is used for duplicate detection
+		// The entry has already been parsed and verified in envelope_verification.go
+		parsedEntry := verifiedEnvelope.TransferChain[i]
+		entryJSON, err := json.Marshal(parsedEntry)
+		if err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to marshal entry payload"))
+			return
+		}
+
+		canonicalPayload, err := crypto.CanonicalizeJSON(entryJSON)
+		if err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to canonicalize entry payload"))
+			return
+		}
+
+		entryPayloadChecksum, err := crypto.Hash(canonicalPayload)
+		if err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate entry payload checksum"))
+			return
+		}
+
+		// Skip if we already have this entry
+		if existingPayloadChecksums[entryPayloadChecksum] {
+			continue
+		}
+
+		// Get previous entry JWS checksum (NULL for first entry)
+		var previousJWSChecksum *string
 		if i > 0 {
 			prevChecksum, err := crypto.Hash([]byte(envelope.EnvelopeTransferChain[i-1]))
 			if err != nil {
 				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate previous entry checksum"))
 				return
 			}
-			previousChecksum = &prevChecksum
+			previousJWSChecksum = &prevChecksum
 		}
 
-		// Store the transfer chain entry
-		_, err = txQueries.CreateTransferChainEntryIfNew(ctx, database.CreateTransferChainEntryIfNewParams{
-			TransportDocumentChecksum: verifiedEnvelope.TransportDocumentChecksum,
-			EnvelopeID:                newEnvelopeRecord.ID,
-			SignedContent:             string(entryJWS),
-			EntryChecksum:             entryChecksum,
-			PreviousEntryChecksum:     previousChecksum,
+		// Store the new transfer chain entry
+		_, err = txQueries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
+			SignedContentPayloadChecksum:  entryPayloadChecksum,
+			TransportDocumentChecksum:     verifiedEnvelope.TransportDocumentChecksum,
+			EnvelopeID:                    newEnvelopeRecord.ID,
+			SignedContent:                 string(entryJWS),
+			SignedContentChecksum:         entryJWSChecksum,
+			PreviousSignedContentChecksum: previousJWSChecksum,
 			// #nosec G115 -- transfer chains never exceed int32 max
 			Sequence: int32(i),
 		})
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				reqLogger.Info("Transfer chain entry already exists",
-					slog.String("entry_checksum", entryChecksum),
-				)
-				continue
-			}
 			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to store transfer chain entry"))
 			return
 		}
 	}
 
-	// Step 13. Create placeholder records for missing additional documents (where applicable)
+	// Step 14. Create placeholder records for missing additional documents (where applicable)
 	for _, doc := range missingDocuments {
 		_, err = txQueries.CreateExpectedAdditionalDocument(ctx, database.CreateExpectedAdditionalDocumentParams{
 			EnvelopeID:         newEnvelopeRecord.ID,
@@ -634,7 +698,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 14. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
+	// Step 15. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
 	if len(missingDocuments) == 0 {
 		// Mark envelope as accepted
 		if err := s.queries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
@@ -663,7 +727,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 15. Return response for pending transfer (201 Created/unsigned response).
+	// Step 16. Return response for pending transfer (201 Created/unsigned response).
 	response := &pint.EnvelopeTransferStartedResponse{
 		EnvelopeReference:                                   newEnvelopeRecord.ID.String(),
 		TransportDocumentChecksum:                           verifiedEnvelope.TransportDocumentChecksum,
@@ -693,6 +757,67 @@ func (s *StartTransferHandler) signEnvelopeTransferFinishedResponse(response pin
 	}
 
 	return pint.SignedEnvelopeTransferFinishedResponse(jws), nil
+}
+
+// checkTransferChainConsistency verifies that if we already have a transfer chain for this eBL
+// then the new chain is a legitimate extension.
+//
+// i.e the new chain contains all existing entries in the same order as the new chain.
+// if the new chain is inconsistent then this transfer should be rejected since it is a potential double spend.
+//
+// Returns nil if consistent, error describing the conflict if inconsistent.
+func checkTransferChainConsistency(
+	existingEntries []database.TransferChainEntry,
+	newChain []*ebl.EnvelopeTransferChainEntry,
+) error {
+	// Build map of existing entry payload checksums by sequence position
+	existingBySequence := make(map[int]string) // sequence -> payload_checksum
+	maxExistingSeq := -1
+
+	for _, entry := range existingEntries {
+		seq := int(entry.Sequence)
+		existingBySequence[seq] = entry.SignedContentPayloadChecksum
+		if seq > maxExistingSeq {
+			maxExistingSeq = seq
+		}
+	}
+
+	// Check if new chain is shorter than existing chain
+	if len(newChain) <= maxExistingSeq {
+		return fmt.Errorf("new chain has %d entries but we have already seen entry at position %d",
+			len(newChain), maxExistingSeq)
+	}
+
+	// Check each existing entry appears in new chain at same position with same payload checksum
+	for seq, existingPayloadChecksum := range existingBySequence {
+		// Compute payload checksum of new chain entry at this position
+		// The entry has already been parsed and verified in envelope_verification.go
+		newEntry := newChain[seq]
+
+		// Marshal to JSON and canonicalize
+		newEntryJSON, err := json.Marshal(newEntry)
+		if err != nil {
+			return fmt.Errorf("failed to marshal new chain entry at position %d: %w", seq, err)
+		}
+
+		canonicalPayload, err := crypto.CanonicalizeJSON(newEntryJSON)
+		if err != nil {
+			return fmt.Errorf("failed to canonicalize payload for new chain entry at position %d: %w", seq, err)
+		}
+
+		newPayloadChecksum, err := crypto.Hash(canonicalPayload)
+		if err != nil {
+			return fmt.Errorf("failed to compute payload checksum for new chain entry at position %d: %w", seq, err)
+		}
+
+		// If payload checksums don't match, we have a fork
+		if newPayloadChecksum != existingPayloadChecksum {
+			return fmt.Errorf("fork at position %d: existing entry has payload checksum %s, new entry has payload checksum %s",
+				seq, existingPayloadChecksum, newPayloadChecksum)
+		}
+	}
+
+	return nil
 }
 
 // getAdditionalDocumentList extracts a list of all the expected additional document checksums from the manifest

@@ -220,13 +220,13 @@ func TestStartTransfer(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to retrieve transfer chain entries: %v", err)
 				}
-				// walk backwards throught he chain and verify the previous entry checksums
+				// walk backwards through the chain and verify the previous entry checksums
 				for i := len(chainEntries) - 1; i > 0; i-- {
-					if chainEntries[i].PreviousEntryChecksum == nil {
+					if chainEntries[i].PreviousSignedContentChecksum == nil {
 						t.Errorf("Expected previous entry checksum to be set for entry %d", i)
 					} else {
-						if *chainEntries[i].PreviousEntryChecksum != chainEntries[i-1].EntryChecksum {
-							t.Errorf("Previous entry checksum mismatch for entry %d: expected %s, got %s", i, chainEntries[i-1].EntryChecksum, *chainEntries[i].PreviousEntryChecksum)
+						if *chainEntries[i].PreviousSignedContentChecksum != chainEntries[i-1].SignedContentChecksum {
+							t.Errorf("Previous entry checksum mismatch for entry %d: expected %s, got %s", i, chainEntries[i-1].SignedContentChecksum, *chainEntries[i].PreviousSignedContentChecksum)
 						}
 					}
 				}
@@ -301,13 +301,13 @@ func TestStartTransfer(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to retrieve transfer chain entries: %v", err)
 				}
-				// walk backwards throught he chain and verify the previous entry checksums
+				// walk backwards through the chain and verify the previous entry checksums
 				for i := len(chainEntries) - 1; i > 0; i-- {
-					if chainEntries[i].PreviousEntryChecksum == nil {
+					if chainEntries[i].PreviousSignedContentChecksum == nil {
 						t.Errorf("Expected previous entry checksum to be set for entry %d", i)
 					} else {
-						if *chainEntries[i].PreviousEntryChecksum != chainEntries[i-1].EntryChecksum {
-							t.Errorf("Previous entry checksum mismatch for entry %d: expected %s, got %s", i, chainEntries[i-1].EntryChecksum, *chainEntries[i].PreviousEntryChecksum)
+						if *chainEntries[i].PreviousSignedContentChecksum != chainEntries[i-1].SignedContentChecksum {
+							t.Errorf("Previous entry checksum mismatch for entry %d: expected %s, got %s", i, chainEntries[i-1].SignedContentChecksum, *chainEntries[i].PreviousSignedContentChecksum)
 						}
 					}
 				}

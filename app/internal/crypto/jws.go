@@ -154,7 +154,7 @@ func VerifyJWSWithKeyProvider(
 
 	// Step 1: Verify the JWS signature using the KeyProvider
 	//
-	// Note this step eliminates manual KID extraction by automatically
+	// Note this eliminates manual KID extraction by automatically
 	// selecting the right key during verification:
 	//
 	// By passing the KeyProvider to jws.Verify, the function will call

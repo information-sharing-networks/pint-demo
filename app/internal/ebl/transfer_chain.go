@@ -105,7 +105,7 @@ func (e *EnvelopeTransferChainEntry) ValidateStructure(entryNumber int) error {
 type Transaction struct {
 
 	// actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE, SURRENDER_FOR_DELIVERY, etc.)
-	ActionCode string `json:"actionCode"`
+	ActionCode EnvelopeState `json:"actionCode"`
 
 	// actor: The legal entity (party) performing the action (required)
 	Actor ActorParty `json:"actor"`
@@ -117,10 +117,8 @@ type Transaction struct {
 	ActionDateTime string `json:"actionDateTime"` // RFC3339 format with millisecond precision
 
 	// reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)
-	// SWTP (Switch to paper)
-	// COD (Change of destination)
-	// SWI (Switch BL)
-	ReasonCode *string `json:"reasonCode,omitempty"`
+	// Possible values: SWTP (Switch to paper), COD (Change of destination), SWI (Switch BL)
+	ReasonCode *SurrenderReasonCode `json:"reasonCode,omitempty"`
 
 	// comments: Free text comment (optional)
 	Comments *string `json:"comments,omitempty"`
