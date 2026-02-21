@@ -10,7 +10,7 @@ the servers used in testing are:
 - CAR1: ed25519-carrier.example.com
 
 ## Transport Documents
-the `transport-documents` directory contains sample JSON that would be used in a issuance request. 
+the `issuance-documents` directory contains sample JSON that would be used in a issuance request. 
 
 The computed fields (JWS and checksums) were calculated indepenently of the pint-demo code so they can be used in testing.
 

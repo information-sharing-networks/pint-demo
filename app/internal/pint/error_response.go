@@ -1,8 +1,8 @@
 package pint
 
 // error_response.go implements the DCSA standard error response format for the PINT API
-// it includes functions to map lower level errors (pint.Error, ebl.Error, crypto.Error)
-// to the DCSA error response format that is returned to the client.
+// it includes functions to map lower level errors (ebl.Error, crypto.Error) to pint.Error errors.
+// The pint.Error is included in a standardized DCSA error response format that is returned to the client.
 
 import (
 	"errors"
@@ -56,13 +56,14 @@ type DetailedError struct {
 	ErrorCodeMessage string    `json:"errorCodeMessage"`
 }
 
-// MapErrorToErrorResponse maps pint.Error, ebl.Error, crypto.Error, or generic errors to a DCSA error response.
+// errorResponseFromError maps pint.Error, ebl.Error, crypto.Error, or generic errors to a DCSA error response.
 //
 // The error code text is sanitized for the response, but the full error message is logged server-side.
 // The mapping also establishes the appropriate HTTP status code based on the error type.
 //
-// Call this function to set up the error response before sending it to the client (using responses.RespondWithError).
-func MapErrorToErrorResponse(err error, r *http.Request) *ErrorResponse {
+// you typically don't need to call this directly - use RespondWithErrorResponse() instead
+// this will map the error, return a santized response to the client and log the full error details.
+func errorResponseFromError(err error, r *http.Request) *ErrorResponse {
 	requestID := middleware.GetReqID(r.Context())
 
 	// Check for the most specific error types first (crypto.Error and ebl.Error)

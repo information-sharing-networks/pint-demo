@@ -161,7 +161,7 @@ func NewStartTransferHandler(
 //
 //	@Tags			PINT
 //
-//	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain - see the schema ebl.EnvelopeManifest definition for details of the expected structure in the signed field"
+//	@Param			request	body		ebl.Envelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain - see the schema ebl.EnvelopeManifest definition for details of the expected structure in the signed field"
 //	@Param			request	body		ebl.EnvelopeManifest						true	"documentation only (not used directly)"
 //	@Param			request	body		ebl.EnvelopeTransferChainEntry				true	"documentation only (not used directly)"
 //
@@ -178,7 +178,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	reqLogger := logger.ContextRequestLogger(ctx)
 
 	// Step 1. Check json structure (failures return 400, unsigned response)
-	var envelope ebl.EblEnvelope
+	var envelope ebl.Envelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
 		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode envelope JSON"))
 		return
@@ -353,6 +353,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// - is the envelope addressed to this platform?
 	// - does the signature comply with this server's minimum trust level policy?
 	// - do the parties referenced in the last transfer chain entry exist on this platform?
+	// - is the transfer chain consistent with existing entries for this eBL?
 
 	// Step 7. Validate recipient platform matches this server (failures return 422)
 	// This prevents a platform from accidentally sending to the wrong platform.

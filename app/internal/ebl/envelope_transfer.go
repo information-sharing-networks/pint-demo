@@ -1,100 +1,113 @@
 package ebl
 
-// envelope_transfer.go provides high-level functions for creating DCSA EBL_PINT API envelope transfer requests.
+// envelope_transfer.go provides the high level functions for creating DCSA EBL_PINT API envelopes.
 //
-// CreateEnvelopeTransfer is used to create a complete envelope transfer request for POST /v3/envelopes.
+// For standard usage you should use the high level functions in this file, rather than the
+// low level functions in envelope.go and transfer_chain.go.
 //
-// In a production service, the sending platform would have:
-// a. The transport document JSON
-// b. The complete envelope transfer chain (array of signed entries)
-// c. Optional: eBL visualisation file
-// d. Optional: supporting documents
+// When forwarding envelopes to other platforms (via PINT client):
+//  1. Create transactions using helpers (CreateTransferTransaction, CreateEndorseTransaction, etc.)
+//  2. Package transactions into a transfer chain entry: CreateTransferChainEntry()
+//  3. Create envelope with the new entry: CreateEnvelope()
+//  4. Marshal and send to next platform via PINT client (POST /v3/envelopes)
 //
-// Transfer chain entries summarize the activity that has happened to the eBL since the last time it was on this platform.
-//
-// In a production service, the initial receiving platform would need to:
-// 1. Create the first entry (ISSUE transaction) with the issuance manifest received from the carrier
-// 2. Create subsequent entries (ENDORSE, SIGN, TRANSFER, etc.) linking to the previous entry
-// 3. Include the transfer chain in the envelope transfer
-//
-// The functions below include wrappers to help construct and sign transfer chain entries.
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
-
-	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-// EnvelopeTransferInput contains the business data needed to create a DCSA envelope transfer.
-type EnvelopeTransferInput struct {
+// createEnvelopeInput contains the data needed to create a DCSA envelope transfer.
+type createEnvelopeInput struct {
 
-	// TransportDocument is the transport document as JSON bytes
-	TransportDocument json.RawMessage
+	// ReceivedEnvelope is the envelope received from another platform (via POST /v3/envelopes)
+	ReceivedEnvelope *Envelope
 
-	// EnvelopeTransferChain is the complete ordered list of signed transfer chain entries
-	// This must include at least one entry (the first entry with ISSUE transaction)
-	EnvelopeTransferChain []EnvelopeTransferChainEntrySignedContent
-
-	// EBLVisualizationFilePath is the optional path to the eBL visualization file (e.g., PDF)
-	// If provided, the file will be read, checksummed, and metadata included in the envelope manifest.
-	// The binary data will be sent separately via the supporting documents API.
-	// In a production system the binary data and metadata can be retrieved from the issuance request (no need to recompute from the file).
-	EBLVisualizationFilePath string
+	// NewTransferChainEntrySignedContent is the new entry including the transactions to be added to the transfer chain.
+	// created by CreateTransferChainEntry()
+	// This is optional to support testing where it is useful to be able to recreate an envelope without changing the transfer chain.
+	NewTransferChainEntrySignedContent *EnvelopeTransferChainEntrySignedContent
 
 	// SupportingDocumentFilePaths is an optional list of paths to supporting documents.
 	// If provided, each file will be read, checksummed, and metadata included in the envelope manifest.
 	// The binary data will be sent separately via the supporting documents API.
+	//
+	// Note the metadata for the ebl visualization (if provided by the carrier) is propagated automatically
+	// from the received envelope and should not be included here.
 	SupportingDocumentFilePaths []string
 }
 
-// CreateEnvelopeTransfer creates a complete DCSA EblEnvelope ready to send to POST /v3/envelopes.
-//
-// The signing algorithm is automatically detected from the private key type (ed25519.PrivateKey or *rsa.PrivateKey).
+// CreateEnvelope prepares a complete envelope ready to send to POST /v3/envelopes.
 //
 // Parameters:
-//   - input: The data for the envelope transfer (transport document, transfer chain, optional document metadata)
-//   - privateKey: The sending platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
+//   - input: The data for the envelope transfer (received envelope, new transfer chain entry, optional document metadata)
+//   - privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
 //   - certChain: Optional X.509 certificate chain. Pass nil if not needed.
 //
-// Using a cert chain with an EV or OV certificate is recommended for production (used for non-repudiation).
-//
-// Returns the complete EblEnvelope ready to be JSON-marshaled and sent to POST /v3/envelopes.
-func CreateEnvelopeTransfer(
-	input EnvelopeTransferInput,
+// Returns the complete Envelope ready to be JSON-marshaled and sent to POST /v3/envelopes.
+func CreateEnvelope(
+	input createEnvelopeInput,
 	privateKey any,
 	certChain []*x509.Certificate,
-) (*EblEnvelope, error) {
+) (*Envelope, error) {
 
 	// Step 1: Validate input
-	if len(input.TransportDocument) == 0 {
-		return nil, NewEnvelopeError("transport document is required")
-	}
-	if len(input.EnvelopeTransferChain) == 0 {
-		return nil, NewEnvelopeError("envelope transfer chain must contain at least one entry")
+	if input.ReceivedEnvelope == nil {
+		return nil, NewEnvelopeError("received envelope is required")
 	}
 
-	// Step 2: Load optional eBL visualization file and create metadata
+	// check the envelope has the required fields
+	if err := input.ReceivedEnvelope.ValidateStructure(); err != nil {
+		return nil, WrapEnvelopeError(err, "received envelope is invalid")
+	}
+
+	// Step 2: Build the complete transfer chain
+	// Start with the received envelope's transfer chain (the existing history)
+	transferChain := make([]EnvelopeTransferChainEntrySignedContent, 0, len(input.ReceivedEnvelope.EnvelopeTransferChain)+1)
+	transferChain = append(transferChain, input.ReceivedEnvelope.EnvelopeTransferChain...)
+
+	// Append the new transfer chain entry if provided
+	if input.NewTransferChainEntrySignedContent != nil {
+		transferChain = append(transferChain, *input.NewTransferChainEntrySignedContent)
+	}
+
+	// Step 3: Extract eBL visualization metadata from the received envelope's manifest
+	// We parse the received manifest to extract the visualization metadata and automatically propagate it.
+	// The EBLVisualizationFilePath is only used for initial issuance (when there's no received envelope manifest).
 	var eblVisualizationMetadata *DocumentMetadata
-	if input.EBLVisualizationFilePath != "" {
-		metadata, err := loadDocumentMetadata(input.EBLVisualizationFilePath)
-		if err != nil {
-			return nil, WrapEnvelopeError(err, "failed to load eBL visualization file")
-		}
-		eblVisualizationMetadata = metadata
+
+	// extract the eBL visualization from the manifest
+	// We don't verify the signature here because the envelope was already verified when received
+	parts := strings.Split(string(input.ReceivedEnvelope.EnvelopeManifestSignedContent), ".")
+	if len(parts) != 3 {
+		return nil, NewEnvelopeError(fmt.Sprintf("invalid JWS format: expected 3 parts, got %d", len(parts)))
 	}
 
-	// Step 3: Load optional supporting documents and create metadata
+	manifestPayload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, WrapEnvelopeError(err, "failed to decode manifest JWS payload")
+	}
+
+	var receivedManifest EnvelopeManifest
+	if err := json.Unmarshal(manifestPayload, &receivedManifest); err != nil {
+		return nil, WrapEnvelopeError(err, "failed to unmarshal received envelope manifest")
+	}
+
+	// If the received envelope has eBL visualization, propagate it unchanged
+	if receivedManifest.EBLVisualisationByCarrier != nil {
+		eblVisualizationMetadata = receivedManifest.EBLVisualisationByCarrier
+	}
+
+	// Step 4: read any supporting documents and create metadata
 	var supportingDocumentsMetadata []DocumentMetadata
 	if len(input.SupportingDocumentFilePaths) > 0 {
 		supportingDocumentsMetadata = make([]DocumentMetadata, 0, len(input.SupportingDocumentFilePaths))
 		for i, filePath := range input.SupportingDocumentFilePaths {
-			metadata, err := loadDocumentMetadata(filePath)
+			metadata, err := documentMetadataFromFile(filePath)
 			if err != nil {
 				return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to load supporting document %d (%s)", i, filePath))
 			}
@@ -102,12 +115,12 @@ func CreateEnvelopeTransfer(
 		}
 	}
 
-	// Step 4: Get the last entry in the transfer chain (required for envelope manifest)
-	lastTransferChainEntry := input.EnvelopeTransferChain[len(input.EnvelopeTransferChain)-1]
+	// Step 5: Build the envelope manifest
+	lastTransferChainEntry := transferChain[len(transferChain)-1]
+	transportDocument := input.ReceivedEnvelope.TransportDocument
 
-	// Step 5: Build the envelope manifest using the builder
 	manifestBuilder := NewEnvelopeManifestBuilder().
-		WithTransportDocument(input.TransportDocument).
+		WithTransportDocument(transportDocument).
 		WithLastTransferChainEntry(lastTransferChainEntry)
 
 	if eblVisualizationMetadata != nil {
@@ -129,167 +142,101 @@ func CreateEnvelopeTransfer(
 		return nil, WrapEnvelopeError(err, "failed to sign envelope manifest")
 	}
 
-	// Step 7: Build the complete EblEnvelope using the builder
-	envelope, err := NewEblEnvelopeBuilder().
-		WithTransportDocument(input.TransportDocument).
+	// Step 7: Build the complete Envelope
+	envelope, err := NewEnvelopeBuilder().
+		WithTransportDocument(transportDocument).
 		WithEnvelopeManifestSignedContent(envelopeManifestSignedContent).
-		WithEnvelopeTransferChain(input.EnvelopeTransferChain).
+		WithEnvelopeTransferChain(transferChain).
 		Build()
 
 	if err != nil {
-		return nil, WrapEnvelopeError(err, "failed to build EblEnvelope")
+		return nil, WrapEnvelopeError(err, "failed to build Envelope")
 	}
 
 	return envelope, nil
 }
 
-// loadDocumentMetadata reads a file and creates DocumentMetadata with checksum.
-// This is used for both eBL visualization and supporting documents.
-func loadDocumentMetadata(filePath string) (*DocumentMetadata, error) {
-	dir := filepath.Dir(filePath)
-	filename := filepath.Base(filePath)
-
-	// Read the file
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to open directory %s", dir))
-	}
-	defer root.Close()
-
-	content, err := root.ReadFile(filename)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, "failed to read file")
-	}
-
-	// Detect content type (defaults to application/octet-stream if no match)
-	contentType := http.DetectContentType(content)
-
-	// Calculate SHA-256 checksum of the binary content
-	checksum, err := crypto.Hash(content)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, "failed to calculate checksum")
-	}
-
-	return &DocumentMetadata{
-		Name:             filename,
-		Size:             int64(len(content)),
-		MediaType:        contentType,
-		DocumentChecksum: checksum,
-	}, nil
-}
-
-// TransferChainEntryInput contains the data needed to create a transfer chain entry.
+// CreateTransferChainEntry creates a new signed transfer chain entry for a received envelope.
 //
-// Note that there are conditional fields:
-//   - When IsFirstEntry is true, IssuanceManifestSignedContent is required and PreviousEnvelopeTransferChainEntrySignedContent should not be provided.
-//   - When IsFirstEntry is false, PreviousEnvelopeTransferChainEntrySignedContent is required and IssuanceManifestSignedContent should not be provided.
-type TransferChainEntryInput struct {
-
-	// TransportDocumentChecksum is the SHA-256 checksum of the canonical transport document.
-	// This should be the validated checksum from the carrier's IssuanceManifest.
-	TransportDocumentChecksum string
-
-	// EBLPlatform is the platform code (e.g., "WAVE", "BOLE", "CARX")
-	EBLPlatform string
-
-	// IsFirstEntry indicates if this is the first entry in the chain.
-	IsFirstEntry bool
-
-	// IssuanceManifestSignedContent is required for the first entry only.
-	IssuanceManifestSignedContent *IssuanceManifestSignedContent
-
-	// ControlTrackingRegistry is optional and only for the first entry.
-	// Example: "https://ctr.dcsa.org/v1"
-	ControlTrackingRegistry *string
-
-	// PreviousEnvelopeTransferChainEntrySignedContent is required for subsequent entries (not first entry).
-	PreviousEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
-
-	// Transactions is the list of transactions for this entry (at least one required).
-	Transactions []Transaction
-}
-
-// CreateTransferChainEntrySignedContent creates and signs a transfer chain entry.
+// Use this after you've created one or more transactions (TRANSFER, ENDORSE, etc.) and are
+// ready to package them into a transfer chain entry.
+//
+// This function automatically:
+// - Extracts the transport document checksum from the received envelope
+// - Links to the previous transfer chain entry
+// - Creates and signs the new entry
 //
 // Parameters:
-//   - input: The data for the transfer chain entry (transport document checksum, platform, transactions, etc.)
-//   - privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
-//   - certChain: Optional X.509 certificate chain. Pass nil to omit x5c header.
+//   - receivedEnvelope: The envelope received from another platform (via POST /v3/envelopes)
+//   - transactions: The transactions to include in the new entry
+//   - platformCode: Your platform's code (e.g., "WAVE", "BOLE")
+//   - privateKey: Your platform's private key for signing
+//   - certChain: Optional X.509 certificate chain
 //
-// Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification).
+// Note you must verify the received envelope before calling this function (this is handled automatically by the POST /v3/envelopes handler)
 //
-// Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain.
-func CreateTransferChainEntrySignedContent(
-	input TransferChainEntryInput,
+// Returns the signed transfer chain entry ready to use with CreateEnvelope().
+func CreateTransferChainEntry(
+	receivedEnvelope *Envelope,
+	transactions []Transaction,
+	platformCode string,
 	privateKey any,
 	certChain []*x509.Certificate,
 ) (EnvelopeTransferChainEntrySignedContent, error) {
 
-	// Step 1: Validate input
-	if input.TransportDocumentChecksum == "" {
-		return "", NewEnvelopeError("transport document checksum is required")
+	// Validate input
+	if receivedEnvelope == nil {
+		return "", NewEnvelopeError("received envelope is required")
 	}
-	if input.EBLPlatform == "" {
-		return "", NewEnvelopeError("eBL platform is required")
-	}
-	if len(input.Transactions) == 0 {
+	if len(transactions) == 0 {
 		return "", NewEnvelopeError("at least one transaction is required")
 	}
-
-	// check first vs subsequent entry requirements
-	if input.IsFirstEntry {
-		if input.IssuanceManifestSignedContent == nil {
-			return "", NewEnvelopeError("issuance manifest is required for first entry")
-		}
-		if input.PreviousEnvelopeTransferChainEntrySignedContent != "" {
-			return "", NewEnvelopeError("previous entry JWS should not be provided for first entry")
-		}
-	} else {
-		if input.PreviousEnvelopeTransferChainEntrySignedContent == "" {
-			return "", NewEnvelopeError("previous entry JWS is required for subsequent entries")
-		}
-		if input.IssuanceManifestSignedContent != nil {
-			return "", NewEnvelopeError("issuance manifest should only be provided for first entry")
-		}
-		if input.ControlTrackingRegistry != nil {
-			return "", NewEnvelopeError("control tracking registry should only be provided for first entry")
-		}
+	if platformCode == "" {
+		return "", NewEnvelopeError("platform code is required")
 	}
 
-	// Step 2: Build the transfer chain entry using the builder
-	var builder *EnvelopeTransferChainEntryBuilder
-
-	if input.IsFirstEntry {
-		builder = NewFirstEnvelopeTransferChainEntryBuilder(*input.IssuanceManifestSignedContent)
-		// If provided, CTR is only included in the first entry.
-		if input.ControlTrackingRegistry != nil {
-			builder.WithControlTrackingRegistry(*input.ControlTrackingRegistry)
-		}
-	} else {
-		builder = NewSubsequentEnvelopeTransferChainEntryBuilder(input.PreviousEnvelopeTransferChainEntrySignedContent)
+	// Extract the transport document checksum from the received envelope's manifest
+	// We parse the JWS to get the payload without verifying the signature
+	// (the envelope was already verified when it was received)
+	parts := strings.Split(string(receivedEnvelope.EnvelopeManifestSignedContent), ".")
+	if len(parts) != 3 {
+		return "", NewEnvelopeError(fmt.Sprintf("invalid JWS format: expected 3 parts, got %d", len(parts)))
 	}
 
-	entry, err := builder.
-		WithTransportDocumentChecksum(input.TransportDocumentChecksum).
-		WithEBLPlatform(input.EBLPlatform).
-		WithTransactions(input.Transactions).
-		Build()
-
+	manifestPayload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
+		return "", WrapEnvelopeError(err, "failed to decode JWS payload")
 	}
 
-	// Step 3: Sign the transfer chain entry with the platform's private key.
-	// The keyID is automatically computed inside the Sign method.
-	signedContent, err := entry.Sign(privateKey, certChain)
+	var receivedManifest EnvelopeManifest
+	if err := json.Unmarshal(manifestPayload, &receivedManifest); err != nil {
+		return "", WrapEnvelopeError(err, "failed to unmarshal received envelope manifest")
+	}
+
+	transportDocumentChecksum := receivedManifest.TransportDocumentChecksum
+
+	// Get the last entry from the received transfer chain
+	lastEntry := receivedEnvelope.EnvelopeTransferChain[len(receivedEnvelope.EnvelopeTransferChain)-1]
+
+	// Create the new transfer chain entry
+	newEntryInput := TransferChainEntryInput{
+		TransportDocumentChecksum: transportDocumentChecksum,
+		EBLPlatform:               platformCode,
+		IsFirstEntry:              false,
+		PreviousEnvelopeTransferChainEntrySignedContent: lastEntry,
+		Transactions: transactions,
+	}
+
+	// Sign the new transfer chain entry
+	signedNewEntry, err := createTransferChainEntrySignedContent(newEntryInput, privateKey, certChain)
 	if err != nil {
-		return "", WrapEnvelopeError(err, "failed to sign transfer chain entry")
+		return "", WrapEnvelopeError(err, "failed to create new transfer chain entry")
 	}
 
-	return signedContent, nil
+	return signedNewEntry, nil
 }
 
-// CreateIssueTransaction is a helper function to create an ISSUE transaction.
+// CreateIssueTransaction creates an ISSUE transaction.
 //
 // This is used in when the carrier issues the eBL to the recipient (shipper).
 //
@@ -303,7 +250,7 @@ func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transact
 	}
 }
 
-// CreateTransferTransaction is a helper function to create a TRANSFER transaction.
+// CreateTransferTransaction creates a TRANSFER transaction.
 //
 // This is used when the actor transfers the eBL to another party. The recipient may be
 // on another platform.
@@ -318,7 +265,7 @@ func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Trans
 	}
 }
 
-// CreateEndorseTransaction is a helper function to create an ENDORSE transaction.
+// CreateEndorseTransaction creates an ENDORSE transaction.
 //
 // This is used when the actor endorses the eBL to a named party.
 //
@@ -332,7 +279,7 @@ func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty) Transa
 	}
 }
 
-// CreateEndorseToOrderTransaction is a helper function to create an ENDORSE_TO_ORDER transaction.
+// CreateEndorseToOrderTransaction creates an ENDORSE_TO_ORDER transaction.
 //
 // This is used when the actor endorses the document to order of the recipient, allowing the recipient to further endorse the eBL to another party)
 //
@@ -346,7 +293,7 @@ func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty)
 	}
 }
 
-// CreateBlankEndorseTransaction is a helper function to create a BLANK_ENDORSE transaction.
+// CreateBlankEndorseTransaction creates a BLANK_ENDORSE transaction.
 //
 // This is used when the actor endorses the document without specifying a named endorsee.
 //
@@ -360,7 +307,7 @@ func CreateBlankEndorseTransaction(actor ActorParty, recipient RecipientParty) T
 	}
 }
 
-// CreateSignTransaction is a helper function to create a SIGN transaction.
+// CreateSignTransaction creates a SIGN transaction.
 //
 // This is used when a party signs the eBL while in their possession (no recipient).
 //
@@ -374,7 +321,7 @@ func CreateSignTransaction(actor ActorParty) Transaction {
 	}
 }
 
-// CreateSurrenderForAmendmentTransaction is a helper function to create a SURRENDER_FOR_AMENDMENT transaction.
+// CreateSurrenderForAmendmentTransaction creates a SURRENDER_FOR_AMENDMENT transaction.
 //
 // This is used when the actor surrenders the eBL for amendment.
 //
@@ -389,7 +336,7 @@ func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient Recipien
 	}
 }
 
-// CreateSurrenderForDeliveryTransaction is a helper function to create a SURRENDER_FOR_DELIVERY transaction.
+// CreateSurrenderForDeliveryTransaction creates a SURRENDER_FOR_DELIVERY transaction.
 //
 // This is used when the actor surrenders the eBL for delivery.
 //

@@ -76,7 +76,7 @@ type KeyProviderWithLookup interface {
 type EnvelopeVerificationInput struct {
 
 	// Envelope is the complete eBL Envelope received from POST /v3/envelopes
-	Envelope *EblEnvelope
+	Envelope *Envelope
 
 	// RootCAs is the root CA pool for certificate validation
 	// nil = use system roots (typically used for production), custom pool = testing/private CA

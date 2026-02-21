@@ -3,6 +3,7 @@ package ebl
 import (
 	"crypto/ed25519"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -909,4 +910,108 @@ func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T)
 			t.Errorf("Expected invalid URL error, got: %v", err)
 		}
 	})
+}
+
+// TestRecreateSampleTransferChain is a sanity check to confirm
+// that we can recreate the transfer chain of the ebl envelope in testdata/pint-transfers
+func TestRecreateSampleTransferChain(t *testing.T) {
+
+	privateKeyPath := "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	certChainPath := "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+	testEnvelopePath := "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+
+	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("failed to read private key: %v", err)
+	}
+
+	certChain, err := crypto.ReadCertChainFromPEMFile(certChainPath)
+	if err != nil {
+		t.Fatalf("failed to read cert chain: %v", err)
+	}
+
+	testEnvelopeData, err := os.ReadFile(testEnvelopePath)
+	if err != nil {
+		t.Fatalf("failed to read test envelope: %v", err)
+	}
+
+	// marshal the test envelope to json.RawMessage so we can access the fields we need
+	var testEnvelope map[string]json.RawMessage
+	if err := json.Unmarshal(testEnvelopeData, &testEnvelope); err != nil {
+		t.Fatalf("failed to unmarshal test envelope: %v", err)
+	}
+
+	// extract the issuanceManifestSignedContent from the first transfer chain entry
+	firstEntryPath := "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
+	firstEntryData, err := os.ReadFile(firstEntryPath)
+	if err != nil {
+		t.Fatalf("failed to read first entry: %v", err)
+	}
+	var firstEntry EnvelopeTransferChainEntry
+	if err := json.Unmarshal(firstEntryData, &firstEntry); err != nil {
+		t.Fatalf("failed to unmarshal first entry: %v", err)
+	}
+	issuanceManifestSignedContent := firstEntry.IssuanceManifestSignedContent
+
+	firstEntryTransactions := firstEntry.Transactions
+
+	// create the entry signed content for the first entry
+	firstEntrySignedContent, err := createTransferChainEntrySignedContent(
+		TransferChainEntryInput{
+			TransportDocumentChecksum:     firstEntry.TransportDocumentChecksum,
+			EBLPlatform:                   firstEntry.EblPlatform,
+			IsFirstEntry:                  true,
+			IssuanceManifestSignedContent: issuanceManifestSignedContent,
+			Transactions:                  firstEntryTransactions,
+		},
+		privateKey,
+		certChain,
+	)
+	if err != nil {
+		t.Fatalf("failed to create first entry signed content: %v", err)
+	}
+	secondEntryPath := "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
+	secondEntryData, err := os.ReadFile(secondEntryPath)
+	if err != nil {
+		t.Fatalf("failed to read second entry: %v", err)
+	}
+	var secondEntry EnvelopeTransferChainEntry
+	if err := json.Unmarshal(secondEntryData, &secondEntry); err != nil {
+		t.Fatalf("failed to unmarshal second entry: %v", err)
+	}
+	secondEntryTransactions := secondEntry.Transactions
+
+	secondEntrySignedContent, err := createTransferChainEntrySignedContent(
+		TransferChainEntryInput{
+			TransportDocumentChecksum: secondEntry.TransportDocumentChecksum,
+			EBLPlatform:               secondEntry.EblPlatform,
+			IsFirstEntry:              false,
+			PreviousEnvelopeTransferChainEntrySignedContent: firstEntrySignedContent,
+			Transactions: secondEntryTransactions,
+		},
+		privateKey,
+		certChain,
+	)
+	if err != nil {
+		t.Fatalf("failed to create second entry signed content: %v", err)
+	}
+
+	t.Logf("first entry signed content: %v", string(firstEntrySignedContent))
+	t.Logf("second entry signed content: %v", string(secondEntrySignedContent))
+
+	// read the actual transfer chain from the test envelope
+	var sampleEnvelope Envelope
+	if err := json.Unmarshal(testEnvelopeData, &sampleEnvelope); err != nil {
+		t.Fatalf("failed to unmarshal sample ebl envelope: %v", err)
+	}
+	sampleTransferChain := sampleEnvelope.EnvelopeTransferChain
+	if len(sampleTransferChain) != 2 {
+		t.Fatalf("expected 2 entries in sample transfer chain, got %d", len(sampleTransferChain))
+	}
+	if string(firstEntrySignedContent) != string(sampleTransferChain[0]) {
+		t.Errorf("first entry signed content mismatch")
+	}
+	if string(secondEntrySignedContent) != string(sampleTransferChain[1]) {
+		t.Errorf("second entry signed content mismatch")
+	}
 }

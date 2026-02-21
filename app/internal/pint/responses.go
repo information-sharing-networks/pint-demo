@@ -10,22 +10,25 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 )
 
-// RespondWithErrorResponse sends a DCSA-formatted error response as a JSON payload.
+// RespondWithErrorResponse creates and sends a DCSA-formatted error response as a JSON payload.
 //
 // Use this function when a request faied because it was malformed or because of a server-side error
-// prevents signing the response.
+// prevents signing the response. This will return an unsigned error response.
 //
-// It logs the full error details server-side and sends a sanitized response to the client
+// The function logs the full error details server-side and sends a sanitized message to the client
+// The supplied errors are automatically mapped to the appropriate pint error code/sanitized message
+// (ebl.Error, crypto.Error, pint.Error and general errors are all mapped).
 func RespondWithErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
-	// Map the error to DCSA format
-	errorResponse := MapErrorToErrorResponse(err, r)
+	// Map the error to DCSA format errorResponse
+	errorResponse := errorResponseFromError(err, r)
 
 	// Log the full error details server-side
 	reqLogger := logger.ContextRequestLogger(r.Context())
 	reqLogger.Warn("Request failed",
 		slog.String("error", err.Error()),
 		slog.Int("status_code", errorResponse.StatusCode),
-		slog.String("error_code_text", errorResponse.StatusCodeMessage),
+		slog.Int("error_code", int(errorResponse.Errors[0].ErrorCode)),
+		slog.String("error_code_text", errorResponse.Errors[0].ErrorCodeText),
 		slog.String("request_id", errorResponse.ProviderCorrelationReference),
 	)
 

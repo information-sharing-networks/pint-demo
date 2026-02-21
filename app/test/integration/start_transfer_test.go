@@ -362,7 +362,6 @@ func TestStartTransfer(t *testing.T) {
 		t.Logf("Malformed JSON: Received error response: %s", errorResp.Errors[0].ErrorCodeText)
 	})
 
-	// skip this test
 	t.Run("error: tampered envelope returns 422 with BENV", func(t *testing.T) {
 		// Load valid test envelope
 		envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
@@ -602,5 +601,46 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestStartTransfer_TransferChainValidation tests that the transfer chain is consistent with existing entries for this eBL
+func TestStartTransfer_TransferChainValidation(t *testing.T) {
+	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
+	// and includes 2 transfer chain entries:
+	// - the first is the issuance entry (signed by the carrier and sent to EBL1)
+	// - the second is a transfer entry (signed by EBL1 and sent to EBL2)
+	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+
+	// signing key is ed25519
+
+	_ = []struct {
+		name             string
+		envelopePath     string
+		modifyEnvelope   func(t *testing.T, envelope []byte) []byte
+		expectedStatus   int
+		expectedResponse pint.ResponseCode
+		wantErrContains  string
+	}{
+		{
+			name:           "accepts valid transfer chain",
+			envelopePath:   testEnvelopePath,
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "returns DISE when transfer chain is inconsistent",
+			modifyEnvelope: func(t *testing.T, envelope []byte) []byte {
+				// parse the envelope
+				var env map[string]any
+				if err := json.Unmarshal(envelope, &env); err != nil {
+					t.Fatalf("Failed to parse envelope: %v", err)
+				}
+
+				return []byte("{}")
+			},
+			expectedStatus:   http.StatusConflict,
+			expectedResponse: pint.ResponseCodeDISE,
+			wantErrContains:  "transfer chain fork detected",
+		},
 	}
 }
