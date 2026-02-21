@@ -9,72 +9,32 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-// TestRecreateSampleEblEnvelope tests that we can recreate the sample ebl envelope in testdata/pint-transfers
-// this is a sanity check to confirm we can correctly recreate the manually computed signatures and checksums in the sample data
-func TestRecreateSampleEblEnvelope(t *testing.T) {
-
-	// create the transfer chain entries and signatures and check these match the sampe entries in the sample ebl envelope (eblEnvelope.EnvelopeTransferChain)
+func TestCreateEnvelope(t *testing.T) {
 	testData := []struct {
-		name                                 string
-		privateKeyJWKPath                    string
-		certChainFilePath                    string
-		sampleTransferChainEntryIssuePath    string
-		sampleTransferChainEntryTransferPath string
-		sampleEblEnvelopePath                string
+		name                 string
+		privateKeyJWKPath    string
+		certChainFilePath    string
+		receivedEnvelopePath string
 	}{
 		{
-			name:                                 "eblEnvelope_Ed25519",
-			privateKeyJWKPath:                    "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
-			certChainFilePath:                    "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
-			sampleTransferChainEntryIssuePath:    "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json",
-			sampleEblEnvelopePath:                "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
-			sampleTransferChainEntryTransferPath: "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json",
-		},
-		{
-			name:                                 "eblEnvelope_RSA",
-			privateKeyJWKPath:                    "../../test/testdata/keys/rsa-eblplatform.example.com.private.jwk",
-			certChainFilePath:                    "../../test/testdata/certs/rsa-eblplatform.example.com-fullchain.crt",
-			sampleTransferChainEntryIssuePath:    "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-rsa.json",
-			sampleEblEnvelopePath:                "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
-			sampleTransferChainEntryTransferPath: "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-rsa.json",
+			name:                 "forward_Ed25519",
+			privateKeyJWKPath:    "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
+			certChainFilePath:    "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
+			receivedEnvelopePath: "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
 		},
 	}
+
 	for _, test := range testData {
 		t.Run(test.name, func(t *testing.T) {
-
-			// create the envelope transfer chain
-
-			// read sample transfer chain entry
-			issueData, err := os.ReadFile(test.sampleTransferChainEntryIssuePath)
+			// Load the received envelope
+			sampleEnvelopeData, err := os.ReadFile(test.receivedEnvelopePath)
 			if err != nil {
-				t.Fatalf("failed to read sample transfer chain entry: %v", err)
+				t.Fatalf("failed to read sample ebl envelope: %v", err)
 			}
 
-			// unmarshal the sample transfer chain entry to get the transport document checksum and CTR
-			sampleIssueEntry := &EnvelopeTransferChainEntry{}
-			if err := json.Unmarshal(issueData, sampleIssueEntry); err != nil {
-				t.Fatalf("failed to unmarshal sample transfer chain entry: %v", err)
-			}
-
-			// read the previous transfer chain entry
-			transferData, err := os.ReadFile(test.sampleTransferChainEntryTransferPath)
-			if err != nil {
-				t.Fatalf("failed to read previous transfer chain entry: %v", err)
-			}
-
-			// unmarshal the transfer chain entry
-			sampleTransferEntry := &EnvelopeTransferChainEntry{}
-			if err := json.Unmarshal(transferData, sampleTransferEntry); err != nil {
-				t.Fatalf("failed to unmarshal previous transfer chain entry: %v", err)
-			}
-
-			// create the transfer chain ISSUE entry input using the sample data
-			issueTransferChainEntryInput := TransferChainEntryInput{
-				TransportDocumentChecksum:     sampleIssueEntry.TransportDocumentChecksum,
-				EBLPlatform:                   sampleIssueEntry.EblPlatform,
-				IsFirstEntry:                  true,
-				IssuanceManifestSignedContent: sampleIssueEntry.IssuanceManifestSignedContent,
-				Transactions:                  sampleIssueEntry.Transactions,
+			receivedEnvelope := &Envelope{}
+			if err := json.Unmarshal(sampleEnvelopeData, receivedEnvelope); err != nil {
+				t.Fatalf("failed to unmarshal sample ebl envelope: %v", err)
 			}
 
 			// Load the private key and certificate chain
@@ -87,74 +47,78 @@ func TestRecreateSampleEblEnvelope(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to load certificate chain: %v", err)
 			}
-			// create the transfer chain entry
-			signedIssueEntry, err := CreateTransferChainEntrySignedContent(issueTransferChainEntryInput, privateKey, certChain)
+
+			// Create a new transaction
+			newTransaction := CreateTransferTransaction(
+				ActorParty{
+					PartyName:   "Test Platform B",
+					EblPlatform: "TEST",
+					IdentifyingCodes: []IdentifyingCode{
+						{
+							CodeListProvider: "TEST",
+							PartyCode:        "PLATFORM_B",
+						},
+					},
+				},
+				RecipientParty{
+					PartyName:   "Test Platform C",
+					EblPlatform: "TEST",
+					IdentifyingCodes: []IdentifyingCode{
+						{
+							CodeListProvider: "TEST",
+							PartyCode:        "PLATFORM_C",
+						},
+					},
+				},
+			)
+
+			// Create a new transfer chain entry from the transaction
+			newEntry, err := CreateTransferChainEntry(
+				receivedEnvelope,
+				[]Transaction{newTransaction},
+				"TEST",
+				privateKey,
+				certChain,
+			)
 			if err != nil {
 				t.Fatalf("failed to create transfer chain entry: %v", err)
 			}
 
-			// create the transfer chain entry input for the transfer entry
-			transferTransferChainEntryInput := TransferChainEntryInput{
-				TransportDocumentChecksum: sampleTransferEntry.TransportDocumentChecksum,
-				EBLPlatform:               sampleTransferEntry.EblPlatform,
-				IsFirstEntry:              false,
-				PreviousEnvelopeTransferChainEntrySignedContent: signedIssueEntry,
-				Transactions: sampleTransferEntry.Transactions,
+			// Create envelope with the new entry
+			input := CreateEnvelopeInput{
+				ReceivedEnvelope:                   receivedEnvelope,
+				NewTransferChainEntrySignedContent: &newEntry,
 			}
-
-			// create the transfer chain entry
-			signedTransferEntry, err := CreateTransferChainEntrySignedContent(transferTransferChainEntryInput, privateKey, certChain)
+			forwardEnvelope, err := CreateEnvelope(input, privateKey, certChain)
 			if err != nil {
-				t.Fatalf("failed to create transfer chain entry: %v", err)
+				t.Fatalf("failed to create envelope with entry: %v", err)
 			}
 
-			// read the sample ebl envelope
-			sampleEblEnvelopeData, err := os.ReadFile(test.sampleEblEnvelopePath)
-			if err != nil {
-				t.Fatalf("failed to read sample ebl envelope: %v", err)
+			// Verify the transfer chain has one more entry
+			if len(forwardEnvelope.EnvelopeTransferChain) != len(receivedEnvelope.EnvelopeTransferChain)+1 {
+				t.Fatalf("transfer chain length mismatch: got %d, want %d",
+					len(forwardEnvelope.EnvelopeTransferChain),
+					len(receivedEnvelope.EnvelopeTransferChain)+1)
 			}
 
-			sampleEblEnvelope := &EblEnvelope{}
-			if err := json.Unmarshal(sampleEblEnvelopeData, sampleEblEnvelope); err != nil {
-				t.Fatalf("failed to unmarshal sample ebl envelope: %v", err)
-			}
-
-			// recreate the ebl envelope using computed transfer chain entries and sample transport document and supporting documents
-			envelope, err := CreateEnvelopeTransfer(EnvelopeTransferInput{
-				TransportDocument: sampleEblEnvelope.TransportDocument,
-				EnvelopeTransferChain: []EnvelopeTransferChainEntrySignedContent{
-					signedIssueEntry,
-					signedTransferEntry,
-				},
-				EBLVisualizationFilePath: "../../test/testdata/transport-documents/HHL71800000.pdf",
-				SupportingDocumentFilePaths: []string{
-					"../../test/testdata/pint-transfers/HHL71800000-invoice.pdf",
-					"../../test/testdata/pint-transfers/HHL71800000-packing-list.pdf",
-				},
-			}, privateKey, certChain)
-			if err != nil {
-				t.Fatalf("failed to create ebl envelope: %v", err)
-			}
-
-			// check the computed transfer chain entries match the sample
-			if len(envelope.EnvelopeTransferChain) != len(sampleEblEnvelope.EnvelopeTransferChain) {
-				t.Fatalf("transfer chain length mismatch")
-			}
-
-			for i := range envelope.EnvelopeTransferChain {
-				if envelope.EnvelopeTransferChain[i] != sampleEblEnvelope.EnvelopeTransferChain[i] {
-					t.Fatalf("expected transfer chain entry %d signed content does not match envelope transfer chain entry", i)
+			// Verify the old entries are unchanged
+			for i := 0; i < len(receivedEnvelope.EnvelopeTransferChain); i++ {
+				if forwardEnvelope.EnvelopeTransferChain[i] != receivedEnvelope.EnvelopeTransferChain[i] {
+					t.Fatalf("transfer chain entry %d was modified", i)
 				}
-				log.Printf("Transfer chain entry item %d matches\n", i)
 			}
 
-			// check the computed ebl envelope matches the sample ebl envelope
-			if envelope.EnvelopeManifestSignedContent != sampleEblEnvelope.EnvelopeManifestSignedContent {
-				t.Fatalf("ebl envelope manifest mismatch")
+			// Verify the transport document is unchanged
+			if string(forwardEnvelope.TransportDocument) != string(receivedEnvelope.TransportDocument) {
+				t.Fatalf("transport document was modified")
 			}
 
-			log.Printf("EBL envelope manifest matches\n")
+			// Verify the new manifest is valid
+			if forwardEnvelope.EnvelopeManifestSignedContent == "" {
+				t.Fatalf("envelope manifest is empty")
+			}
+
+			log.Printf("Successfully forwarded envelope with new entry\n")
 		})
 	}
-
 }

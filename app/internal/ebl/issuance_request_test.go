@@ -12,10 +12,10 @@ import (
 // checksums in HHL71800000-ed25519.json and HHL71800000-rsa.json
 func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 
-	sampleRecordPath := "../../test/testdata/transport-documents/HHL71800000-ed25519.json"
+	sampleRecordPath := "../../test/testdata/issuance-documents/HHL71800000-ed25519.json"
 	privateKeyPath := "../../test/testdata/keys/ed25519-carrier.example.com.private.jwk"
 	certPath := "../../test/testdata/certs/ed25519-carrier.example.com-fullchain.crt"
-	eBLVisualisationPath := "../../test/testdata/transport-documents/HHL71800000.pdf"
+	eBLVisualisationPath := "../../test/testdata/issuance-documents/HHL71800000.pdf"
 
 	data, err := os.ReadFile(sampleRecordPath)
 	if err != nil {
@@ -94,10 +94,10 @@ func TestRecreateSampleIssuanceManifestEd25519(t *testing.T) {
 }
 func TestRecreateSampleIssuanceManifestRSA(t *testing.T) {
 
-	sampleRecordPath := "../../test/testdata/transport-documents/HHL71800000-rsa.json"
+	sampleRecordPath := "../../test/testdata/issuance-documents/HHL71800000-rsa.json"
 	privateKeyPath := "../../test/testdata/keys/rsa-carrier.example.com.private.jwk"
 	certPath := "../../test/testdata/certs/rsa-carrier.example.com-fullchain.crt"
-	VisualisationPath := "../../test/testdata/transport-documents/HHL71800000.pdf"
+	VisualisationPath := "../../test/testdata/issuance-documents/HHL71800000.pdf"
 
 	// Load the private key and certificate chain
 	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyPath)

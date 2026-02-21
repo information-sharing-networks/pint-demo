@@ -1,10 +1,14 @@
 package ebl
 
-// transfer_chain.go provides the high level function used to create and sign transfer chain entries.
+// transfer_chain.go provides the builders for transfer chain entries.
 //
 // The transfer chain represents the complete history of an eBL document, including issuance,
 // transfers, endorsements, and surrenders across different eBL platforms.
-// each entry in the transfer chain represents a batch of transactions that happened on a single platform.
+// Each entry in the transfer chain represents a batch of transactions that happened on a single platform.
+//
+// for standard usage you can use the high level functions in envelope_transfer.go instead (c.f CreateTransferChainEntry)
+// as this will handle building and signing the transfer chain entry for you.
+
 import (
 	"crypto/x509"
 	"encoding/json"
@@ -333,7 +337,7 @@ type TaxLegalReference struct {
 // The privateKey can be either ed25519.PrivateKey or *rsa.PrivateKey.
 // If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
-// Returns a JWS compact serialization string ready to include in EblEnvelope.envelopeTransferChain
+// Returns a JWS compact serialization string ready to include in Envelope.envelopeTransferChain
 func (e *EnvelopeTransferChainEntry) Sign(privateKey any, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(e)
@@ -348,6 +352,117 @@ func (e *EnvelopeTransferChainEntry) Sign(privateKey any, certChain []*x509.Cert
 	}
 
 	return EnvelopeTransferChainEntrySignedContent(jws), nil
+}
+
+// TransferChainEntryInput contains the data needed to create a transfer chain entry.
+//
+// Note that there are conditional fields:
+//   - When IsFirstEntry is true, IssuanceManifestSignedContent is required and PreviousEnvelopeTransferChainEntrySignedContent should not be provided.
+//   - When IsFirstEntry is false, PreviousEnvelopeTransferChainEntrySignedContent is required and IssuanceManifestSignedContent should not be provided.
+type TransferChainEntryInput struct {
+
+	// TransportDocumentChecksum is the SHA-256 checksum of the canonical transport document.
+	// This should be the validated checksum from the carrier's IssuanceManifest.
+	TransportDocumentChecksum string
+
+	// EBLPlatform is the platform code (e.g., "WAVE", "BOLE", "CARX")
+	EBLPlatform string
+
+	// IsFirstEntry indicates if this is the first entry in the chain.
+	IsFirstEntry bool
+
+	// IssuanceManifestSignedContent is required for the first entry only.
+	IssuanceManifestSignedContent *IssuanceManifestSignedContent
+
+	// ControlTrackingRegistry is optional and only for the first entry.
+	// Example: "https://ctr.example.org/v1"
+	ControlTrackingRegistry *string
+
+	// PreviousEnvelopeTransferChainEntrySignedContent is required for subsequent entries (not first entry).
+	PreviousEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
+
+	// Transactions is the list of transactions for this entry (at least one required).
+	Transactions []Transaction
+}
+
+// createTransferChainEntrySignedContent creates and signs a transfer chain entry.
+//
+// Parameters:
+//   - input: The data for the transfer chain entry (transport document checksum, platform, transactions, etc.)
+//   - privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
+//   - certChain: Optional X.509 certificate chain. Pass nil to omit x5c header.
+//
+// Including x5c with EV/OV certificate is recommended for non-repudiation (enables offline verification).
+//
+// Returns the JWS signed transfer chain entry ready to include in the envelope transfer chain.
+func createTransferChainEntrySignedContent(
+	input TransferChainEntryInput,
+	privateKey any,
+	certChain []*x509.Certificate,
+) (EnvelopeTransferChainEntrySignedContent, error) {
+
+	// Step 1: Validate input
+	if input.TransportDocumentChecksum == "" {
+		return "", NewEnvelopeError("transport document checksum is required")
+	}
+	if input.EBLPlatform == "" {
+		return "", NewEnvelopeError("eBL platform is required")
+	}
+	if len(input.Transactions) == 0 {
+		return "", NewEnvelopeError("at least one transaction is required")
+	}
+
+	// check first vs subsequent entry requirements
+	if input.IsFirstEntry {
+		if input.IssuanceManifestSignedContent == nil {
+			return "", NewEnvelopeError("issuance manifest is required for first entry")
+		}
+		if input.PreviousEnvelopeTransferChainEntrySignedContent != "" {
+			return "", NewEnvelopeError("previous entry JWS should not be provided for first entry")
+		}
+	} else {
+		if input.PreviousEnvelopeTransferChainEntrySignedContent == "" {
+			return "", NewEnvelopeError("previous entry JWS is required for subsequent entries")
+		}
+		if input.IssuanceManifestSignedContent != nil {
+			return "", NewEnvelopeError("issuance manifest should only be provided for first entry")
+		}
+		if input.ControlTrackingRegistry != nil {
+			return "", NewEnvelopeError("control tracking registry should only be provided for first entry")
+		}
+	}
+
+	// Step 2: Build the transfer chain entry using the builder
+	var builder *EnvelopeTransferChainEntryBuilder
+
+	if input.IsFirstEntry {
+		builder = NewFirstEnvelopeTransferChainEntryBuilder(*input.IssuanceManifestSignedContent)
+		// If provided, CTR is only included in the first entry.
+		if input.ControlTrackingRegistry != nil {
+			builder.WithControlTrackingRegistry(*input.ControlTrackingRegistry)
+		}
+	} else {
+		builder = NewSubsequentEnvelopeTransferChainEntryBuilder(input.PreviousEnvelopeTransferChainEntrySignedContent)
+	}
+
+	entry, err := builder.
+		WithTransportDocumentChecksum(input.TransportDocumentChecksum).
+		WithEBLPlatform(input.EBLPlatform).
+		WithTransactions(input.Transactions).
+		Build()
+
+	if err != nil {
+		return "", WrapEnvelopeError(err, "failed to build transfer chain entry")
+	}
+
+	// Step 3: Sign the transfer chain entry with the platform's private key.
+	// The keyID is automatically computed inside the Sign method.
+	signedContent, err := entry.Sign(privateKey, certChain)
+	if err != nil {
+		return "", WrapEnvelopeError(err, "failed to sign transfer chain entry")
+	}
+
+	return signedContent, nil
 }
 
 // EnvelopeTransferChainEntryBuilder helps build transfer chain entries and handles checksum calculations, validations and so on.
@@ -388,6 +503,7 @@ func NewFirstEnvelopeTransferChainEntryBuilder(issuanceManifestSignedContent Iss
 }
 
 // NewSubsequentEnvelopeTransferChainEntryBuilder creates a builder for a subsequent entry in the transfer chain.
+//
 // Use this builder for all entries apart from the first entry in the transfer chain (see NewFirstEnvelopeTransferChainEntryBuilder)
 //
 // The previous entry checksum (previousEnvelopeTransferChainEntrySignedContentChecksum)

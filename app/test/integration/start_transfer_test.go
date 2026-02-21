@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
+	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 )
 
@@ -362,7 +363,6 @@ func TestStartTransfer(t *testing.T) {
 		t.Logf("Malformed JSON: Received error response: %s", errorResp.Errors[0].ErrorCodeText)
 	})
 
-	// skip this test
 	t.Run("error: tampered envelope returns 422 with BENV", func(t *testing.T) {
 		// Load valid test envelope
 		envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
@@ -601,6 +601,210 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 					t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
 				}
 			}
+		})
+	}
+}
+
+// TestStartTransfer_TransferChainValidation tests that the transfer chain is consistent with existing entries for this eBL
+func TestStartTransfer_TransferChainValidation(t *testing.T) {
+	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
+	// and includes 2 transfer chain entries:
+	// - the first is the issuance entry (signed by the carrier and sent to EBL1)
+	// - the second is a transfer entry (signed by EBL1 and sent to EBL2)
+	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+
+	// signing key is ed25519
+
+	_ = []struct {
+		name             string
+		envelopePath     string
+		modifyEnvelope   func(t *testing.T, envelope []byte) []byte
+		expectedStatus   int
+		expectedResponse pint.ResponseCode
+		wantErrContains  string
+	}{
+		{
+			name:           "accepts valid transfer chain",
+			envelopePath:   testEnvelopePath,
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "returns DISE when transfer chain is inconsistent",
+			modifyEnvelope: func(t *testing.T, envelope []byte) []byte {
+				// parse the envelope
+				var env map[string]any
+				if err := json.Unmarshal(envelope, &env); err != nil {
+					t.Fatalf("Failed to parse envelope: %v", err)
+				}
+
+				return []byte("{}")
+			},
+			expectedStatus:   http.StatusConflict,
+			expectedResponse: pint.ResponseCodeDISE,
+			wantErrContains:  "transfer chain fork detected",
+		},
+	}
+}
+
+// TestDISE tests that the server returns a DISE response when the transfer chain is inconsistent with a previously accepted transfer
+func TestDISE(t *testing.T) {
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	if err != nil {
+		t.Fatalf("Failed to read private key: %v", err)
+	}
+	certChain, err := crypto.ReadCertChainFromPEMFile("../testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("Failed to read cert chain: %v", err)
+	}
+
+	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
+	testEnvelopeData, err := os.ReadFile(testEnvelopePath)
+	if err != nil {
+		t.Fatalf("Failed to read test envelope: %v", err)
+	}
+
+	var testEnvelope ebl.Envelope
+	if err := json.Unmarshal(testEnvelopeData, &testEnvelope); err != nil {
+		t.Fatalf("Failed to parse envelope: %v", err)
+	}
+
+	actor, recipient := returnValidParties(t)
+
+	env := startInProcessServer(t, "EBL2")
+	defer env.shutdown()
+	createValidParties(t, env)
+
+	// post the initial envelope (2 entries in the transfer chain)
+	resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(testEnvelopeData))
+	if err != nil {
+		t.Fatalf("Failed to POST base envelope: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200 for base envelope, got %d", resp.StatusCode)
+	}
+
+	// post the envelope again with an valid extra transfer chain entry
+	// the chain is now 3 entries long
+	transaction := ebl.CreateTransferTransaction(actor, recipient)
+	signedEntry, err := ebl.CreateTransferChainEntry(&testEnvelope, []ebl.Transaction{transaction}, actor.EblPlatform, privateKey, certChain)
+	if err != nil {
+		t.Fatalf("Failed to create transfer chain entry: %v", err)
+	}
+	newEnvelope, err := ebl.CreateEnvelope(
+		ebl.CreateEnvelopeInput{
+			ReceivedEnvelope:                   &testEnvelope,
+			NewTransferChainEntrySignedContent: &signedEntry,
+		},
+		privateKey,
+		certChain,
+	)
+	if err != nil {
+		t.Fatalf("Failed to create extended envelope: %v", err)
+	}
+	newEnvelopeData, err := json.Marshal(newEnvelope)
+	if err != nil {
+		t.Fatalf("Failed to marshal extended envelope: %v", err)
+	}
+
+	resp, err = http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(newEnvelopeData))
+	if err != nil {
+		t.Fatalf("Failed to POST extended envelope: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200 for extended envelope, got %d", resp.StatusCode)
+	}
+
+	tests := []struct {
+		name           string
+		setupEnvelope  func(t *testing.T, env *testEnv) []byte
+		expectedStatus int
+		expectedCode   pint.ResponseCode
+		description    string
+	}{
+		{
+			name: "returns DISE when shorter transfer chain is submitted after longer chain",
+			// try and send the original envelope again
+			setupEnvelope: func(t *testing.T, env *testEnv) []byte {
+				return testEnvelopeData
+			},
+			expectedStatus: http.StatusConflict,
+			expectedCode:   pint.ResponseCodeDISE,
+			description:    "shorter chain after longer chain accepted",
+		},
+		{
+			name: "returns DISE when conflicting transfer chain entry is submitted",
+			setupEnvelope: func(t *testing.T, env *testEnv) []byte {
+
+				// Add a new transfer chain entry to the orginal envelope (will conflict with the chain currently stored for this ebl)
+				transaction := ebl.CreateTransferTransaction(actor, recipient)
+				signedEntry, err := ebl.CreateTransferChainEntry(&testEnvelope, []ebl.Transaction{transaction}, actor.EblPlatform, privateKey, certChain)
+				if err != nil {
+					t.Fatalf("Failed to create transfer chain entry: %v", err)
+				}
+
+				conflictEnvelope, err := ebl.CreateEnvelope(
+					ebl.CreateEnvelopeInput{
+						ReceivedEnvelope:                   &testEnvelope,
+						NewTransferChainEntrySignedContent: &signedEntry,
+					},
+					privateKey,
+					certChain,
+				)
+				if err != nil {
+					t.Fatalf("Failed to create accepted envelope: %v", err)
+				}
+
+				conflictEnvelopeData, err := json.Marshal(conflictEnvelope)
+				if err != nil {
+					t.Fatalf("Failed to marshal accepted envelope: %v", err)
+				}
+
+				return conflictEnvelopeData
+			},
+			expectedStatus: http.StatusConflict,
+			expectedCode:   pint.ResponseCodeDISE,
+			description:    "conflicting transaction type at same chain position",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			envelopeToPost := tt.setupEnvelope(t, env)
+
+			resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(envelopeToPost))
+			if err != nil {
+				t.Fatalf("Failed to POST envelope: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.expectedStatus {
+				t.Fatalf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)
+			}
+
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("Failed to read response body: %v", err)
+			}
+
+			signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
+			payload := decodeSignedFinishedResponse(t, signedResponse)
+
+			if payload.ResponseCode != tt.expectedCode {
+				t.Errorf("Expected responseCode %q, got %q", tt.expectedCode, payload.ResponseCode)
+			}
+
+			if payload.Reason == nil || *payload.Reason == "" {
+				t.Error("Expected reason to be populated for DISE response")
+			}
+
+			if payload.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
+				t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
+			}
+
+			t.Logf("DISE response received: %s - %s", tt.description, *payload.Reason)
 		})
 	}
 }

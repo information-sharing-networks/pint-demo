@@ -1,25 +1,26 @@
 package ebl
 
-// issuance.go implements DCSA EBL_ISS specification for issuance manifests.
+// issuance.go contains the builders for issuance manifests.
 //
-// these functions are included to allow the pint-demo app to do a full end to end flow of the DCSA APIs from issuance to surrender
+// These functions are included to allow the pint-demo app to do a full end to end flow
+// of the DCSA APIs from issuance to surrender.
 //
-// If you're creating an IssuanceRequest for the DCSA API, you probably want
-// the wrapper functions in issuance_request.go, but if you need fine grained control, you can use the functions in this file.
+// Most developers should use the wrapper functions in issuance_request.go.
+// The IssuanceManifestBuilder in this file is for advanced use cases requiring fine-grained control.
 //
 // This file contains:
 //  - IssuanceManifest type and methods
-//  - IssuanceManifestBuilder for custom workflows
-//  - calls out to Low-level signing methods
+//  - IssuanceManifestBuilder for custom workflows (advanced use only)
+//  - Low-level signing methods
 //
 // # DCSA Issuance Flow (performed by the carrier)
 //
-//  i)   Generate canonical JSON for document and issueTo
-//  ii)  Calculate SHA-256 checksums (document + issueTo)
-//  iii) Decode eBL visualisation (if provided) from Base64 to binary and calculate checksum
-//  iv)  Create IssuanceManifest with checksums (document, issueTo, eblVisualisationByCarrier)
-//  v)   Sign the canonical IssuanceManifest to create JWS
-//  vi)  Include JWS in IssuanceRequest.issuanceManifestSignedContent
+//  1. Generate canonical JSON for document and issueTo
+//  2. Calculate SHA-256 checksums (document + issueTo)
+//  3. Decode eBL visualisation (if provided) from Base64 to binary and calculate checksum
+//  4. Create IssuanceManifest with checksums (document, issueTo, eblVisualisationByCarrier)
+//  5. Sign the canonical IssuanceManifest to create JWS
+//  6. Include JWS in IssuanceRequest.issuanceManifestSignedContent
 
 import (
 	"crypto/x509"
@@ -98,7 +99,7 @@ func (e *EBLVisualisationByCarrier) ValidateStructure() error {
 	return nil
 }
 
-// NewIssuanceManifestBuilder creates a new builder for IssuanceManifest
+// NewIssuanceManifestBuilder creates a new builder for IssuanceManifest.
 func NewIssuanceManifestBuilder() *IssuanceManifestBuilder {
 	return &IssuanceManifestBuilder{}
 }

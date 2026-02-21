@@ -126,6 +126,22 @@ func createValidParties(t *testing.T, testEnv *testEnv) {
 
 }
 
+func returnValidParties(t *testing.T) (ebl.ActorParty, ebl.RecipientParty) {
+	t.Helper()
+	lastTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
+	lastTransferChainEntryData, err := os.ReadFile(lastTransferChainEntryPath)
+	if err != nil {
+		t.Fatalf("Failed to read last transfer chain entry: %v", err)
+	}
+	var lastTransferChainEntry ebl.EnvelopeTransferChainEntry
+	if err := json.Unmarshal(lastTransferChainEntryData, &lastTransferChainEntry); err != nil {
+		t.Fatalf("Failed to parse last transfer chain entry: %v", err)
+	}
+
+	return lastTransferChainEntry.Transactions[0].Actor, *lastTransferChainEntry.Transactions[0].Recipient
+
+}
+
 // create test party records where the recipient identifying codes resolve to different parties
 func createInvalidParties(t *testing.T, testEnv *testEnv) {
 	t.Helper()

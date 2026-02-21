@@ -273,22 +273,22 @@ There is also a basic implemenation of DCSA *eBL Issuance Requests*  (EBL_ISS_v3
 These functions take care of all the required cryptographic steps needed to create and validate PINT and issuance requests. They hide the details of the cryptographic operations and focus on the business logic of the PINT and issuance workflows.  See the `crypto` package for the low level function that they use.
 
 
+## Client
+a demo CLI client is provided in `app/cmd/pint-client/main.go` - this is work-in-progress
+
+for now, refer to the test code in `app/internal/ebl` for examples of how to use the ebl package.
+
 ### Creating an Issuance Request 
 To create an initial issuance request that is sent from the carrier to the ebl platform (`PUT /v3/ebl-issuance-requests`), use the `CreateIssuanceRequest` function.
 
 See `app/internal/ebl/issuance_request_test.go` for example usage.
 
 ### Creating a PINT Transfer
-To create a PINT transfer envelope that is sent from one ebl platform to another (`POST /v3/envelopes`), use the high-level `CreateEnvelopeTransfer` function.
+To create a PINT transfer envelope that is sent from one ebl platform to another (`POST /v3/envelopes`), use the high-level `CreateEnvelopeWithEntry` function.
 
 See `app/internal/ebl/envelope_transfer_test.go` for example usage. 
 
-### Verifying a PINT Transfer
-To verify a PINT transfer envelope that is received by an ebl platform (`POST /v3/envelopes`), use the `VerifyEnvelopeTransfer` function.
-
-See `app/internal/ebl/envelope_verification_test.go` for example usage. 
-
-### Testing
+## Testing
 In addition to the unit tests, there is a set of reference data in `app/test/testdata/` that is used in the automated tests. This includes:
 - Test certificates and keys (Ed25519 and RSA)
 - Test transport documents
@@ -298,8 +298,6 @@ The signatures in the test data were computed out of band using the test keys.
 
 See `app/test/testdata/README.md` for details on how to regenerate the test keys and certificates if needed.
 
-## Client
-a demo CLI client is provided in `app/cmd/pint-client/main.go` - this is work-in-progress
 
 ## Server
 There is a server implementation in `app/cmd/pint-server/main.go` - this is work-in-progress

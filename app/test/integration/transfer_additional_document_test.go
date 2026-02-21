@@ -26,7 +26,7 @@ var (
 	testEnvelopeManifest = "../testdata/pint-transfers/HHL71800000-envelope-manifest-ed25519.json"
 
 	//expectedTotalDocs := 3 // the test envelope has 1 ebl visualization and 2 supporting documents
-	eblVisualizationPath = "../testdata/transport-documents/HHL71800000.pdf"
+	eblVisualizationPath = "../testdata/issuance-documents/HHL71800000.pdf"
 	invoicePath          = "../testdata/pint-transfers/HHL71800000-invoice.pdf"
 	packingListPath      = "../testdata/pint-transfers/HHL71800000-packing-list.pdf"
 )

@@ -22,7 +22,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 
 	testData := []struct {
 		name                  string
-		eblEnvelopePath       string
+		envelopePath          string
 		publicKeyJWKPath      string
 		carrierPublicKeyPath  string
 		rootCACertPath        string
@@ -34,7 +34,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 	}{
 		{
 			name:                  "verifies Ed25519 signed envelope",
-			eblEnvelopePath:       "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
+			envelopePath:          "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
 			publicKeyJWKPath:      "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
 			carrierPublicKeyPath:  "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk",
 			rootCACertPath:        "../../test/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
@@ -46,7 +46,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 		},
 		{
 			name:                  "verifies RSA signed envelope",
-			eblEnvelopePath:       "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
+			envelopePath:          "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
 			publicKeyJWKPath:      "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk",
 			carrierPublicKeyPath:  "../../test/testdata/keys/rsa-carrier.example.com.public.jwk",
 			rootCACertPath:        "../../test/testdata/certs/root-ca.crt",
@@ -61,12 +61,12 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			// Load the test envelope
-			envelopeBytes, err := os.ReadFile(test.eblEnvelopePath)
+			envelopeBytes, err := os.ReadFile(test.envelopePath)
 			if err != nil {
 				t.Fatalf("Failed to read test envelope: %v", err)
 			}
 
-			var envelope EblEnvelope
+			var envelope Envelope
 			if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
 				t.Fatalf("Failed to parse envelope: %v", err)
 			}
@@ -191,7 +191,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			t.Logf("Envelope verification successful for %s (with carrier signature verification, %d transfer chain entries)",
-				filepath.Base(test.eblEnvelopePath), len(result.TransferChain))
+				filepath.Base(test.envelopePath), len(result.TransferChain))
 		})
 	}
 }
@@ -209,9 +209,30 @@ var (
 
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
+	// Test data
+	actor := ActorParty{
+		PartyName:   "Test Actor",
+		EblPlatform: "WAVE",
+		IdentifyingCodes: []IdentifyingCode{
+			{
+				CodeListProvider: "W3C",
+				PartyCode:        "did:example:123",
+			},
+		},
+	}
+	recipient := RecipientParty{
+		PartyName:   "Test Recipient",
+		EblPlatform: "BOLE",
+		IdentifyingCodes: []IdentifyingCode{
+			{
+				CodeListProvider: "W3C",
+				PartyCode:        "did:example:456",
+			},
+		},
+	}
 	tests := []struct {
 		name            string
-		tamperEnvelope  func(*EblEnvelope) error
+		tamperEnvelope  func(*Envelope) error
 		publicKeyPath   string
 		domain          string
 		useWrongCAPath  bool
@@ -229,7 +250,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "returns BSIG when envelope manifest signature invalid",
-			tamperEnvelope: func(env *EblEnvelope) error {
+			tamperEnvelope: func(env *Envelope) error {
 				// Modify the manifest JWS by replacing the payload
 				parts := strings.Split(string(env.EnvelopeManifestSignedContent), ".")
 				if len(parts) != 3 {
@@ -256,10 +277,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		// Envelope integrity errors
 		{
 			name: "returns BENV when transfer chain entry signature tampered",
-			tamperEnvelope: func(env *EblEnvelope) error {
-				if len(env.EnvelopeTransferChain) == 0 {
-					return fmt.Errorf("empty transfer chain")
-				}
+			tamperEnvelope: func(env *Envelope) error {
 				// Tamper with the last entry's signature
 				lastIdx := len(env.EnvelopeTransferChain) - 1
 				jws := string(env.EnvelopeTransferChain[lastIdx])
@@ -279,7 +297,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "returns BENV when transport document tampered",
-			tamperEnvelope: func(env *EblEnvelope) error {
+			tamperEnvelope: func(env *Envelope) error {
 				env.TransportDocument = json.RawMessage(`{"tampered": "data"}`)
 				return nil
 			},
@@ -291,7 +309,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "returns BENV when missing transportDocumentReference",
-			tamperEnvelope: func(env *EblEnvelope) error {
+			tamperEnvelope: func(env *Envelope) error {
 				// Create a transport document WITHOUT transportDocumentReference
 				// This tests that a malicious actor can't create a properly signed envelope
 				// with a valid checksum but missing the required field
@@ -360,7 +378,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "returns BENV when transfer chain empty",
-			tamperEnvelope: func(env *EblEnvelope) error {
+			tamperEnvelope: func(env *Envelope) error {
 				env.EnvelopeTransferChain = []EnvelopeTransferChainEntrySignedContent{}
 				return nil
 			},
@@ -372,7 +390,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		},
 		{
 			name: "returns DISE when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
-			tamperEnvelope: func(env *EblEnvelope) error {
+			tamperEnvelope: func(env *Envelope) error {
 				// Decode the last transfer chain entry (which has a TRANSFER transaction)
 				lastIdx := len(env.EnvelopeTransferChain) - 1
 				lastEntryPayload, err := testutil.DecodeJWSPayload(string(env.EnvelopeTransferChain[lastIdx]))
@@ -390,21 +408,12 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return fmt.Errorf("no transactions in last entry")
 				}
 
-				// Keep the existing TRANSFER transaction, but add SURRENDER_FOR_DELIVERY and then another TRANSFER
-				firstTx := transactions[0].(map[string]any)
+				// Keep the existing transactions but add SURRENDER_FOR_DELIVERY and then another TRANSFER (which is invalid)
 
-				// Create a SURRENDER_FOR_DELIVERY transaction
-				surrenderTx := make(map[string]any)
-				surrenderTx["actionCode"] = "SURRENDER_FOR_DELIVERY"
-				surrenderTx["actionDateTime"] = "2024-01-17T14:22:00.000Z"
-				surrenderTx["actor"] = firstTx["actor"]
+				// use the ebl package to make a surrender for delivery transaction
+				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient)
 
-				// Create a TRANSFER transaction
-				transferTx := make(map[string]any)
-				transferTx["actionCode"] = "TRANSFER"
-				transferTx["actionDateTime"] = "2024-01-17T15:22:00.000Z"
-				transferTx["actor"] = firstTx["actor"]
-				transferTx["recipient"] = firstTx["recipient"]
+				transferTx := CreateTransferTransaction(actor, recipient)
 
 				// Add both new transactions
 				transactions = append(transactions, surrenderTx, transferTx)
@@ -478,7 +487,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				t.Fatalf("Failed to read test envelope: %v", err)
 			}
 
-			var envelope EblEnvelope
+			var envelope Envelope
 			if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
 				t.Fatalf("Failed to parse envelope: %v", err)
 			}
@@ -903,14 +912,14 @@ func TestVerifyEnvelope_SenderPlatformMismatch(t *testing.T) {
 }
 
 // loadValidTestEnvelope loads the valid test envelope from the test data file
-func loadEnvelopeFromFile(t *testing.T, filePath string) (*EblEnvelope, error) {
+func loadEnvelopeFromFile(t *testing.T, filePath string) (*Envelope, error) {
 	t.Helper()
 	envelopeBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read envelope file: %w", err)
 	}
 
-	var envelope EblEnvelope
+	var envelope Envelope
 	if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
 		return nil, fmt.Errorf("failed to parse envelope: %w", err)
 	}

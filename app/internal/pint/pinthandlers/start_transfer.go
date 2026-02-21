@@ -161,7 +161,7 @@ func NewStartTransferHandler(
 //
 //	@Tags			PINT
 //
-//	@Param			request	body		ebl.EblEnvelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain - see the schema ebl.EnvelopeManifest definition for details of the expected structure in the signed field"
+//	@Param			request	body		ebl.Envelope								true	"eBL envelope containing transport document, signed manifest, and transfer chain - see the schema ebl.EnvelopeManifest definition for details of the expected structure in the signed field"
 //	@Param			request	body		ebl.EnvelopeManifest						true	"documentation only (not used directly)"
 //	@Param			request	body		ebl.EnvelopeTransferChainEntry				true	"documentation only (not used directly)"
 //
@@ -178,7 +178,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	reqLogger := logger.ContextRequestLogger(ctx)
 
 	// Step 1. Check json structure (failures return 400, unsigned response)
-	var envelope ebl.EblEnvelope
+	var envelope ebl.Envelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
 		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode envelope JSON"))
 		return
@@ -252,8 +252,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	}
 
 	if len(existingEntries) > 0 {
+		// Build map of existing checksums by sequence for comparison
+		existingChecksums := make(map[int]string)
+		for _, entry := range existingEntries {
+			existingChecksums[int(entry.Sequence)] = entry.SignedContentPayloadChecksum
+		}
+
 		// Check if new chain is consistent with existing entries
-		if err := checkTransferChainConsistency(existingEntries, verifiedEnvelope.TransferChain); err != nil {
+		if err := checkTransferChainConsistency(existingChecksums, verifiedEnvelope.TransferChain); err != nil {
 			reason = fmt.Sprintf("transfer chain fork detected: %s", err.Error())
 			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
@@ -353,6 +359,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// - is the envelope addressed to this platform?
 	// - does the signature comply with this server's minimum trust level policy?
 	// - do the parties referenced in the last transfer chain entry exist on this platform?
+	// - is the transfer chain consistent with existing entries for this eBL?
 
 	// Step 7. Validate recipient platform matches this server (failures return 422)
 	// This prevents a platform from accidentally sending to the wrong platform.
@@ -762,34 +769,29 @@ func (s *StartTransferHandler) signEnvelopeTransferFinishedResponse(response pin
 // checkTransferChainConsistency verifies that if we already have a transfer chain for this eBL
 // then the new chain is a legitimate extension.
 //
-// i.e the new chain contains all existing entries in the same order as the new chain.
-// if the new chain is inconsistent then this transfer should be rejected since it is a potential double spend.
+// The new chain must contain all existing entries in the same order with matching payload checksums.
+// If the new chain is inconsistent then this transfer should be rejected since it is a potential double spend.
+//
+// Parameters:
+//   - existingChecksums: map of sequence position (0-indexed) to payload checksum for existing entries
+//   - newChain: the received transfer chain entries to validate
 //
 // Returns nil if consistent, error describing the conflict if inconsistent.
 func checkTransferChainConsistency(
-	existingEntries []database.TransferChainEntry,
+	existingChecksums map[int]string,
 	newChain []*ebl.EnvelopeTransferChainEntry,
 ) error {
-	// Build map of existing entry payload checksums by sequence position
-	existingBySequence := make(map[int]string) // sequence -> payload_checksum
-	maxExistingSeq := -1
+	existingChainLength := len(existingChecksums)
+	newChainLength := len(newChain)
 
-	for _, entry := range existingEntries {
-		seq := int(entry.Sequence)
-		existingBySequence[seq] = entry.SignedContentPayloadChecksum
-		if seq > maxExistingSeq {
-			maxExistingSeq = seq
-		}
-	}
-
-	// Check if new chain is shorter than existing chain
-	if len(newChain) <= maxExistingSeq {
-		return fmt.Errorf("new chain has %d entries but we have already seen entry at position %d",
-			len(newChain), maxExistingSeq)
+	// New chain must be at least as long as existing chain (can be longer if extending)
+	if newChainLength < existingChainLength {
+		return fmt.Errorf("new chain is shorter than existing chain - has %d entries, existing chain has %d entries",
+			newChainLength, existingChainLength)
 	}
 
 	// Check each existing entry appears in new chain at same position with same payload checksum
-	for seq, existingPayloadChecksum := range existingBySequence {
+	for seq, existingPayloadChecksum := range existingChecksums {
 		// Compute payload checksum of new chain entry at this position
 		// The entry has already been parsed and verified in envelope_verification.go
 		newEntry := newChain[seq]

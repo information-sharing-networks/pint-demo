@@ -143,7 +143,7 @@ if [ ! -d "$PROJECT_ROOT_DIR" ]; then
     echo "could not open test data dir: $PROJECT_ROOT_DIR" >&2
     exit 1
 fi 
-TRANSPORT_DOCS_DIR="$PROJECT_ROOT_DIR/app/test/testdata/transport-documents"
+TRANSPORT_DOCS_DIR="$PROJECT_ROOT_DIR/app/test/testdata/issuance-documents"
 PINT_TRANSFERS_DIR="$PROJECT_ROOT_DIR/app/test/testdata/pint-transfers"
 KEY_DIR="$PROJECT_ROOT_DIR/app/test/testdata/keys"
 CERT_DIR="$PROJECT_ROOT_DIR/app/test/testdata/certs"
