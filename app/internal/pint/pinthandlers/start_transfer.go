@@ -392,9 +392,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Step 8. Check trust level meets platform minimum (failures return 422 )
 	if verifiedEnvelope.TrustLevel < s.minTrustLevel {
-		reqLogger.Warn("Trust level too low",
-			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
-			slog.String("min_trust_level", s.minTrustLevel.String()))
 
 		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
 			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
@@ -408,12 +405,11 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
 			return
 		}
-
-		reqLogger.Warn("Envelope transfer rejected",
-			slog.String("response_code", string(pint.ResponseCodeBSIG)),
+		reqLogger.Warn("Trust level too low",
+			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
+			slog.String("min_trust_level", s.minTrustLevel.String()),
 			slog.String("reason", reason),
 			slog.String("envelope_id", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
-			slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
 		)
 		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
 		return
@@ -690,6 +686,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
+	// Step 15. If no outstanding additional documents, mark envelope as accepted
+	if len(missingDocuments) == 0 {
+		if err := txQueries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
+			return
+		}
+	}
+
 	// Commit db changes
 	if err := tx.Commit(ctx); err != nil {
 		logger.ContextWithLogAttrs(ctx,
@@ -700,14 +704,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 15. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
+	// Step 16. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
 	if len(missingDocuments) == 0 {
-		// Mark envelope as accepted
-		if err := s.queries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
-			return
-		}
-
 		// Create and sign the RECE response
 		receivedDocs := []string{}
 		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -729,7 +727,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 16. Return response for pending transfer (201 Created/unsigned response).
+	// Step 17. Return response for pending transfer (201 Created/unsigned response).
 	response := &pint.EnvelopeTransferStartedResponse{
 		EnvelopeReference:                                   newEnvelopeRecord.ID.String(),
 		TransportDocumentChecksum:                           verifiedEnvelope.TransportDocumentChecksum,
