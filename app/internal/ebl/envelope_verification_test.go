@@ -1,6 +1,7 @@
 package ebl
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -127,7 +128,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			// Verify the envelope
-			result, err := VerifyEnvelope(input)
+			result, err := VerifyEnvelope(context.Background(), input)
 			if err != nil {
 				t.Fatalf("Envelope verification failed: %v", err)
 			}
@@ -556,7 +557,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			}
 
 			// Verify the envelope - should fail
-			_, err = VerifyEnvelope(input)
+			_, err = VerifyEnvelope(context.Background(), input)
 
 			// Check we got an error
 			if err == nil {
@@ -703,7 +704,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		KeyProvider: keyProvider,
 	}
 
-	_, err = VerifyEnvelope(input)
+	_, err = VerifyEnvelope(context.Background(), input)
 	if err == nil {
 		t.Fatal("Expected verification to fail for broken chain link, but it succeeded")
 	}
@@ -807,7 +808,7 @@ func TestVerifyEnvelopeTransfer_TamperedTransferChain(t *testing.T) {
 		KeyProvider: keyProvider,
 	}
 
-	_, err = VerifyEnvelope(input)
+	_, err = VerifyEnvelope(context.Background(), input)
 	if err == nil {
 		t.Fatal("Expected verification to fail for wrong manifest checksum, but it succeeded")
 	}
@@ -889,7 +890,7 @@ func TestVerifyEnvelope_SenderPlatformMismatch(t *testing.T) {
 		RecipientPlatformCode: "EBL2", // Correct recipient
 	}
 
-	result, err := VerifyEnvelope(input)
+	result, err := VerifyEnvelope(context.Background(), input)
 
 	// Should get an error about platform mismatch in the transfer chain
 	if err == nil {

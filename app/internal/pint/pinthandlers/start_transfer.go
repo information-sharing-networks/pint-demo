@@ -188,7 +188,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	var reason string
 
 	// Step 2. Envelope verification (signature/envelope errors return 422 with a signed response otherwise 500/unsigned response)
-	verifiedEnvelope, err := ebl.VerifyEnvelope(ebl.EnvelopeVerificationInput{
+	verifiedEnvelope, err := ebl.VerifyEnvelope(ctx, ebl.EnvelopeVerificationInput{
 		Envelope:              &envelope,
 		RootCAs:               s.x5cCustomRoots,
 		KeyProvider:           s.keyManager,

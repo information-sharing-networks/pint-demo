@@ -181,7 +181,7 @@ type EnvelopeVerificationResult struct {
 //   - Internal errors return ebl.InternalError and a nil EnvelopeVerificationResult
 //   - Other errors are returned as either ebl.EnvelopeError or ebl.SignatureError with a non-nil EnvelopeVerificationResult containing partial information.
 //     (minimally the LastEnvelopeTransferChainEntrySignedContentChecksum is returned to allow the caller to implement duplicate detection)
-func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
+func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
 
 	// Step 0: get the last transfer chain entry from the transfer chain
@@ -266,6 +266,7 @@ func VerifyEnvelope(input EnvelopeVerificationInput) (*EnvelopeVerificationResul
 	// Step 7: Verify transfer chain integrity and store all entries
 	// this prevents replay attacks, where an attacker replaces the last entry with a valid one from a different transfer
 	transferChain, err := verifyEnvelopeTransferChain(
+		ctx,
 		input.Envelope.EnvelopeTransferChain,
 		manifest,
 		input.KeyProvider,
@@ -514,6 +515,7 @@ func verifyIssuanceManifest(
 //
 // Returns all verified and decoded transfer chain entries in order (first to last)
 func verifyEnvelopeTransferChain(
+	ctx context.Context,
 	envelopeTransferChain []EnvelopeTransferChainEntrySignedContent,
 	manifest *EnvelopeManifest,
 	keyProvider jws.KeyProvider,
@@ -612,7 +614,7 @@ func verifyEnvelopeTransferChain(
 			return nil, WrapSignatureError(err, fmt.Sprintf("failed to parse entry %d header", i))
 		}
 
-		signingPlatform, err := kp.LookupPlatformByKeyID(context.Background(), entryHeader.KeyID)
+		signingPlatform, err := kp.LookupPlatformByKeyID(ctx, entryHeader.KeyID)
 		if err != nil {
 			return nil, WrapSignatureError(err, fmt.Sprintf("failed to lookup platform for key %s in entry %d", entryHeader.KeyID, i))
 		}
