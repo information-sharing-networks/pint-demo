@@ -333,7 +333,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			reqLogger.Warn("Envelope transfer received for previously accepted transfer",
 				slog.String("envelope_reference", existingEnvelope.ID.String()),
 				slog.String("response_code", string(pint.ResponseCodeDUPE)),
-				slog.String("envelope_reference", existingEnvelope.ID.String()),
 			)
 
 			pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
@@ -400,10 +399,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
 			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
 
-		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
-			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
-
-		reason := err.Error()
 		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeBSIG,
