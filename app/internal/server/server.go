@@ -16,7 +16,7 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
-	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/pinthandlers"
+	pinthandlers "github.com/information-sharing-networks/pint-demo/app/internal/pint/handlers"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server/handlers"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server/middleware"
 	"github.com/information-sharing-networks/pint-demo/app/internal/services"
