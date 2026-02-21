@@ -21,8 +21,8 @@ import (
 	"time"
 )
 
-// createEnvelopeInput contains the data needed to create a DCSA envelope transfer.
-type createEnvelopeInput struct {
+// CreateEnvelopeInput contains the data needed to create a DCSA envelope transfer.
+type CreateEnvelopeInput struct {
 
 	// ReceivedEnvelope is the envelope received from another platform (via POST /v3/envelopes)
 	ReceivedEnvelope *Envelope
@@ -50,7 +50,7 @@ type createEnvelopeInput struct {
 //
 // Returns the complete Envelope ready to be JSON-marshaled and sent to POST /v3/envelopes.
 func CreateEnvelope(
-	input createEnvelopeInput,
+	input CreateEnvelopeInput,
 	privateKey any,
 	certChain []*x509.Certificate,
 ) (*Envelope, error) {

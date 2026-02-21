@@ -85,7 +85,7 @@ func TestCreateEnvelope(t *testing.T) {
 			}
 
 			// Create envelope with the new entry
-			input := createEnvelopeInput{
+			input := CreateEnvelopeInput{
 				ReceivedEnvelope:                   receivedEnvelope,
 				NewTransferChainEntrySignedContent: &newEntry,
 			}
