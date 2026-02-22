@@ -212,6 +212,23 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
+	// Sign the new manifest
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read private key: %v", err)
+	}
+
+	certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
+	if err != nil {
+		t.Fatalf("Failed to read cert chain: %v", err)
+	}
+
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+	keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
+	if err != nil {
+		t.Fatal("failed to compute key ID: %w", err)
+	}
+
 	tests := []struct {
 		name            string
 		tamperEnvelope  func(*Envelope) error
@@ -329,19 +346,8 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				}
 
 				// Verify the checksum matches what we expect
-				if newManifest.TransportDocumentChecksum != newChecksum {
+				if newManifest.TransportDocumentChecksum != TransportDocumentChecksum(newChecksum) {
 					return fmt.Errorf("checksum mismatch in test setup: expected %s, got %s", newChecksum, newManifest.TransportDocumentChecksum)
-				}
-
-				// Sign the new manifest
-				privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
-				if err != nil {
-					return err
-				}
-
-				certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
-				if err != nil {
-					return err
 				}
 
 				newManifestJWS, err := newManifest.Sign(privateKey, certChain)
@@ -421,22 +427,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return fmt.Errorf("failed to marshal modified payload: %w", err)
 				}
 
-				privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
-				if err != nil {
-					return fmt.Errorf("failed to read private key: %w", err)
-				}
-
-				certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
-				if err != nil {
-					return fmt.Errorf("failed to read cert chain: %w", err)
-				}
-
-				publicKey := privateKey.Public().(ed25519.PublicKey)
-				keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
-				if err != nil {
-					return fmt.Errorf("failed to compute key ID: %w", err)
-				}
-
 				modifiedEntryJWS, err := crypto.SignJSONWithEd25519AndX5C(modifiedPayloadJSON, privateKey, keyID, certChain)
 				if err != nil {
 					return fmt.Errorf("failed to sign modified entry: %w", err)
@@ -472,6 +462,79 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			useWrongCAPath:  false,
 			wantErrCode:     string(ErrCodeDispute),
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
+		},
+		{
+			name: "returns BENV when SURRENDER_FOR_DELIVERY not to original carrier",
+			tamperEnvelope: func(env *Envelope) error {
+				// Decode the last transfer chain entry (which has a TRANSFER transaction)
+				lastIdx := len(env.EnvelopeTransferChain) - 1
+				lastEntryPayload, err := testutil.DecodeJWSPayload(string(env.EnvelopeTransferChain[lastIdx]))
+				if err != nil {
+					return fmt.Errorf("failed to decode last entry: %w", err)
+				}
+
+				// Get the existing transactions
+				transactions, ok := lastEntryPayload["transactions"].([]any)
+				if !ok {
+					return fmt.Errorf("transactions field is not an array")
+				}
+
+				if len(transactions) == 0 {
+					return fmt.Errorf("no transactions in last entry")
+				}
+
+				actor, recipient := GetPartiesFromFile(t, validTRSNSChainEntryPath)
+
+				transferTx := CreateTransferTransaction(actor, recipient)
+
+				// we are using the ebl2 recipient as the carrier, which should fail
+				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient)
+
+				// Add both new transactions
+				transactions = append(transactions, surrenderTx, transferTx)
+				lastEntryPayload["transactions"] = transactions
+
+				// Re-sign the modified entry
+				modifiedPayloadJSON, err := json.Marshal(lastEntryPayload)
+				if err != nil {
+					return fmt.Errorf("failed to marshal modified payload: %w", err)
+				}
+
+				modifiedEntryJWS, err := crypto.SignJSONWithEd25519AndX5C(modifiedPayloadJSON, privateKey, keyID, certChain)
+				if err != nil {
+					return fmt.Errorf("failed to sign modified entry: %w", err)
+				}
+
+				// Replace the last entry
+				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+
+				// Update the manifest to point to the new last entry
+				transportDocJSON, err := json.Marshal(env.TransportDocument)
+				if err != nil {
+					return fmt.Errorf("failed to marshal transport document: %w", err)
+				}
+
+				envelopeManifest, err := NewEnvelopeManifestBuilder().
+					WithTransportDocument(transportDocJSON).
+					WithLastTransferChainEntry(env.EnvelopeTransferChain[lastIdx]).
+					Build()
+				if err != nil {
+					return fmt.Errorf("failed to create envelope manifest: %w", err)
+				}
+
+				envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, certChain)
+				if err != nil {
+					return fmt.Errorf("failed to sign envelope manifest: %w", err)
+				}
+
+				env.EnvelopeManifestSignedContent = envelopeManifestJWS
+				return nil
+			},
+			publicKeyPath:   validPublicKeyPath,
+			domain:          validDomain,
+			useWrongCAPath:  false,
+			wantErrCode:     string(ErrCodeEnvelope),
+			wantErrContains: "surrender request must be addressed to the issuing carrier",
 		},
 	}
 

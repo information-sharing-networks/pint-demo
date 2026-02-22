@@ -3,46 +3,41 @@ package ebl
 import (
 	"crypto/ed25519"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-// createTestEntry creates a minimal valid transfer chain entry for testing
-func createTestEntry() *EnvelopeTransferChainEntry {
-	return &EnvelopeTransferChainEntry{
-		EblPlatform:               "WAVE",
-		TransportDocumentChecksum: "583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006",
-		Transactions: []Transaction{
-			{
-				ActionCode: ActionCodeIssue,
-				Actor: ActorParty{
-					PartyName:   "Test Carrier",
-					EblPlatform: "WAVE",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "GLEIF",
-							PartyCode:        "TEST123456789",
-						},
-					},
-				},
-				Recipient: &RecipientParty{
-					PartyName:   "Test Consignee",
-					EblPlatform: "BOLE",
-					IdentifyingCodes: []IdentifyingCode{
-						{CodeListProvider: "GLEIF", PartyCode: "RECIPIENT123456"},
-					},
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
+// test data
+var (
+	testTransportDoc         = []byte(`{"transportDocumentReference":"test"}`)
+	testTransportDocChecksum = TransportDocumentChecksum(checksumFromJSON(testTransportDoc)) // SHA-256 of canonical JSON
+	testActor                = ActorParty{
+		PartyName:   "Test Carrier",
+		EblPlatform: "WAVE",
+		IdentifyingCodes: []IdentifyingCode{
+			{CodeListProvider: "GLEIF", PartyCode: "actor"},
 		},
 	}
-}
+	testRecipient = RecipientParty{
+		PartyName:   "Test Consignee",
+		EblPlatform: "BOLE",
+		IdentifyingCodes: []IdentifyingCode{
+			{CodeListProvider: "GLEIF", PartyCode: "recipient"},
+		},
+	}
+	testTransaction = Transaction{
+		ActionCode:     ActionCodeIssue,
+		Actor:          testActor,
+		Recipient:      &testRecipient,
+		ActionDateTime: "2024-01-15T10:30:00.000Z",
+	}
+	testIssuanceManifestJWS = IssuanceManifestSignedContent("eyJhbGci...manifest")
+	testPreviousEntryJWS    = EnvelopeTransferChainEntrySignedContent("eyJhbGci...entry")
+)
 
-// TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C tests the core signing functionality
-// This is the MAIN test - it verifies that transfer chain entries can be signed and verified
+// TestEnvelopeTransferChainEntry_Sign* test the core signing functionality of transfer chain entries.
 func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
@@ -54,7 +49,7 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
 
-	entry := createTestEntry()
+	entry := createTestEntry(t)
 
 	// Sign with x5c (keyID is auto-computed from privateKey)
 	jws, err := entry.Sign(privateKey, certChain)
@@ -108,7 +103,7 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	entry := createTestEntry()
+	entry := createTestEntry(t)
 
 	// Sign without x5c (keyID is auto-computed from privateKey)
 	jws, err := entry.Sign(privateKey, nil)
@@ -160,7 +155,7 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 		t.Fatalf("Could not read cert chain: %v", err)
 	}
 
-	entry := createTestEntry()
+	entry := createTestEntry(t)
 
 	// Sign with x5c (keyID is auto-computed from privateKey)
 	jws, err := entry.Sign(privateKey, certChain)
@@ -214,7 +209,7 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 		t.Fatalf("Could not read private key: %v", err)
 	}
 
-	entry := createTestEntry()
+	entry := createTestEntry(t)
 
 	// Sign without x5c (keyID is auto-computed from privateKey)
 	jws, err := entry.Sign(privateKey, nil)
@@ -254,336 +249,6 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 	}
 }
 
-func TestTransaction_Validate(t *testing.T) {
-	tests := []struct {
-		name    string
-		tx      Transaction
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid transaction with all required fields",
-			tx: Transaction{
-				ActionCode: ActionCodeIssue,
-				Actor: ActorParty{
-					PartyName:   "Test Actor",
-					EblPlatform: "WAVE",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "W3C",
-							PartyCode:        "did:example:123",
-						},
-					},
-				},
-				Recipient: &RecipientParty{
-					PartyName:   "Test Recipient",
-					EblPlatform: "BOLE",
-					IdentifyingCodes: []IdentifyingCode{
-						{CodeListProvider: "GLEIF", PartyCode: "LEI123456"},
-					},
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid transaction with recipient",
-			tx: Transaction{
-				ActionCode: ActionCodeTransfer,
-				Actor: ActorParty{
-					PartyName:   "Test Actor",
-					EblPlatform: "WAVE",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "W3C",
-							PartyCode:        "did:example:123",
-						},
-					},
-				},
-				Recipient: &RecipientParty{
-					PartyName:   "Test Recipient",
-					EblPlatform: "CARX",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "GLEIF",
-							PartyCode:        "LEI123456",
-						},
-					},
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing actionCode",
-			tx: Transaction{
-				Actor: ActorParty{
-					PartyName:   "Test Actor",
-					EblPlatform: "WAVE",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "W3C",
-							PartyCode:        "did:example:123",
-						},
-					},
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
-			wantErr: true,
-			errMsg:  "actionCode is required",
-		},
-		{
-			name: "missing actionDateTime",
-			tx: Transaction{
-				ActionCode: ActionCodeIssue,
-				Actor: ActorParty{
-					PartyName:   "Test Actor",
-					EblPlatform: "WAVE",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "W3C",
-							PartyCode:        "did:example:123",
-						},
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "actionDateTime is required",
-		},
-		{
-			name: "invalid actor - missing partyName",
-			tx: Transaction{
-				ActionCode: ActionCodeIssue,
-				Actor: ActorParty{
-					EblPlatform: "WAVE",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "W3C",
-							PartyCode:        "did:example:123",
-						},
-					},
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
-			wantErr: true,
-			errMsg:  "partyName is required",
-		},
-		{
-			name: "invalid actor - missing eblPlatform",
-			tx: Transaction{
-				ActionCode: ActionCodeIssue,
-				Actor: ActorParty{
-					PartyName: "Test Actor",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "W3C",
-							PartyCode:        "did:example:123",
-						},
-					},
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
-			wantErr: true,
-			errMsg:  "eblPlatform is required",
-		},
-		{
-			name: "invalid actor - missing identifyingCodes",
-			tx: Transaction{
-				ActionCode: ActionCodeIssue,
-				Actor: ActorParty{
-					PartyName:   "Test Actor",
-					EblPlatform: "WAVE",
-				},
-				ActionDateTime: "2024-04-17T07:11:19.531Z",
-			},
-			wantErr: true,
-			errMsg:  "at least one identifyingCode is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.tx.ValidateStructure()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Transaction.Validate() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
-				// Check if error message contains the expected substring
-				if !strings.Contains(err.Error(), tt.errMsg) {
-					t.Errorf("Transaction.Validate() error = %v, want error containing %v", err, tt.errMsg)
-				}
-			}
-		})
-	}
-}
-
-func TestIdentifyingCode_Validate(t *testing.T) {
-	tests := []struct {
-		name    string
-		code    IdentifyingCode
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid identifying code",
-			code: IdentifyingCode{
-				CodeListProvider: "W3C",
-				PartyCode:        "did:example:123",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid with codeListName",
-			code: IdentifyingCode{
-				CodeListProvider: "GLEIF",
-				PartyCode:        "LEI123456",
-				CodeListName:     stringPtr("LEI"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing codeListProvider",
-			code: IdentifyingCode{
-				PartyCode: "did:example:123",
-			},
-			wantErr: true,
-			errMsg:  "codeListProvider is required",
-		},
-		{
-			name: "missing partyCode",
-			code: IdentifyingCode{
-				CodeListProvider: "W3C",
-			},
-			wantErr: true,
-			errMsg:  "partyCode is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.code.ValidateStructure()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("IdentifyingCode.Validate() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
-				t.Errorf("IdentifyingCode.Validate() error = %v, want %v", err, tt.errMsg)
-			}
-		})
-	}
-}
-
-func TestActorParty_Validate(t *testing.T) {
-	tests := []struct {
-		name    string
-		party   ActorParty
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid actor party",
-			party: ActorParty{
-				PartyName:   "Test Party",
-				EblPlatform: "WAVE",
-				IdentifyingCodes: []IdentifyingCode{
-					{
-						CodeListProvider: "W3C",
-						PartyCode:        "did:example:123",
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid with represented party",
-			party: ActorParty{
-				PartyName:   "Test Party",
-				EblPlatform: "WAVE",
-				IdentifyingCodes: []IdentifyingCode{
-					{
-						CodeListProvider: "W3C",
-						PartyCode:        "did:example:123",
-					},
-				},
-				RepresentedParty: &RepresentedActorParty{
-					PartyName: "Represented Party",
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing partyName",
-			party: ActorParty{
-				EblPlatform: "WAVE",
-				IdentifyingCodes: []IdentifyingCode{
-					{
-						CodeListProvider: "W3C",
-						PartyCode:        "did:example:123",
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "partyName is required",
-		},
-		{
-			name: "missing eblPlatform",
-			party: ActorParty{
-				PartyName: "Test Party",
-				IdentifyingCodes: []IdentifyingCode{
-					{
-						CodeListProvider: "W3C",
-						PartyCode:        "did:example:123",
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "eblPlatform is required",
-		},
-		{
-			name: "missing identifyingCodes",
-			party: ActorParty{
-				PartyName:   "Test Party",
-				EblPlatform: "WAVE",
-			},
-			wantErr: true,
-			errMsg:  "at least one identifyingCode is required",
-		},
-		{
-			name: "invalid identifyingCode",
-			party: ActorParty{
-				PartyName:   "Test Party",
-				EblPlatform: "WAVE",
-				IdentifyingCodes: []IdentifyingCode{
-					{
-						CodeListProvider: "W3C",
-						// Missing PartyCode
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "partyCode is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.party.ValidateStructure()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ActorParty.Validate() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
-				t.Errorf("ActorParty.Validate() error = %v, want error containing %v", err, tt.errMsg)
-			}
-		})
-	}
-}
-
-func stringPtr(s string) *string {
-	return &s
-}
-
 func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	validTransaction := Transaction{
 		ActionCode:     ActionCodeIssue,
@@ -593,7 +258,7 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	}
 
 	issuanceManifest := IssuanceManifestSignedContent("test-issuance-manifest-jws")
-	prevChecksum := "abcd1234"
+	prevChecksum := TransferChainEntrySignedContentChecksum("abcd1234")
 
 	ctrURI := "https://ctr.example.com"
 
@@ -684,7 +349,7 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 			},
 			entryNumber: 0,
 			wantErr:     true,
-			errMsg:      "eblPlatform is required",
+			errMsg:      "eBLPlatform is required",
 		},
 		{
 			name: "invalid - missing transportDocumentChecksum",
@@ -712,7 +377,8 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.entry.ValidateStructure(tt.entryNumber)
+			isFirstEntry := tt.entryNumber == 0
+			err := tt.entry.ValidateStructure(isFirstEntry)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() expected error but got none")
@@ -728,53 +394,14 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	}
 }
 
-var (
-	testTransportDoc         = []byte(`{"transportDocumentReference":"TEST123456"}`)
-	testTransportDocChecksum = computeTestChecksum(testTransportDoc) // SHA-256 of canonical JSON
-	testActor                = ActorParty{
-		PartyName:   "Test Carrier",
-		EblPlatform: "WAVE",
-		IdentifyingCodes: []IdentifyingCode{
-			{CodeListProvider: "GLEIF", PartyCode: "TEST123456789"},
-		},
-	}
-	testRecipient = RecipientParty{
-		PartyName:   "Test Consignee",
-		EblPlatform: "BOLE",
-		IdentifyingCodes: []IdentifyingCode{
-			{CodeListProvider: "GLEIF", PartyCode: "RECIPIENT123456"},
-		},
-	}
-	testTransaction = Transaction{
-		ActionCode:     ActionCodeIssue,
-		Actor:          testActor,
-		Recipient:      &testRecipient,
-		ActionDateTime: "2024-01-15T10:30:00.000Z",
-	}
-	testIssuanceManifestJWS = IssuanceManifestSignedContent("eyJhbGci...MOCK_ISSUANCE_MANIFEST")
-	testPreviousEntryJWS    = EnvelopeTransferChainEntrySignedContent("eyJhbGci...MOCK_PREVIOUS_ENTRY")
-)
-
-// computeTestChecksum computes the SHA-256 checksum of canonical JSON for testing
-func computeTestChecksum(jsonData []byte) string {
-	canonical, err := crypto.CanonicalizeJSON(jsonData)
-	if err != nil {
-		panic("failed to canonicalize test data: " + err.Error())
-	}
-	checksum, err := crypto.Hash(canonical)
-	if err != nil {
-		panic("failed to crypto.Hash test data: " + err.Error())
-	}
-	return checksum
-}
-
 func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
-	entry, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+
+	entry, err := NewEnvelopeTransferChainEntryBuilder(true).
 		WithTransportDocumentChecksum(testTransportDocChecksum).
 		WithTransaction(testTransaction).
 		WithEBLPlatform("WAVE").
+		WithIssuanceManifestSignedContent(testIssuanceManifestJWS).
 		Build()
-
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -788,22 +415,23 @@ func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
 	}
 
 	// Verify transport document checksum was set
-	if entry.TransportDocumentChecksum != testTransportDocChecksum {
+	if entry.TransportDocumentChecksum != TransportDocumentChecksum(testTransportDocChecksum) {
 		t.Errorf("TransportDocumentChecksum = %s, want %s", entry.TransportDocumentChecksum, testTransportDocChecksum)
 	}
 }
 
 func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
-	entry, err := NewSubsequentEnvelopeTransferChainEntryBuilder(testPreviousEntryJWS).
+	previousEntryChecksum := checksumFromToken(testPreviousEntryJWS, t)
+
+	entry, err := NewEnvelopeTransferChainEntryBuilder(false).
 		WithTransportDocumentChecksum(testTransportDocChecksum).
 		WithTransaction(testTransaction).
 		WithEBLPlatform("WAVE").
+		WithPreviousEnvelopeTransferChainEntrySignedContentChecksum(previousEntryChecksum).
 		Build()
-
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
-
 	// Verify subsequent entry has previous entry checksum, not issuance manifest
 	if entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum == nil {
 		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum should be set for subsequent entry")
@@ -813,13 +441,18 @@ func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
 	}
 
 	// Verify transport document checksum was set
-	if entry.TransportDocumentChecksum != testTransportDocChecksum {
+	if entry.TransportDocumentChecksum != TransportDocumentChecksum(testTransportDocChecksum) {
 		t.Errorf("TransportDocumentChecksum = %s, want %s", entry.TransportDocumentChecksum, testTransportDocChecksum)
 	}
 
 	// Verify previous entry checksum is correct
 	expectedChecksum, _ := crypto.Hash([]byte(testPreviousEntryJWS))
-	if *entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != expectedChecksum {
+
+	if entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum == nil {
+		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum should be set for subsequent entry")
+		return
+	}
+	if *entry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != TransferChainEntrySignedContentChecksum(expectedChecksum) {
 		t.Error("PreviousEnvelopeTransferChainEntrySignedContentChecksum mismatch")
 	}
 }
@@ -833,39 +466,42 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 		{
 			name: "missing transport document checksum",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
-				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+				return NewEnvelopeTransferChainEntryBuilder(true).
 					WithEBLPlatform("WAVE").
-					WithTransaction(testTransaction)
+					WithTransaction(testTransaction).
+					WithIssuanceManifestSignedContent(testIssuanceManifestJWS)
 			},
-			errMsg: "transport document checksum is required",
+			errMsg: "transportDocumentChecksum is required",
 		},
 		{
 			name: "missing eBL platform",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
-				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+				return NewEnvelopeTransferChainEntryBuilder(true).
 					WithTransportDocumentChecksum(testTransportDocChecksum).
-					WithTransaction(testTransaction)
+					WithTransaction(testTransaction).
+					WithIssuanceManifestSignedContent(testIssuanceManifestJWS)
 			},
-			errMsg: "eBL platform is required",
+			errMsg: "eBLPlatform is required",
 		},
 		{
 			name: "missing transaction",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
-				return NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+				return NewEnvelopeTransferChainEntryBuilder(true).
 					WithTransportDocumentChecksum(testTransportDocChecksum).
-					WithEBLPlatform("WAVE")
+					WithEBLPlatform("WAVE").
+					WithIssuanceManifestSignedContent(testIssuanceManifestJWS)
 			},
 			errMsg: "at least one transaction is required",
 		},
 		{
 			name: "empty previous entry JWS",
 			builder: func() *EnvelopeTransferChainEntryBuilder {
-				return NewSubsequentEnvelopeTransferChainEntryBuilder("").
+				return NewEnvelopeTransferChainEntryBuilder(false).
 					WithTransportDocumentChecksum(testTransportDocChecksum).
 					WithEBLPlatform("WAVE").
 					WithTransaction(testTransaction)
 			},
-			errMsg: "PreviousEnvelopeTransferChainEntrySignedContentChecksum is required in all entries apart from the first entry",
+			errMsg: "previousEnvelopeTransferChainEntrySignedContentChecksum is required in all entries apart from the first entry",
 		},
 	}
 
@@ -884,14 +520,15 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T) {
 	ctrURI := "https://ctr.example.com/v1"
 
+	previousEntryChecksum := checksumFromToken(testPreviousEntryJWS, t)
 	t.Run("valid CTR on first entry", func(t *testing.T) {
-		entry, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+		entry, err := NewEnvelopeTransferChainEntryBuilder(true).
 			WithTransportDocumentChecksum(testTransportDocChecksum).
 			WithTransaction(testTransaction).
 			WithEBLPlatform("WAVE").
+			WithIssuanceManifestSignedContent(testIssuanceManifestJWS).
 			WithControlTrackingRegistry(ctrURI).
 			Build()
-
 		if err != nil {
 			t.Fatalf("Build() error = %v", err)
 		}
@@ -901,132 +538,84 @@ func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T)
 	})
 
 	t.Run("CTR on subsequent entry should fail", func(t *testing.T) {
-		_, err := NewSubsequentEnvelopeTransferChainEntryBuilder(testPreviousEntryJWS).
+		b := NewEnvelopeTransferChainEntryBuilder(false).
 			WithTransportDocumentChecksum(testTransportDocChecksum).
 			WithTransaction(testTransaction).
 			WithEBLPlatform("WAVE").
-			WithControlTrackingRegistry(ctrURI).
-			Build()
+			WithPreviousEnvelopeTransferChainEntrySignedContentChecksum(previousEntryChecksum).
+			WithControlTrackingRegistry(ctrURI)
 
+		t.Logf("debug builder: %+v", b)
+		_, err := b.Build()
 		if err == nil || !strings.Contains(err.Error(), "controlTrackingRegistry should only be present in first entry") {
 			t.Errorf("Expected CTR validation error on subsequent entry, got: %v", err)
 		}
 	})
 
 	t.Run("invalid CTR URL should fail", func(t *testing.T) {
-		_, err := NewFirstEnvelopeTransferChainEntryBuilder(testIssuanceManifestJWS).
+		_, err := NewEnvelopeTransferChainEntryBuilder(true).
 			WithTransportDocumentChecksum(testTransportDocChecksum).
 			WithTransaction(testTransaction).
 			WithEBLPlatform("WAVE").
+			WithIssuanceManifestSignedContent(testIssuanceManifestJWS).
 			WithControlTrackingRegistry("://invalid").
 			Build()
-
 		if err == nil || !strings.Contains(err.Error(), "invalid controlTrackingRegistry URL") {
 			t.Errorf("Expected invalid URL error, got: %v", err)
 		}
 	})
 }
 
-// TestRecreateSampleTransferChain is a sanity check to confirm
-// that we can recreate the transfer chain of the ebl envelope in testdata/pint-transfers
-func TestRecreateSampleTransferChain(t *testing.T) {
-
-	privateKeyPath := "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-	certChainPath := "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
-	testEnvelopePath := "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-
-	privateKey, err := crypto.ReadPrivateKeyFromJWKFile(privateKeyPath)
-	if err != nil {
-		t.Fatalf("failed to read private key: %v", err)
-	}
-
-	certChain, err := crypto.ReadCertChainFromPEMFile(certChainPath)
-	if err != nil {
-		t.Fatalf("failed to read cert chain: %v", err)
-	}
-
-	testEnvelopeData, err := os.ReadFile(testEnvelopePath)
-	if err != nil {
-		t.Fatalf("failed to read test envelope: %v", err)
-	}
-
-	// marshal the test envelope to json.RawMessage so we can access the fields we need
-	var testEnvelope map[string]json.RawMessage
-	if err := json.Unmarshal(testEnvelopeData, &testEnvelope); err != nil {
-		t.Fatalf("failed to unmarshal test envelope: %v", err)
-	}
-
-	// extract the issuanceManifestSignedContent from the first transfer chain entry
-	firstEntryPath := "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
-	firstEntryData, err := os.ReadFile(firstEntryPath)
-	if err != nil {
-		t.Fatalf("failed to read first entry: %v", err)
-	}
-	var firstEntry EnvelopeTransferChainEntry
-	if err := json.Unmarshal(firstEntryData, &firstEntry); err != nil {
-		t.Fatalf("failed to unmarshal first entry: %v", err)
-	}
-	issuanceManifestSignedContent := firstEntry.IssuanceManifestSignedContent
-
-	firstEntryTransactions := firstEntry.Transactions
-
-	// create the entry signed content for the first entry
-	firstEntrySignedContent, err := createTransferChainEntrySignedContent(
-		TransferChainEntryInput{
-			TransportDocumentChecksum:     firstEntry.TransportDocumentChecksum,
-			EBLPlatform:                   firstEntry.EblPlatform,
-			IsFirstEntry:                  true,
-			IssuanceManifestSignedContent: issuanceManifestSignedContent,
-			Transactions:                  firstEntryTransactions,
+// createTestEntry creates a minimal valid transfer chain entry for testing
+func createTestEntry(t *testing.T) *EnvelopeTransferChainEntry {
+	t.Helper()
+	return &EnvelopeTransferChainEntry{
+		EblPlatform:               "WAVE",
+		TransportDocumentChecksum: "583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006",
+		Transactions: []Transaction{
+			{
+				ActionCode: ActionCodeIssue,
+				Actor: ActorParty{
+					PartyName:   "Test Carrier",
+					EblPlatform: "WAVE",
+					IdentifyingCodes: []IdentifyingCode{
+						{
+							CodeListProvider: "GLEIF",
+							PartyCode:        "TEST123456789",
+						},
+					},
+				},
+				Recipient: &RecipientParty{
+					PartyName:   "Test Consignee",
+					EblPlatform: "BOLE",
+					IdentifyingCodes: []IdentifyingCode{
+						{CodeListProvider: "GLEIF", PartyCode: "RECIPIENT123456"},
+					},
+				},
+				ActionDateTime: "2024-04-17T07:11:19.531Z",
+			},
 		},
-		privateKey,
-		certChain,
-	)
-	if err != nil {
-		t.Fatalf("failed to create first entry signed content: %v", err)
 	}
-	secondEntryPath := "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
-	secondEntryData, err := os.ReadFile(secondEntryPath)
-	if err != nil {
-		t.Fatalf("failed to read second entry: %v", err)
-	}
-	var secondEntry EnvelopeTransferChainEntry
-	if err := json.Unmarshal(secondEntryData, &secondEntry); err != nil {
-		t.Fatalf("failed to unmarshal second entry: %v", err)
-	}
-	secondEntryTransactions := secondEntry.Transactions
+}
 
-	secondEntrySignedContent, err := createTransferChainEntrySignedContent(
-		TransferChainEntryInput{
-			TransportDocumentChecksum: secondEntry.TransportDocumentChecksum,
-			EBLPlatform:               secondEntry.EblPlatform,
-			IsFirstEntry:              false,
-			PreviousEnvelopeTransferChainEntrySignedContent: firstEntrySignedContent,
-			Transactions: secondEntryTransactions,
-		},
-		privateKey,
-		certChain,
-	)
+// checksumFromJSON computes the SHA-256 checksum of canonical JSON for testing
+func checksumFromJSON(jsonData []byte) string {
+	canonical, err := crypto.CanonicalizeJSON(jsonData)
 	if err != nil {
-		t.Fatalf("failed to create second entry signed content: %v", err)
+		panic("failed to canonicalize test data: " + err.Error())
 	}
+	checksum, err := crypto.Hash(canonical)
+	if err != nil {
+		panic("failed to crypto.Hash test data: " + err.Error())
+	}
+	return checksum
+}
 
-	t.Logf("first entry signed content: %v", string(firstEntrySignedContent))
-	t.Logf("second entry signed content: %v", string(secondEntrySignedContent))
+func checksumFromToken(token EnvelopeTransferChainEntrySignedContent, t *testing.T) TransferChainEntrySignedContentChecksum {
 
-	// read the actual transfer chain from the test envelope
-	var sampleEnvelope Envelope
-	if err := json.Unmarshal(testEnvelopeData, &sampleEnvelope); err != nil {
-		t.Fatalf("failed to unmarshal sample ebl envelope: %v", err)
+	p, err := crypto.Hash([]byte(token))
+	if err != nil {
+		t.Fatalf("failed to compute checksum for previous entry: %v", err)
 	}
-	sampleTransferChain := sampleEnvelope.EnvelopeTransferChain
-	if len(sampleTransferChain) != 2 {
-		t.Fatalf("expected 2 entries in sample transfer chain, got %d", len(sampleTransferChain))
-	}
-	if string(firstEntrySignedContent) != string(sampleTransferChain[0]) {
-		t.Errorf("first entry signed content mismatch")
-	}
-	if string(secondEntrySignedContent) != string(sampleTransferChain[1]) {
-		t.Errorf("second entry signed content mismatch")
-	}
+	return TransferChainEntrySignedContentChecksum(p)
 }

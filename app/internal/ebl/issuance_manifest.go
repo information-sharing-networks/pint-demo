@@ -35,7 +35,7 @@ import (
 type IssuanceManifest struct {
 
 	// DocumentChecksum: SHA-256 of canonicalized transport document JSON
-	DocumentChecksum string `json:"documentChecksum"`
+	DocumentChecksum TransportDocumentChecksum `json:"documentChecksum"`
 
 	// IssueToChecksum: SHA-256 of canonicalized issueTo party JSON
 	IssueToChecksum string `json:"issueToChecksum"`
@@ -167,7 +167,7 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 
 	// Create IssuanceManifest
 	issuanceManifest := &IssuanceManifest{
-		DocumentChecksum: documentChecksum,
+		DocumentChecksum: TransportDocumentChecksum(documentChecksum),
 		IssueToChecksum:  issueToChecksum,
 	}
 

@@ -8,6 +8,9 @@ import (
 	"fmt"
 )
 
+// TransportDocumentChecksum is the SHA-256 checksum of the canonicalized transport document JSON.
+type TransportDocumentChecksum string
+
 // TransportDocumentType is used to classify the type of eBL document.
 type TransportDocumentType string
 

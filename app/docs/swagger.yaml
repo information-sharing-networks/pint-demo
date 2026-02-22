@@ -73,12 +73,8 @@ definitions:
     properties:
       envelopeManifestSignedContent:
         description: |-
-          EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest
-          (signed by the sending platform).
-
-          The EnvelopeManifest payload is used by the receiver to verify that the transport
-          document and the transfer chain have not been tampered with and to establish details
-          of any supporting documents that will be subsequently transferred by the sender.
+          Signed manifest covering the transport document, transfer chain and supporting documents
+          Use the EnvelopeManifestBuilder to create the manifest and sign it.
         type: string
       envelopeTransferChain:
         description: |-
@@ -89,6 +85,8 @@ definitions:
           that happened on a single platform and is signed by the sending platform.
 
           The full chain is required by the receiver to verify the complete history and detect tampering.
+
+          Use the EnvelopeTransferChainEntryBuilder to create the transfer chain entries and sign them.
         items:
           type: string
         type: array
@@ -102,25 +100,38 @@ definitions:
       eBLVisualisationByCarrier:
         allOf:
         - $ref: '#/definitions/ebl.DocumentMetadata'
-        description: EBLVisualisationByCarrier contains metadata for the eBL visualisation
-          (optional).
+        description: |-
+          EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).
+          The visualisation provides a human-readable version of the eBL, and can optionally be provided
+          by the carrier at the point they issue the eBL.
+
+          If provided the metadata must be included in the manifst for all subsequent transfers so
+          that the downstream receivers can receive and verify the document.
       lastEnvelopeTransferChainEntrySignedContentChecksum:
         description: |-
           LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry
           in the transfer chain.
-          This binds the manifest to the specific transfer chain it was created for,
-          preventing an attacker from replacing the last entry with a valid one from a different transfer.
+
+          The transfer chain contains a history of transactions that have happened to the eBL.
+          Each group of transactions is signed by the platform that created it, and the next group in the chain includes
+          the checksum of the previous group as an anti-tampering measure.
+
+          Including the checksum of the latest transfer chain entry in the manifest binds the manifest to the
+          specific transfer chain it was created for.
         type: string
       supportingDocuments:
-        description: SupportingDocuments contains metadata for supporting documents
-          (optional).
+        description: |-
+          SupportingDocuments contains metadata for supporting documents (optional).
+          this allows the sender to provide additional documents that are relevant to the eBL transfer
+          (commercial invoices, packing lists etc.)
         items:
           $ref: '#/definitions/ebl.DocumentMetadata'
         type: array
       transportDocumentChecksum:
         description: |-
-          TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.
-          This is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.
+          TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized eBL document (aka transport document).
+
+          This should not change during the lifetime of the BL.
         type: string
     type: object
   ebl.EnvelopeTransferChainEntry:
@@ -141,9 +152,8 @@ definitions:
         type: string
       previousEnvelopeTransferChainEntrySignedContentChecksum:
         description: |-
-          PreviousEnvelopeTransferChainEntrySignedContentChecksum: SHA-256 of previous entry JWS (omitted for first entry)
-          this is the checksum of the previous entry in the transfer chain, and should only be included if this is not the first entry in the transfer chain.
-          This ensures the integrity of the transfer chain.
+          PreviousEnvelopeTransferChainEntrySignedContentChecksum is the checksum of the previous entry in the transfer chain,
+          and should only be included if this is not the first entry in the transfer chain.
         type: string
       transactions:
         description: 'Transactions: List of transactions (at least one required)'
@@ -151,9 +161,8 @@ definitions:
           $ref: '#/definitions/ebl.Transaction'
         type: array
       transportDocumentChecksum:
-        description: |-
-          TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON
-          this should not change for the lifetime of the eBL.
+        description: TransportDocumentChecksum - this should not change for the lifetime
+          of the eBL.
         type: string
     type: object
   ebl.IdentifyingCode:

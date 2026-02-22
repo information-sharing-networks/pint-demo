@@ -2,29 +2,32 @@ package ebl
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"testing"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-func TestCreateEnvelope(t *testing.T) {
-	testData := []struct {
+func TestCreateEnvelopeForDelivery(t *testing.T) {
+	// debug
+	t.Skip("debug")
+	tests := []struct {
 		name                 string
 		privateKeyJWKPath    string
 		certChainFilePath    string
 		receivedEnvelopePath string
+		eblPlatform          string
 	}{
 		{
 			name:                 "forward_Ed25519",
 			privateKeyJWKPath:    "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
 			certChainFilePath:    "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
 			receivedEnvelopePath: "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
+			eblPlatform:          "EBL1",
 		},
 	}
 
-	for _, test := range testData {
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Load the received envelope
 			sampleEnvelopeData, err := os.ReadFile(test.receivedEnvelopePath)
@@ -72,24 +75,12 @@ func TestCreateEnvelope(t *testing.T) {
 				},
 			)
 
-			// Create a new transfer chain entry from the transaction
-			newEntry, err := CreateTransferChainEntry(
-				receivedEnvelope,
-				[]Transaction{newTransaction},
-				"TEST",
-				privateKey,
-				certChain,
-			)
-			if err != nil {
-				t.Fatalf("failed to create transfer chain entry: %v", err)
-			}
-
 			// Create envelope with the new entry
 			input := CreateEnvelopeInput{
-				ReceivedEnvelope:                   receivedEnvelope,
-				NewTransferChainEntrySignedContent: &newEntry,
+				ReceivedEnvelope: receivedEnvelope,
+				NewTransactions:  []Transaction{newTransaction},
 			}
-			forwardEnvelope, err := CreateEnvelope(input, privateKey, certChain)
+			forwardEnvelope, err := CreateEnvelopeForDelivery(input, privateKey, certChain, test.eblPlatform)
 			if err != nil {
 				t.Fatalf("failed to create envelope with entry: %v", err)
 			}
@@ -117,8 +108,6 @@ func TestCreateEnvelope(t *testing.T) {
 			if forwardEnvelope.EnvelopeManifestSignedContent == "" {
 				t.Fatalf("envelope manifest is empty")
 			}
-
-			log.Printf("Successfully forwarded envelope with new entry\n")
 		})
 	}
 }

@@ -11,304 +11,7 @@ import (
 var (
 	// thse are valid test data for building an envelope manifest (not real JWS strings)
 	testTransportDocument = []byte(`{"transportDocumentReference":"MAEU123456","shippingInstructionReference":"SI123456"}`)
-	testLastTransferChain = "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3RraWQifQ.eyJ0cmFuc3BvcnREb2N1bWVudENoZWNrc3VtIjoiYWJjMTIzIn0.c2lnbmF0dXJl" // mock JWS
-	testEblVisualisation  = &DocumentMetadata{
-		Name:             "ebl.pdf",
-		Size:             100,
-		MediaType:        "application/pdf",
-		DocumentChecksum: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-	}
-	testSupportingDocuments = []DocumentMetadata{
-		{
-			Name:             "invoice.pdf",
-			Size:             100,
-			MediaType:        "application/pdf",
-			DocumentChecksum: "b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-		},
-		{
-			Name:             "packing-list.pdf",
-			Size:             100,
-			MediaType:        "application/pdf",
-			DocumentChecksum: "c1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-		},
-	}
 )
-
-func TestEnvelopeManifestBuilder(t *testing.T) {
-	tests := []struct {
-		name                string
-		transportDocument   []byte
-		lastTransferChain   string
-		eblVisualisation    *DocumentMetadata
-		supportingDocuments []DocumentMetadata
-		wantErr             bool
-		expectedErrContains string
-	}{
-		{
-			name:              "valid - minimal (no optional fields)",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			wantErr:           false,
-		},
-		{
-			name:              "valid - with eBL visualisation",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			eblVisualisation:  testEblVisualisation,
-			wantErr:           false,
-		},
-		{
-			name:                "valid - with supporting documents",
-			transportDocument:   testTransportDocument,
-			lastTransferChain:   testLastTransferChain,
-			supportingDocuments: testSupportingDocuments,
-			wantErr:             false,
-		},
-		{
-			name:                "valid - with both eBL visualisation and supporting documents",
-			transportDocument:   testTransportDocument,
-			lastTransferChain:   testLastTransferChain,
-			eblVisualisation:    testEblVisualisation,
-			supportingDocuments: testSupportingDocuments,
-			wantErr:             false,
-		},
-		{
-			name:                "missing transport document",
-			transportDocument:   nil,
-			lastTransferChain:   testLastTransferChain,
-			wantErr:             true,
-			expectedErrContains: "transport document is required",
-		},
-		{
-			name:                "missing last transfer chain",
-			transportDocument:   testTransportDocument,
-			lastTransferChain:   "",
-			wantErr:             true,
-			expectedErrContains: "last transfer chain entry is required",
-		},
-		{
-			name:                "invalid transport document JSON",
-			transportDocument:   []byte(`invalid json`),
-			lastTransferChain:   testLastTransferChain,
-			wantErr:             true,
-			expectedErrContains: "failed to canonicalize",
-		},
-		{
-			name:              "eBL visualisation missing name",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			eblVisualisation: &DocumentMetadata{
-				Name:             "",
-				Size:             12345,
-				MediaType:        "application/pdf",
-				DocumentChecksum: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-			},
-			wantErr:             true,
-			expectedErrContains: "name is required",
-		},
-		{
-			name:              "eBL visualisation missing size",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			eblVisualisation: &DocumentMetadata{
-				Name:             "ebl.pdf",
-				Size:             0,
-				MediaType:        "application/pdf",
-				DocumentChecksum: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-			},
-			wantErr:             true,
-			expectedErrContains: "size must be greater than 0",
-		},
-		{
-			name:              "eBL visualisation missing mediaType",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			eblVisualisation: &DocumentMetadata{
-				Name:             "ebl.pdf",
-				Size:             12345,
-				MediaType:        "",
-				DocumentChecksum: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-			},
-			wantErr:             true,
-			expectedErrContains: "mediaType is required",
-		},
-		{
-			name:              "eBL visualisation missing documentChecksum",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			eblVisualisation: &DocumentMetadata{
-				Name:             "ebl.pdf",
-				Size:             12345,
-				MediaType:        "application/pdf",
-				DocumentChecksum: "",
-			},
-			wantErr:             true,
-			expectedErrContains: "documentChecksum is required",
-		},
-		{
-			name:              "supporting document missing name",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			supportingDocuments: []DocumentMetadata{
-				{
-					Name:             "",
-					Size:             5000,
-					MediaType:        "application/pdf",
-					DocumentChecksum: "b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-				},
-			},
-			wantErr:             true,
-			expectedErrContains: "supporting document 0: name is required",
-		},
-		{
-			name:              "supporting document missing size",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			supportingDocuments: []DocumentMetadata{
-				{
-					Name:             "invoice.pdf",
-					Size:             0,
-					MediaType:        "application/pdf",
-					DocumentChecksum: "b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-				},
-			},
-			wantErr:             true,
-			expectedErrContains: "supporting document 0: size must be greater than 0",
-		},
-		{
-			name:              "supporting document missing mediaType",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			supportingDocuments: []DocumentMetadata{
-				{
-					Name:             "invoice.pdf",
-					Size:             5000,
-					MediaType:        "",
-					DocumentChecksum: "b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-				},
-			},
-			wantErr:             true,
-			expectedErrContains: "supporting document 0: mediaType is required",
-		},
-		{
-			name:              "supporting document missing documentChecksum",
-			transportDocument: testTransportDocument,
-			lastTransferChain: testLastTransferChain,
-			supportingDocuments: []DocumentMetadata{
-				{
-					Name:             "invoice.pdf",
-					Size:             5000,
-					MediaType:        "application/pdf",
-					DocumentChecksum: "",
-				},
-			},
-			wantErr:             true,
-			expectedErrContains: "supporting document 0: documentChecksum is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			builder := NewEnvelopeManifestBuilder()
-			if tt.transportDocument != nil {
-				builder.WithTransportDocument(tt.transportDocument)
-			}
-			if tt.lastTransferChain != "" {
-				builder.WithLastTransferChainEntry(EnvelopeTransferChainEntrySignedContent(tt.lastTransferChain))
-			}
-			if tt.eblVisualisation != nil {
-				builder.WithEBLVisualisationByCarrier(*tt.eblVisualisation)
-			}
-			if len(tt.supportingDocuments) > 0 {
-				builder.WithSupportingDocuments(tt.supportingDocuments)
-			}
-
-			manifest, err := builder.Build()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("EnvelopeManifestBuilder.Build() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if tt.wantErr {
-				if tt.expectedErrContains != "" && err != nil {
-					if !contains(err.Error(), tt.expectedErrContains) {
-						t.Errorf("Expected error to contain %q, got %q", tt.expectedErrContains, err.Error())
-					}
-				}
-				return
-			}
-
-			// Ensure manifest is not nil before accessing fields
-			if manifest == nil {
-				t.Fatal("Build() returned nil manifest without error")
-			}
-
-			// Verify required checksums
-			if manifest.TransportDocumentChecksum == "" {
-				t.Error("TransportDocumentChecksum is empty")
-			}
-			if len(manifest.TransportDocumentChecksum) != 64 {
-				t.Errorf("TransportDocumentChecksum length = %d, want 64 (SHA-256 hex)", len(manifest.TransportDocumentChecksum))
-			}
-			if manifest.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
-				t.Error("LastEnvelopeTransferChainEntrySignedContentChecksum is empty")
-			}
-			if len(manifest.LastEnvelopeTransferChainEntrySignedContentChecksum) != 64 {
-				t.Errorf("LastEnvelopeTransferChainEntrySignedContentChecksum length = %d, want 64 (SHA-256 hex)", len(manifest.LastEnvelopeTransferChainEntrySignedContentChecksum))
-			}
-
-			// Verify optional fields
-			if tt.eblVisualisation != nil {
-				if manifest.EBLVisualisationByCarrier == nil {
-					t.Error("EBLVisualisationByCarrier should be set")
-				} else {
-					if manifest.EBLVisualisationByCarrier.Name != tt.eblVisualisation.Name {
-						t.Errorf("EBLVisualisationByCarrier.Name = %s, want %s", manifest.EBLVisualisationByCarrier.Name, tt.eblVisualisation.Name)
-					}
-					if manifest.EBLVisualisationByCarrier.DocumentChecksum != tt.eblVisualisation.DocumentChecksum {
-						t.Errorf("EBLVisualisationByCarrier.DocumentChecksum = %s, want %s", manifest.EBLVisualisationByCarrier.DocumentChecksum, tt.eblVisualisation.DocumentChecksum)
-					}
-				}
-			} else {
-				if manifest.EBLVisualisationByCarrier != nil {
-					t.Error("EBLVisualisationByCarrier should be nil")
-				}
-			}
-
-			if len(tt.supportingDocuments) > 0 {
-				if len(manifest.SupportingDocuments) != len(tt.supportingDocuments) {
-					t.Errorf("SupportingDocuments length = %d, want %d", len(manifest.SupportingDocuments), len(tt.supportingDocuments))
-				}
-				for i, doc := range tt.supportingDocuments {
-					if manifest.SupportingDocuments[i].Name != doc.Name {
-						t.Errorf("SupportingDocuments[%d].Name = %s, want %s", i, manifest.SupportingDocuments[i].Name, doc.Name)
-					}
-					if manifest.SupportingDocuments[i].DocumentChecksum != doc.DocumentChecksum {
-						t.Errorf("SupportingDocuments[%d].DocumentChecksum = %s, want %s", i, manifest.SupportingDocuments[i].DocumentChecksum, doc.DocumentChecksum)
-					}
-				}
-			} else {
-				if len(manifest.SupportingDocuments) > 0 {
-					t.Error("SupportingDocuments should be empty")
-				}
-			}
-		})
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
-}
-
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
 
 func TestEnvelopeBuilder(t *testing.T) {
 	// mock transfer chain entries (in reality these would be signed JWS strings)
@@ -426,7 +129,7 @@ func TestEnvelopeValidation(t *testing.T) {
 	}
 }
 
-// TestRecreateSampleEnvelope is a sanity check to confirm we can buld the test envelope
+// TestRecreateSampleEnvelope is a sanity check to confirm we can reconstruct the test envelope using the builder
 func TestRecreateSampleEnvelope(t *testing.T) {
 	testEnvelopePath := "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
 
@@ -446,6 +149,8 @@ func TestRecreateSampleEnvelope(t *testing.T) {
 
 	// extract the issuance manifest from the test envelope
 	envelopeManifestSignedContentRaw := testEnvelope["envelopeManifestSignedContent"]
+
+	// this is a json string so unmarshal it (the builder expects a string not json.RawMessage)
 	var envelopeManifestSignedContent string
 	if err := json.Unmarshal(envelopeManifestSignedContentRaw, &envelopeManifestSignedContent); err != nil {
 		t.Fatalf("failed to unmarshal envelope manifest signed content: %v", err)
@@ -458,23 +163,28 @@ func TestRecreateSampleEnvelope(t *testing.T) {
 		t.Fatalf("failed to unmarshal transfer chain: %v", err)
 	}
 
-	// create a new envelope with the extracted data
-	newEnvelopeMap := map[string]interface{}{
-		"transportDocument":             json.RawMessage(transportDocument), // note this is a json object, including qoutes
-		"envelopeManifestSignedContent": envelopeManifestSignedContent,
-		"envelopeTransferChain":         transferChain,
+	// use the envelope builder to recreate the envelope
+	envelope, err := NewEnvelopeBuilder().
+		WithTransportDocument(transportDocument).
+		WithEnvelopeManifestSignedContent(EnvelopeManifestSignedContent(envelopeManifestSignedContent)).
+		WithEnvelopeTransferChain(transferChain).
+		Build()
+	if err != nil {
+		t.Fatalf("failed to build envelope: %v", err)
+	}
+
+	if err := envelope.ValidateStructure(); err != nil {
+		t.Fatalf("failed to validate envelope: %v", err)
 	}
 
 	// marshal the new envelope to json
-	newEnvelopeJSON, err := json.Marshal(newEnvelopeMap)
+	newEnvelopeJSON, err := json.Marshal(envelope)
 	if err != nil {
 		t.Fatalf("failed to marshal new envelope: %v", err)
 	}
 
 	// verify the new envelope json matches the test envelope json
 	// cannonicalize the json before comparing
-	//t.Logf("new envelope json: %s", string(newEnvelopeJSON))
-
 	canonicalTestEnvelope, err := crypto.CanonicalizeJSON(testEnvelopeData)
 	if err != nil {
 		t.Fatalf("failed to canonicalize test envelope: %v", err)

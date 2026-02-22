@@ -116,7 +116,7 @@ type EnvelopeVerificationResult struct {
 	LastTransferChainEntry *EnvelopeTransferChainEntry
 
 	// TransportDocumentChecksum is the checksum of the transport document
-	TransportDocumentChecksum string
+	TransportDocumentChecksum TransportDocumentChecksum
 
 	// TransportDocumentReference is the unique number allocated by the shipping line to the transport document.
 	// This is a required field per DCSA spec (max 20 chars) and is extracted during verification.
@@ -322,7 +322,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		return result, WrapEnvelopeError(err, "issuance manifest verification failed")
 	}
 
-	// Step 12: verify manifest checksum matches last transfer chain entry
+	// Step 12: Verify manifest checksum matches last transfer chain entry
 	// This prevents a situation where the transfer contains a valid chain + valid manifest + valid transport document but the
 	// the components are from different transfers (i.e the manifest and last chain entry must agree on which transport document they are refering to)
 	if manifest.TransportDocumentChecksum != result.LastTransferChainEntry.TransportDocumentChecksum {
@@ -345,13 +345,13 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 
 	recipientPlatform := lastTransaction.Recipient.EblPlatform
 	if recipientPlatform == "" {
-		return result, NewEnvelopeError("recipient.eblPlatform is required")
+		return result, NewEnvelopeError("recipient.eBLPlatform is required")
 	}
 
 	// Extract sender platform from last entry
 	senderPlatform := lastEntry.EblPlatform
 	if senderPlatform == "" {
-		return result, NewEnvelopeError("eblPlatform is required in last transfer chain entry")
+		return result, NewEnvelopeError("eBLPlatform is required in last transfer chain entry")
 	}
 
 	// extract the action code of the last transaction in the last transfer chain entry
@@ -410,7 +410,7 @@ type TransportDocumentResult struct {
 // or if the transportDocumentReference is missing.
 func verifyTransportDocumentChecksum(
 	transportDocument json.RawMessage,
-	expectedChecksum string,
+	expectedChecksum TransportDocumentChecksum,
 ) (*TransportDocumentResult, error) {
 
 	// Canonicalize the transport document JSON
@@ -426,7 +426,7 @@ func verifyTransportDocumentChecksum(
 	}
 
 	// Verify checksum matches
-	if actualChecksum != expectedChecksum {
+	if TransportDocumentChecksum(actualChecksum) != expectedChecksum {
 		return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum mismatch: expected %s, got %s",
 			expectedChecksum, actualChecksum))
 	}
@@ -547,7 +547,7 @@ func verifyEnvelopeTransferChain(
 		return nil, WrapEnvelopeError(err, "failed to compute last entry checksum")
 	}
 
-	if lastEntryJWSChecksum != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
+	if TransferChainEntrySignedContentChecksum(lastEntryJWSChecksum) != manifest.LastEnvelopeTransferChainEntrySignedContentChecksum {
 		return nil, NewEnvelopeError(fmt.Sprintf("the last transfer chain entry checksum does not match the manifest: expected %s, got %s",
 			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryJWSChecksum))
 	}
@@ -605,8 +605,10 @@ func verifyEnvelopeTransferChain(
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("failed to parse entry %d payload", i))
 		}
 
+		isFirstEntry := i == 0
+
 		// Validate the entry has all the mandatory fields
-		if err := currentEntry.ValidateStructure(i); err != nil {
+		if err := currentEntry.ValidateStructure(isFirstEntry); err != nil {
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
@@ -658,7 +660,7 @@ func verifyEnvelopeTransferChain(
 				return nil, NewEnvelopeError(fmt.Sprintf("entry %d is missing previousEnvelopeTransferChainEntrySignedContentChecksum", i))
 			}
 
-			if *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != previousChecksum {
+			if *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum != TransferChainEntrySignedContentChecksum(previousChecksum) {
 				return nil, NewEnvelopeError(fmt.Sprintf("entry %d chain link broken: expected previous checksum %s, got %s",
 					i, previousChecksum, *currentEntry.PreviousEnvelopeTransferChainEntrySignedContentChecksum))
 			}
@@ -681,49 +683,52 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 7: Validate transaction sequence follows valid state transitions
+	// Step 7: Validate transactions follow the DSCA rules
 	currentState := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
-	for entryIdx, entry := range allEntries {
-		for txIdx, tx := range entry.Transactions {
-			nextState := ActionCode(tx.ActionCode)
+	for i, entry := range allEntries {
+		for j, tx := range entry.Transactions {
+			nextActionCode := ActionCode(tx.ActionCode)
 
 			// Step 7a: First transaction must be ISSUE
 			if currentState == ActionCodeUnset {
-				if nextState != ActionCodeIssue {
+				if nextActionCode != ActionCodeIssue {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"first transaction must be ISSUE, got %s (entry %d, transaction %d)",
-						tx.ActionCode, entryIdx, txIdx))
+						tx.ActionCode, i, j))
 				}
 				issueActorCodes = tx.Actor.IdentifyingCodes
-				currentState = nextState
+				currentState = nextActionCode
 				continue
 			}
 
-			// Validate the transition is allowed
-			if !isValidActionCodeTransition(currentState, nextState) {
-				return nil, NewDisputeError(fmt.Sprintf(
-					"invalid state transition from %s to %s (entry %d, transaction %d)",
-					currentState, nextState, entryIdx, txIdx))
-			}
-
-			// Validate the action code is permitted for this document type
-			if !isActionCodeValidForDocumentType(nextState, docType) {
-				return nil, NewEnvelopeError(fmt.Sprintf(
-					"action code %s is not valid for %s (entry %d, transaction %d)",
-					nextState, docType, entryIdx, txIdx))
-			}
-
-			// Step 7b: Surrender requests must be addressed to the carrier that issued the eBL
-			if nextState == ActionCodeSurrenderForDelivery || nextState == ActionCodeSurrenderForAmendment {
-				if tx.Recipient == nil || !identifyingCodesMatch(tx.Recipient.IdentifyingCodes, issueActorCodes) {
+			// Step 7b: Transfer and endorsements are not allowed for straight BLs
+			if docType == TransportDocumentTypeStraightBL {
+				switch nextActionCode {
+				case ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeTransfer:
 					return nil, NewEnvelopeError(fmt.Sprintf(
-						"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
-						entryIdx, txIdx))
+						"straight BLs cannot be transferred or endorsed, got %s (entry %d, transaction %d)",
+						tx.ActionCode, i, j))
 				}
 			}
 
-			currentState = nextState
+			// Step 7c: Transactions must follow valid state transitions
+			if !isValidActionCodeTransition(currentState, nextActionCode) {
+				return nil, NewDisputeError(fmt.Sprintf(
+					"invalid state transition from %s to %s (entry %d, transaction %d)",
+					currentState, nextActionCode, i, j))
+			}
+
+			// Step 7d: Surrender requests must be addressed to the carrier that issued the eBL
+			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
+				if tx.Recipient == nil || !identifyingCodesMatch(tx.Recipient.IdentifyingCodes, issueActorCodes) {
+					return nil, NewEnvelopeError(fmt.Sprintf(
+						"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
+						i, j))
+				}
+			}
+
+			currentState = nextActionCode
 		}
 	}
 	return allEntries, nil

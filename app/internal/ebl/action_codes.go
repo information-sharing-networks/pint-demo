@@ -105,21 +105,6 @@ func isValidActionCodeTransition(currentState, nextState ActionCode) bool {
 	return slices.Contains(validTransitions, nextState)
 }
 
-// isActionCodeValidForDocumentType checks whether the given action code is permitted
-// for the given transport document type.
-func isActionCodeValidForDocumentType(actionCode ActionCode, docType TransportDocumentType) bool {
-
-	switch docType {
-	case TransportDocumentTypeStraightBL:
-		// Straight BLs are not endorsable and can't be transferred
-		switch actionCode {
-		case ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeTransfer:
-			return false
-		}
-	}
-	return true
-}
-
 // SurrenderForAmendmentReasonCode represents the reason for SURRENDER_FOR_AMENDMENT according to DCSA specification.
 type SurrenderForAmendmentReasonCode string
 

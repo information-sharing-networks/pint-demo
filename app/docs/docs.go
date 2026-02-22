@@ -719,11 +719,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "envelopeManifestSignedContent": {
-                    "description": "EnvelopeManifestSignedContent: JWS compact serialization of the EnvelopeManifest\n(signed by the sending platform).\n\nThe EnvelopeManifest payload is used by the receiver to verify that the transport\ndocument and the transfer chain have not been tampered with and to establish details\nof any supporting documents that will be subsequently transferred by the sender.",
+                    "description": "Signed manifest covering the transport document, transfer chain and supporting documents\nUse the EnvelopeManifestBuilder to create the manifest and sign it.",
                     "type": "string"
                 },
                 "envelopeTransferChain": {
-                    "description": "EnvelopeTransferChain: Ordered list of JWS tokens representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.",
+                    "description": "EnvelopeTransferChain: Ordered list of JWS tokens representing the complete\ntransfer chain.\n\nEach EnvelopeTransferChainEntry represents a batch of transactions\nthat happened on a single platform and is signed by the sending platform.\n\nThe full chain is required by the receiver to verify the complete history and detect tampering.\n\nUse the EnvelopeTransferChainEntryBuilder to create the transfer chain entries and sign them.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -739,7 +739,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "eBLVisualisationByCarrier": {
-                    "description": "EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).",
+                    "description": "EBLVisualisationByCarrier contains metadata for the eBL visualisation (optional).\nThe visualisation provides a human-readable version of the eBL, and can optionally be provided\nby the carrier at the point they issue the eBL.\n\nIf provided the metadata must be included in the manifst for all subsequent transfers so\nthat the downstream receivers can receive and verify the document.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/ebl.DocumentMetadata"
@@ -747,18 +747,18 @@ const docTemplate = `{
                     ]
                 },
                 "lastEnvelopeTransferChainEntrySignedContentChecksum": {
-                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry\nin the transfer chain.\nThis binds the manifest to the specific transfer chain it was created for,\npreventing an attacker from replacing the last entry with a valid one from a different transfer.",
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry\nin the transfer chain.\n\nThe transfer chain contains a history of transactions that have happened to the eBL.\nEach group of transactions is signed by the platform that created it, and the next group in the chain includes\nthe checksum of the previous group as an anti-tampering measure.\n\nIncluding the checksum of the latest transfer chain entry in the manifest binds the manifest to the\nspecific transfer chain it was created for.",
                     "type": "string"
                 },
                 "supportingDocuments": {
-                    "description": "SupportingDocuments contains metadata for supporting documents (optional).",
+                    "description": "SupportingDocuments contains metadata for supporting documents (optional).\nthis allows the sender to provide additional documents that are relevant to the eBL transfer\n(commercial invoices, packing lists etc.)",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.DocumentMetadata"
                     }
                 },
                 "transportDocumentChecksum": {
-                    "description": "TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized transport document.\nThis is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.",
+                    "description": "TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized eBL document (aka transport document).\n\nThis should not change during the lifetime of the BL.",
                     "type": "string"
                 }
             }
@@ -779,7 +779,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "previousEnvelopeTransferChainEntrySignedContentChecksum": {
-                    "description": "PreviousEnvelopeTransferChainEntrySignedContentChecksum: SHA-256 of previous entry JWS (omitted for first entry)\nthis is the checksum of the previous entry in the transfer chain, and should only be included if this is not the first entry in the transfer chain.\nThis ensures the integrity of the transfer chain.",
+                    "description": "PreviousEnvelopeTransferChainEntrySignedContentChecksum is the checksum of the previous entry in the transfer chain,\nand should only be included if this is not the first entry in the transfer chain.",
                     "type": "string"
                 },
                 "transactions": {
@@ -790,7 +790,7 @@ const docTemplate = `{
                     }
                 },
                 "transportDocumentChecksum": {
-                    "description": "TransportDocumentChecksum: SHA-256 of canonicalized transport document JSON\nthis should not change for the lifetime of the eBL.",
+                    "description": "TransportDocumentChecksum - this should not change for the lifetime of the eBL.",
                     "type": "string"
                 }
             }
