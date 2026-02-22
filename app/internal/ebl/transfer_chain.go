@@ -109,7 +109,7 @@ func (e *EnvelopeTransferChainEntry) ValidateStructure(entryNumber int) error {
 type Transaction struct {
 
 	// actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE, SURRENDER_FOR_DELIVERY, etc.)
-	ActionCode EnvelopeState `json:"actionCode"`
+	ActionCode ActionCode `json:"actionCode"`
 
 	// actor: The legal entity (party) performing the action (required)
 	Actor ActorParty `json:"actor"`
@@ -122,7 +122,7 @@ type Transaction struct {
 
 	// reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)
 	// Possible values: SWTP (Switch to paper), COD (Change of destination), SWI (Switch BL)
-	ReasonCode *SurrenderReasonCode `json:"reasonCode,omitempty"`
+	ReasonCode *SurrenderForAmendmentReasonCode `json:"reasonCode,omitempty"`
 
 	// comments: Free text comment (optional)
 	Comments *string `json:"comments,omitempty"`
@@ -142,13 +142,42 @@ func (t *Transaction) ValidateStructure() error {
 	if t.ActionDateTime == "" {
 		return NewEnvelopeError("actionDateTime is required")
 	}
-	// Recipient is optional (e.g., for SIGN action code)
-	if t.Recipient != nil {
+
+	// SIGN and BLANK_ENDORSE must not have a recipient; all other action codes require one
+	switch t.ActionCode {
+	case ActionCodeSign, ActionCodeBlankEndorse:
+		if t.Recipient != nil {
+			return NewEnvelopeError(fmt.Sprintf("%s must not have a recipient", t.ActionCode))
+		}
+	default:
+		if t.Recipient == nil {
+			return NewEnvelopeError(fmt.Sprintf("%s requires a recipient", t.ActionCode))
+		}
 		if err := t.Recipient.ValidateStructure(); err != nil {
 			return WrapEnvelopeError(err, "recipient")
 		}
 	}
+
+	// reasonCode is only applicable for SURRENDER_FOR_AMENDMENT
+	if t.ReasonCode != nil && t.ActionCode != ActionCodeSurrenderForAmendment {
+		return NewEnvelopeError(fmt.Sprintf("reasonCode is only applicable for %s, not %s", ActionCodeSurrenderForAmendment, t.ActionCode))
+	}
+
 	return nil
+}
+
+// identifyingCodesMatch returns true if at least one IdentifyingCode from a matches one from b
+// (same codeListProvider and partyCode).
+// TODO: need to agree the rules for this - should it match all? should it be configurable?
+func identifyingCodesMatch(a, b []IdentifyingCode) bool {
+	for _, codeA := range a {
+		for _, codeB := range b {
+			if codeA.CodeListProvider == codeB.CodeListProvider && codeA.PartyCode == codeB.PartyCode {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ActorParty represents a legal entity (party) performing a transaction action in the transfer chain.

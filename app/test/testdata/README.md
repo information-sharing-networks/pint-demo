@@ -14,10 +14,13 @@ the `issuance-documents` directory contains sample JSON that would be used in a 
 
 The computed fields (JWS and checksums) were calculated indepenently of the pint-demo code so they can be used in testing.
 
+
 ## PINT Transfers
 The `pint-transfers` directory contains json that can be used in a PINT transfer.  The json is based on the DCSA openapi v3.0.0 PINT sample data.
 
 **`HHL71800000-ebl-envelope-ed25519.json`** is the main file for the end-2-end tests of PINT transfers.
+
+This is a To-Order eBL that has been endorsed by EBL1 and is being transferred to EBL2 (recipient party code: `next-recipient@EBL2_party_code`)
 
 The ebl envelope requires that 2 supporting docs (`HHL71800000-invoice.pdf` nd `HHL71800000-packing-list.pdf`) + an ebl visualization (`HHL71800000.pdf`) be uploaded.
 See enelope-manifest.json for the expected checksums and metadata. 

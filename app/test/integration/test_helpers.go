@@ -94,17 +94,19 @@ func cleanupDatabase(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-// create the test parties referenced in the test last transfer chains entry contained in the test ed25519 envelope
-// c.f HHL71800000-transfer-chain-entry-TRNS-ed25519.json
-func createValidParties(t *testing.T, testEnv *testEnv) {
+// ad the parties from a transfer chain entry file to the database
+// needs a file like HHL71800000-transfer-chain-entry-TRNS-ed25519.json
+func createPartiesFromFile(t *testing.T, testEnv *testEnv, transferChainEntryPath string) (actor ebl.ActorParty, recipient ebl.RecipientParty) {
 	t.Helper()
-	lastTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
-	lastTransferChainEntryData, err := os.ReadFile(lastTransferChainEntryPath)
+
+	// actor = first recipient @EBL1
+	// recipient = next recipient @EBL2
+	transferChainEntryData, err := os.ReadFile(transferChainEntryPath)
 	if err != nil {
 		t.Fatalf("Failed to read last transfer chain entry: %v", err)
 	}
 	var lastTransferChainEntry ebl.EnvelopeTransferChainEntry
-	if err := json.Unmarshal(lastTransferChainEntryData, &lastTransferChainEntry); err != nil {
+	if err := json.Unmarshal(transferChainEntryData, &lastTransferChainEntry); err != nil {
 		t.Fatalf("Failed to parse last transfer chain entry: %v", err)
 	}
 
@@ -124,22 +126,19 @@ func createValidParties(t *testing.T, testEnv *testEnv) {
 	}
 	createTestParty(t, testEnv.queries, recipientPartyName, true, testIdentifyingCodes)
 
-}
-
-func returnValidParties(t *testing.T) (ebl.ActorParty, ebl.RecipientParty) {
-	t.Helper()
-	lastTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
-	lastTransferChainEntryData, err := os.ReadFile(lastTransferChainEntryPath)
-	if err != nil {
-		t.Fatalf("Failed to read last transfer chain entry: %v", err)
+	actorPartyName := lastTransferChainEntry.Transactions[0].Actor.PartyName
+	actorIdentifyingCodes := lastTransferChainEntry.Transactions[0].Actor.IdentifyingCodes
+	testIdentifyingCodes = make([]testIdentifyingCode, 0, len(actorIdentifyingCodes))
+	for _, identifyingcode := range actorIdentifyingCodes {
+		testIdentifyingCodes = append(testIdentifyingCodes, testIdentifyingCode{
+			codeListProvider: identifyingcode.CodeListProvider,
+			partyCode:        identifyingcode.PartyCode,
+			codeListName:     identifyingcode.CodeListName,
+		})
 	}
-	var lastTransferChainEntry ebl.EnvelopeTransferChainEntry
-	if err := json.Unmarshal(lastTransferChainEntryData, &lastTransferChainEntry); err != nil {
-		t.Fatalf("Failed to parse last transfer chain entry: %v", err)
-	}
+	createTestParty(t, testEnv.queries, actorPartyName, true, testIdentifyingCodes)
 
 	return lastTransferChainEntry.Transactions[0].Actor, *lastTransferChainEntry.Transactions[0].Recipient
-
 }
 
 // create test party records where the recipient identifying codes resolve to different parties

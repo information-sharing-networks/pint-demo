@@ -243,7 +243,7 @@ func CreateTransferChainEntry(
 // Returns a Transaction ready to include in the first transfer chain entry.
 func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateIssue,
+		ActionCode:     ActionCodeIssue,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -258,7 +258,7 @@ func CreateIssueTransaction(actor ActorParty, recipient RecipientParty) Transact
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateTransfer,
+		ActionCode:     ActionCodeTransfer,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -272,7 +272,7 @@ func CreateTransferTransaction(actor ActorParty, recipient RecipientParty) Trans
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateEndorse,
+		ActionCode:     ActionCodeEndorse,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -286,7 +286,7 @@ func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty) Transa
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateEndorseToOrder,
+		ActionCode:     ActionCodeEndorseToOrder,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -300,7 +300,7 @@ func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty)
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateBlankEndorseTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateBlankEndorse,
+		ActionCode:     ActionCodeBlankEndorse,
 		Actor:          actor,
 		Recipient:      nil,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -314,7 +314,7 @@ func CreateBlankEndorseTransaction(actor ActorParty, recipient RecipientParty) T
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateSignTransaction(actor ActorParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateSign,
+		ActionCode:     ActionCodeSign,
 		Actor:          actor,
 		Recipient:      nil, // SIGN transactions don't have a recipient
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -326,9 +326,9 @@ func CreateSignTransaction(actor ActorParty) Transaction {
 // This is used when the actor surrenders the eBL for amendment.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient RecipientParty, reasonCode SurrenderReasonCode) Transaction {
+func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient RecipientParty, reasonCode SurrenderForAmendmentReasonCode) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateSurrenderForAmendment,
+		ActionCode:     ActionCodeSurrenderForAmendment,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -343,7 +343,7 @@ func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient Recipien
 // Returns a Transaction ready to include in a transfer chain entry.
 func CreateSurrenderForDeliveryTransaction(actor ActorParty, recipient RecipientParty) Transaction {
 	return Transaction{
-		ActionCode:     EnvelopeStateSurrenderForDelivery,
+		ActionCode:     ActionCodeSurrenderForDelivery,
 		Actor:          actor,
 		Recipient:      &recipient,
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),

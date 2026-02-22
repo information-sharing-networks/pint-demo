@@ -16,6 +16,19 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl/testutil"
 )
 
+var (
+	validEnvelopePath         = "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	validPublicKeyPath        = "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
+	validCarrierPublicKeyPath = "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk"
+	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
+	validDomain               = "ed25519-eblplatform.example.com"
+	validISSUChainEntryPath   = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
+	validTRSNSChainEntryPath  = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
+	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
+)
+
 // TestVerifyValidEnvelopeTransfer tests valid envelopes using different signature algorithms
 // the files used were created independently of the pint-demo code, and is used as a
 // sanity check that the verification code can handle valid envelopes.
@@ -197,40 +210,8 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 	}
 }
 
-var (
-	validEnvelopePath         = "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-	validPublicKeyPath        = "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
-	validCarrierPublicKeyPath = "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk"
-	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
-	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
-	validDomain               = "ed25519-eblplatform.example.com"
-	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
-)
-
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
-	// Test data
-	actor := ActorParty{
-		PartyName:   "Test Actor",
-		EblPlatform: "WAVE",
-		IdentifyingCodes: []IdentifyingCode{
-			{
-				CodeListProvider: "W3C",
-				PartyCode:        "did:example:123",
-			},
-		},
-	}
-	recipient := RecipientParty{
-		PartyName:   "Test Recipient",
-		EblPlatform: "BOLE",
-		IdentifyingCodes: []IdentifyingCode{
-			{
-				CodeListProvider: "W3C",
-				PartyCode:        "did:example:456",
-			},
-		},
-	}
 	tests := []struct {
 		name            string
 		tamperEnvelope  func(*Envelope) error
@@ -409,12 +390,26 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return fmt.Errorf("no transactions in last entry")
 				}
 
-				// Keep the existing transactions but add SURRENDER_FOR_DELIVERY and then another TRANSFER (which is invalid)
-
-				// use the ebl package to make a surrender for delivery transaction
-				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient)
+				actor, recipient := GetPartiesFromFile(t, validTRSNSChainEntryPath)
 
 				transferTx := CreateTransferTransaction(actor, recipient)
+
+				// Keep the existing transactions but add SURRENDER_FOR_DELIVERY and then another TRANSFER (which is invalid)
+				actor, recipient = GetPartiesFromFile(t, validISSUChainEntryPath)
+
+				// surrenders must be to the original carrier:
+				// switch the actor and recipient for the transfer transaction
+				carrier := RecipientParty{}
+				newActor := ActorParty{}
+
+				carrier.PartyName = actor.PartyName
+				carrier.EblPlatform = actor.EblPlatform
+				carrier.IdentifyingCodes = actor.IdentifyingCodes
+				newActor.PartyName = recipient.PartyName
+				newActor.EblPlatform = recipient.EblPlatform
+				newActor.IdentifyingCodes = recipient.IdentifyingCodes
+
+				surrenderTx := CreateSurrenderForDeliveryTransaction(newActor, carrier)
 
 				// Add both new transactions
 				transactions = append(transactions, surrenderTx, transferTx)
@@ -926,4 +921,21 @@ func loadEnvelopeFromFile(t *testing.T, filePath string) (*Envelope, error) {
 	}
 
 	return &envelope, nil
+}
+
+// getPartiesFromFile returns the actor and recipient parties from a transfer chain entry file
+// e.g HHL71800000-transfer-chain-entry-TRNS-ed25519.json
+func GetPartiesFromFile(t *testing.T, transferChainEntryPath string) (ActorParty, RecipientParty) {
+	t.Helper()
+	lastTransferChainEntryData, err := os.ReadFile(transferChainEntryPath)
+	if err != nil {
+		t.Fatalf("Failed to read last transfer chain entry: %v", err)
+	}
+	var lastTransferChainEntry EnvelopeTransferChainEntry
+	if err := json.Unmarshal(lastTransferChainEntryData, &lastTransferChainEntry); err != nil {
+		t.Fatalf("Failed to parse last transfer chain entry: %v", err)
+	}
+
+	return lastTransferChainEntry.Transactions[0].Actor, *lastTransferChainEntry.Transactions[0].Recipient
+
 }

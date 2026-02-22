@@ -239,7 +239,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		slog.String("sender_platform", verifiedEnvelope.SenderPlatform),
 		slog.String("recipient_platform", verifiedEnvelope.RecipientPlatform),
 		slog.String("transport_document_checksum", verifiedEnvelope.TransportDocumentChecksum),
-		slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
 	)
 
 	// Step 3. Check for transfer chain conflicts (DISE detection)
@@ -557,7 +556,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Step 11. Load transport document if it hasn't been received previously
+	// Step 10. Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
 		Checksum:                      verifiedEnvelope.TransportDocumentChecksum,
@@ -577,12 +576,12 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 12. Create a record of the new envelope transfer if it hasn't been received previously
+	// Step 11. Create a record of the new envelope transfer if it hasn't been received previously
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	newEnvelopeRecord, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
 		TransportDocumentChecksum: verifiedEnvelope.TransportDocumentChecksum,
-		EnvelopeState:             string(lastTransaction.ActionCode),
+		ActionCode:                string(lastTransaction.ActionCode),
 		SentByPlatformCode:        verifiedEnvelope.LastTransferChainEntry.EblPlatform,
 		LastTransferChainEntrySignedContentPayloadChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum,
 		LastTransferChainEntrySignedContentChecksum:        verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
@@ -595,7 +594,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 13. Create transfer chain entries
+	// Step 12. Create transfer chain entries
 
 	// the transfer chain is a linked list that can grow (e.g. we first receive
 	// entries 0-3, now we receive entries 0-5) - use this map so we only append the new items.
@@ -670,7 +669,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 14. Create placeholder records for missing additional documents (where applicable)
+	// Step 15. Create placeholder records for missing additional documents (where applicable)
 	for _, doc := range missingDocuments {
 		_, err = txQueries.CreateExpectedAdditionalDocument(ctx, database.CreateExpectedAdditionalDocumentParams{
 			EnvelopeID:         newEnvelopeRecord.ID,
@@ -686,7 +685,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 15. If no outstanding additional documents, mark envelope as accepted
+	// Step 16. If no outstanding additional documents, mark envelope as accepted
 	if len(missingDocuments) == 0 {
 		if err := txQueries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
 			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
@@ -704,7 +703,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 16. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
+	// Step 17. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
 	if len(missingDocuments) == 0 {
 		// Create and sign the RECE response
 		receivedDocs := []string{}
@@ -727,7 +726,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 17. Return response for pending transfer (201 Created/unsigned response).
+	// Step 18. Return response for pending transfer (201 Created/unsigned response).
 	response := &pint.EnvelopeTransferStartedResponse{
 		EnvelopeReference:                                   newEnvelopeRecord.ID.String(),
 		TransportDocumentChecksum:                           verifiedEnvelope.TransportDocumentChecksum,
@@ -811,6 +810,10 @@ func checkTransferChainConsistency(
 				seq, existingPayloadChecksum, newPayloadChecksum)
 		}
 	}
+	// TODO where there has been one or more transfers, we should also check the endorsement chain is consistent
+	// (i.e for each transfer chain entry, the endorsee and transfer recipient should be the same party, and
+	// the actor of the transfer transaction should be the endorsee of the previous entry).
+	// Note there is still a question mark about what counts as being 'the same party' (do all identifying codes for a party need to match etc.)
 
 	return nil
 }

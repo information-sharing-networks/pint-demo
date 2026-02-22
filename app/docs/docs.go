@@ -369,7 +369,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/ebl.EblEnvelope"
+                            "$ref": "#/definitions/ebl.Envelope"
                         }
                     },
                     {
@@ -630,6 +630,35 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "ebl.ActionCode": {
+            "type": "string",
+            "enum": [
+                "",
+                "ISSUE",
+                "TRANSFER",
+                "ENDORSE",
+                "ENDORSE_TO_ORDER",
+                "BLANK_ENDORSE",
+                "SIGN",
+                "SURRENDER_FOR_DELIVERY",
+                "SURRENDER_FOR_AMENDMENT",
+                "SACC",
+                "SREJ"
+            ],
+            "x-enum-varnames": [
+                "ActionCodeUnset",
+                "ActionCodeIssue",
+                "ActionCodeTransfer",
+                "ActionCodeEndorse",
+                "ActionCodeEndorseToOrder",
+                "ActionCodeBlankEndorse",
+                "ActionCodeSign",
+                "ActionCodeSurrenderForDelivery",
+                "ActionCodeSurrenderForAmendment",
+                "ActionCodeSACC",
+                "ActionCodeSREJ"
+            ]
+        },
         "ebl.ActorParty": {
             "type": "object",
             "properties": {
@@ -686,7 +715,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ebl.EblEnvelope": {
+        "ebl.Envelope": {
             "type": "object",
             "properties": {
                 "envelopeManifestSignedContent": {
@@ -733,52 +762,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "ebl.EnvelopeState": {
-            "type": "string",
-            "enum": [
-                "",
-                "ISSUE",
-                "TRANSFER",
-                "ENDORSE",
-                "ENDORSE_TO_ORDER",
-                "BLANK_ENDORSE",
-                "SIGN",
-                "SURRENDER_FOR_AMENDMENT",
-                "SURRENDER_FOR_DELIVERY",
-                "SACC",
-                "SREJ"
-            ],
-            "x-enum-comments": {
-                "EnvelopeStateSACC": "used by the carrier to accept a surrender request.",
-                "EnvelopeStateSREJ": "used by the carrier to reject a surrender request."
-            },
-            "x-enum-descriptions": [
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "used by the carrier to accept a surrender request.",
-                "used by the carrier to reject a surrender request."
-            ],
-            "x-enum-varnames": [
-                "EnvelopeStateUnset",
-                "EnvelopeStateIssue",
-                "EnvelopeStateTransfer",
-                "EnvelopeStateEndorse",
-                "EnvelopeStateEndorseToOrder",
-                "EnvelopeStateBlankEndorse",
-                "EnvelopeStateSign",
-                "EnvelopeStateSurrenderForAmendment",
-                "EnvelopeStateSurrenderForDelivery",
-                "EnvelopeStateSACC",
-                "EnvelopeStateSREJ"
-            ]
         },
         "ebl.EnvelopeTransferChainEntry": {
             "type": "object",
@@ -895,7 +878,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ebl.SurrenderReasonCode": {
+        "ebl.SurrenderForAmendmentReasonCode": {
             "type": "string",
             "enum": [
                 "SWTP",
@@ -903,9 +886,9 @@ const docTemplate = `{
                 "SWI"
             ],
             "x-enum-varnames": [
-                "SurrenderReasonCodeSWTP",
-                "SurrenderReasonCodeCOD",
-                "SurrenderReasonCodeSWI"
+                "SurrenderForAmendmentReasonCodeSWTP",
+                "SurrenderForAmendmentReasonCodeCOD",
+                "SurrenderForAmendmentReasonCodeSWI"
             ]
         },
         "ebl.TaxLegalReference": {
@@ -932,7 +915,7 @@ const docTemplate = `{
                     "description": "actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE, SURRENDER_FOR_DELIVERY, etc.)",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/ebl.EnvelopeState"
+                            "$ref": "#/definitions/ebl.ActionCode"
                         }
                     ]
                 },
@@ -960,7 +943,7 @@ const docTemplate = `{
                     "description": "reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)\nPossible values: SWTP (Switch to paper), COD (Change of destination), SWI (Switch BL)",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/ebl.SurrenderReasonCode"
+                            "$ref": "#/definitions/ebl.SurrenderForAmendmentReasonCode"
                         }
                     ]
                 },

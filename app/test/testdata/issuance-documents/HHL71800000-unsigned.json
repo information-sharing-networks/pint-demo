@@ -8,7 +8,7 @@
     "isShippedOnBoardType": true,
     "freightPaymentTermCode": "PRE",
     "isElectronic": true,
-    "isToOrder": false,
+    "isToOrder": true,
     "numberOfCopiesWithCharges": 2,
     "numberOfCopiesWithoutCharges": 2,
     "numberOfOriginalsWithCharges": 1,

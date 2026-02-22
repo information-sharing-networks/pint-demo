@@ -1,6 +1,32 @@
 consumes:
 - application/json
 definitions:
+  ebl.ActionCode:
+    enum:
+    - ""
+    - ISSUE
+    - TRANSFER
+    - ENDORSE
+    - ENDORSE_TO_ORDER
+    - BLANK_ENDORSE
+    - SIGN
+    - SURRENDER_FOR_DELIVERY
+    - SURRENDER_FOR_AMENDMENT
+    - SACC
+    - SREJ
+    type: string
+    x-enum-varnames:
+    - ActionCodeUnset
+    - ActionCodeIssue
+    - ActionCodeTransfer
+    - ActionCodeEndorse
+    - ActionCodeEndorseToOrder
+    - ActionCodeBlankEndorse
+    - ActionCodeSign
+    - ActionCodeSurrenderForDelivery
+    - ActionCodeSurrenderForAmendment
+    - ActionCodeSACC
+    - ActionCodeSREJ
   ebl.ActorParty:
     properties:
       eblPlatform:
@@ -43,7 +69,7 @@ definitions:
           encoded size)'
         type: integer
     type: object
-  ebl.EblEnvelope:
+  ebl.Envelope:
     properties:
       envelopeManifestSignedContent:
         description: |-
@@ -97,47 +123,6 @@ definitions:
           This is calculated over the canonicalized JSON bytes of the transport document and should never change during the lifetime of the BL.
         type: string
     type: object
-  ebl.EnvelopeState:
-    enum:
-    - ""
-    - ISSUE
-    - TRANSFER
-    - ENDORSE
-    - ENDORSE_TO_ORDER
-    - BLANK_ENDORSE
-    - SIGN
-    - SURRENDER_FOR_AMENDMENT
-    - SURRENDER_FOR_DELIVERY
-    - SACC
-    - SREJ
-    type: string
-    x-enum-comments:
-      EnvelopeStateSACC: used by the carrier to accept a surrender request.
-      EnvelopeStateSREJ: used by the carrier to reject a surrender request.
-    x-enum-descriptions:
-    - ""
-    - ""
-    - ""
-    - ""
-    - ""
-    - ""
-    - ""
-    - ""
-    - ""
-    - used by the carrier to accept a surrender request.
-    - used by the carrier to reject a surrender request.
-    x-enum-varnames:
-    - EnvelopeStateUnset
-    - EnvelopeStateIssue
-    - EnvelopeStateTransfer
-    - EnvelopeStateEndorse
-    - EnvelopeStateEndorseToOrder
-    - EnvelopeStateBlankEndorse
-    - EnvelopeStateSign
-    - EnvelopeStateSurrenderForAmendment
-    - EnvelopeStateSurrenderForDelivery
-    - EnvelopeStateSACC
-    - EnvelopeStateSREJ
   ebl.EnvelopeTransferChainEntry:
     properties:
       controlTrackingRegistry:
@@ -233,16 +218,16 @@ definitions:
         description: 'PartyName: Name of the party (required)'
         type: string
     type: object
-  ebl.SurrenderReasonCode:
+  ebl.SurrenderForAmendmentReasonCode:
     enum:
     - SWTP
     - COD
     - SWI
     type: string
     x-enum-varnames:
-    - SurrenderReasonCodeSWTP
-    - SurrenderReasonCodeCOD
-    - SurrenderReasonCodeSWI
+    - SurrenderForAmendmentReasonCodeSWTP
+    - SurrenderForAmendmentReasonCodeCOD
+    - SurrenderForAmendmentReasonCodeSWI
   ebl.TaxLegalReference:
     properties:
       countryCode:
@@ -260,7 +245,7 @@ definitions:
     properties:
       actionCode:
         allOf:
-        - $ref: '#/definitions/ebl.EnvelopeState'
+        - $ref: '#/definitions/ebl.ActionCode'
         description: 'actionCode: The transaction type (ISSUE, TRANSFER, ENDORSE,
           SURRENDER_FOR_DELIVERY, etc.)'
       actionDateTime:
@@ -280,7 +265,7 @@ definitions:
         type: string
       reasonCode:
         allOf:
-        - $ref: '#/definitions/ebl.SurrenderReasonCode'
+        - $ref: '#/definitions/ebl.SurrenderForAmendmentReasonCode'
         description: |-
           reasonCode: Reason code for SURRENDER_FOR_AMENDMENT (optional)
           Possible values: SWTP (Switch to paper), COD (Change of destination), SWI (Switch BL)
@@ -920,7 +905,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/ebl.EblEnvelope'
+          $ref: '#/definitions/ebl.Envelope'
       - description: documentation only (not used directly)
         in: body
         name: request

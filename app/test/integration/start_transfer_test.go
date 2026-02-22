@@ -23,7 +23,7 @@ import (
 func TestStartTransfer(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2")
 	defer testEnv.shutdown()
-	createValidParties(t, testEnv)
+	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	// the test envelope with additional documents (1 ebl visualization, 2 supporting documents)
@@ -31,6 +31,8 @@ func TestStartTransfer(t *testing.T) {
 
 	// test envelope with no additional documents
 	testEnvelopeNoDocsPath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
+
+	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	// signing key is ed25519
 	signingKeyPath := "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
@@ -91,7 +93,8 @@ func TestStartTransfer(t *testing.T) {
 			if test.resetDatabase {
 				t.Log("Resetting database for test")
 				cleanupDatabase(t, testEnv.pool)
-				createValidParties(t, testEnv)
+				// needed to pass the party validation
+				_, _ = createPartiesFromFile(t, testEnv, testTransferChainEntryPath)
 			}
 
 			// Load valid test envelope
@@ -432,6 +435,7 @@ func TestStartTransfer(t *testing.T) {
 func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
 	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	tests := []struct {
 		name            string
@@ -459,7 +463,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 			// Start server as the specified platform
 			env := startInProcessServer(t, tt.serverPlatform)
 			defer env.shutdown()
-			createValidParties(t, env)
+			createPartiesFromFile(t, env, testTransferChainEntryPath)
 
 			envelopesURL := env.baseURL + "/v3/envelopes"
 
@@ -514,6 +518,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
 	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	tests := []struct {
 		name             string
@@ -524,9 +529,11 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 		wantErrContains  string
 	}{
 		{
-			name:           "accepts when recipient party exists",
-			envelopePath:   testEnvelopePath,
-			setupParties:   createValidParties,
+			name:         "accepts when recipient party exists",
+			envelopePath: testEnvelopePath,
+			setupParties: func(t *testing.T, testEnv *testEnv) {
+				_, _ = createPartiesFromFile(t, testEnv, testTransferChainEntryPath)
+			},
 			expectedStatus: http.StatusCreated,
 		},
 		{
@@ -668,11 +675,9 @@ func TestDISE(t *testing.T) {
 		t.Fatalf("Failed to parse envelope: %v", err)
 	}
 
-	actor, recipient := returnValidParties(t)
-
 	env := startInProcessServer(t, "EBL2")
 	defer env.shutdown()
-	createValidParties(t, env)
+	actor, recipient := createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 
 	// post the initial envelope (2 entries in the transfer chain)
 	resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(testEnvelopeData))

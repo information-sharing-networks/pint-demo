@@ -98,7 +98,7 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	ctx := context.Background()
 	testEnv := startInProcessServer(t, "EBL2")
-	createValidParties(t, testEnv)
+	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	defer testEnv.shutdown()
 
@@ -370,7 +370,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 // These tests are independent and don't rely on sequential state
 func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2")
-	createValidParties(t, testEnv)
+	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	defer testEnv.shutdown()
 
