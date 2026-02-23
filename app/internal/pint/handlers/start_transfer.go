@@ -3,6 +3,7 @@ package handlers
 // start_transfer.go implements the POST /v3/envelopes endpoint for starting envelope transfers.
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -188,7 +189,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	var reason string
 
 	// Step 2. Envelope verification (signature/envelope errors return 422 with a signed response otherwise 500/unsigned response)
-	verifiedEnvelope, err := ebl.VerifyEnvelope(ebl.EnvelopeVerificationInput{
+	verifiedEnvelope, err := ebl.VerifyEnvelope(ctx, ebl.EnvelopeVerificationInput{
 		Envelope:              &envelope,
 		RootCAs:               s.x5cCustomRoots,
 		KeyProvider:           s.keyManager,
@@ -238,14 +239,13 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	reqLogger.Info("Envelope verified successfully",
 		slog.String("sender_platform", verifiedEnvelope.SenderPlatform),
 		slog.String("recipient_platform", verifiedEnvelope.RecipientPlatform),
-		slog.String("transport_document_checksum", verifiedEnvelope.TransportDocumentChecksum),
-		slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
+		slog.String("transport_document_checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
 	)
 
 	// Step 3. Check for transfer chain conflicts (DISE detection)
 	// This detects when the same eBL is sent with conflicting transfer chains to the same platform.
 	// Note: This cannot detect double-spends across different platforms (requires CTR).
-	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, verifiedEnvelope.TransportDocumentChecksum)
+	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for existing transfer chain"))
 		return
@@ -273,7 +273,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			reqLogger.Warn("Transfer chain fork detected",
 				slog.String("response_code", string(pint.ResponseCodeDISE)),
 				slog.String("reason", reason),
-				slog.String("transport_document_checksum", verifiedEnvelope.TransportDocumentChecksum),
+				slog.String("transport_document_checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
 			)
 			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
 			return
@@ -333,7 +333,6 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			reqLogger.Warn("Envelope transfer received for previously accepted transfer",
 				slog.String("envelope_reference", existingEnvelope.ID.String()),
 				slog.String("response_code", string(pint.ResponseCodeDUPE)),
-				slog.String("envelope_reference", existingEnvelope.ID.String()),
 			)
 
 			pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
@@ -343,7 +342,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		// Documents still missing - return 201 Created (retry of pending transfer)
 		response := &pint.EnvelopeTransferStartedResponse{
 			EnvelopeReference:                                   existingEnvelope.ID.String(),
-			TransportDocumentChecksum:                           existingEnvelope.TransportDocumentChecksum,
+			TransportDocumentChecksum:                           ebl.TransportDocumentChecksum(existingEnvelope.TransportDocumentChecksum),
 			LastEnvelopeTransferChainEntrySignedContentChecksum: existingEnvelope.LastTransferChainEntrySignedContentChecksum,
 			MissingAdditionalDocumentChecksums:                  missingDocumentChecksums,
 		}
@@ -393,17 +392,10 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 
 	// Step 8. Check trust level meets platform minimum (failures return 422 )
 	if verifiedEnvelope.TrustLevel < s.minTrustLevel {
-		reqLogger.Warn("Trust level too low",
-			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
-			slog.String("min_trust_level", s.minTrustLevel.String()))
 
 		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
 			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
 
-		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
-			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
-
-		reason := err.Error()
 		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
 			ResponseCode: pint.ResponseCodeBSIG,
@@ -413,137 +405,44 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
 			return
 		}
-
-		reqLogger.Warn("Envelope transfer rejected",
-			slog.String("response_code", string(pint.ResponseCodeBSIG)),
+		reqLogger.Warn("Trust level too low",
+			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
+			slog.String("min_trust_level", s.minTrustLevel.String()),
 			slog.String("reason", reason),
 			slog.String("envelope_id", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
-			slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
 		)
 		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
 		return
 	}
 
 	// Step 9: Validate the receiving party exists and is active on the recipient platform.
-	//
-	// Senders may provide multiple identifyingCodes for the recipient - each should uniquely
-	// identify a party, and if multiple codes exist, they must refer to the same legal entity.
-	// Multiple codes enable different downstream systems to use their preferred identifier
-	// (e.g., both DID and LEI for the same company).
-	//
-	// **Validation Strategy**
-	// Validate each code via the party validator service and ensure all successfully validated
-	// codes refer to the same internal party ID.
-	//
-	// a. No codes validate = REJECT (BENV: party not found)
-	// b. Codes validate to different party IDs = REJECT (BENV: conflicting codes)
-	// c. Some codes validate, others don't = REJECT (BENV: conflicting codes)
-	// e. All codes validate to same party ID = ACCEPT
-	//
-	// TODO: check the expectation for receiver logic:
-	// - Rule b is implied by the spec (which says the sender should take care not to send conflicting codes).
-	// - Rule c is not explicitly required but seems sensible: accepting unmatched codes
-	// 	 risks downstream confusion since there is no way for the downstream system
-	//	 to know which code(s) were successfully validated.
+
 	lastTransferEntry := verifiedEnvelope.LastTransferChainEntry
 	lastTransaction := lastTransferEntry.Transactions[len(lastTransferEntry.Transactions)-1]
 
 	recipient := lastTransaction.Recipient
 
-	validatedPartyIDs := make(map[string]bool) // partyID -> true
-	var unrecognizedCodes []string
-
-	for _, code := range recipient.IdentifyingCodes {
-		// convert to PartyIdentifyingCode
-		identifyingCode := services.PartyIdentifyingCode{
-			CodeListProvider: code.CodeListProvider,
-			PartyCode:        code.PartyCode,
-			CodeListName:     code.CodeListName,
-		}
-		partyID, err := s.partyValidator.GetPartyIDByIdentifyingCode(ctx, identifyingCode)
-		if err != nil {
-			if errors.Is(err, services.ErrPartyNotFound) {
-				// Track unrecognized codes
-				unrecognizedCodes = append(unrecognizedCodes,
-					fmt.Sprintf("%s:%s", code.CodeListProvider, code.PartyCode))
-				continue
+	if reason, err := s.verifyRecipientParty(ctx, recipient); err != nil {
+		// if internal error use RespondWithErrorResponse()
+		if errors.Is(err, services.ErrPartyNotFound) {
+			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+				ResponseCode: pint.ResponseCodeBENV,
+				Reason:       &reason,
+			})
+			if err != nil {
+				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+				return
 			}
-
-			// internal error
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to validate party"))
-
+			reqLogger.Warn("Envelope transfer rejected",
+				slog.String("response_code", string(pint.ResponseCodeBENV)),
+				slog.String("reason", reason),
+				slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
+			)
+			pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
 			return
 		}
-
-		// Track validated party IDs
-		validatedPartyIDs[partyID] = true
-	}
-
-	// Reject if no codes validated
-	if len(validatedPartyIDs) == 0 {
-		reason = fmt.Sprintf("The recipient party <%s> could not be located using the provided identifying codes", recipient.PartyName)
-
-		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-			ResponseCode: pint.ResponseCodeBENV,
-			Reason:       &reason,
-		})
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-			return
-		}
-		reqLogger.Warn("Envelope transfer rejected",
-			slog.String("response_code", string(pint.ResponseCodeBENV)),
-			slog.String("reason", reason),
-			slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
-		)
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-		return
-	}
-
-	// Reject if any codes were not recognized
-	if len(unrecognizedCodes) > 0 {
-		reason = fmt.Sprintf("Could not validate all identifying codes for recipient party <%s>. Unrecognized codes: %v.", recipient.PartyName, unrecognizedCodes)
-
-		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-			ResponseCode: pint.ResponseCodeBENV,
-			Reason:       &reason,
-		})
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-			return
-		}
-		reqLogger.Warn("Envelope transfer rejected",
-			slog.String("response_code", string(pint.ResponseCodeBENV)),
-			slog.String("reason", reason),
-			slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
-		)
-
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-		return
-	}
-
-	// Reject if codes validated to different parties
-	if len(validatedPartyIDs) > 1 {
-		reason = fmt.Sprintf("Identifying codes for <%s> resolved to multiple different parties", recipient.PartyName)
-		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-			ResponseCode: pint.ResponseCodeBENV,
-			Reason:       &reason,
-		})
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-			return
-		}
-		reqLogger.Warn("Envelope transfer rejected",
-			slog.String("response_code", string(pint.ResponseCodeBENV)),
-			slog.String("reason", reason),
-			slog.String("last_entry_signed_content_checksum", verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
-		)
-
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to validate party"))
 		return
 	}
 
@@ -566,17 +465,17 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}()
 
-	// Step 11. Load transport document if it hasn't been received previously
+	// Step 10. Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
-		Checksum:                      verifiedEnvelope.TransportDocumentChecksum,
+		Checksum:                      string(verifiedEnvelope.TransportDocumentChecksum),
 		Content:                       envelope.TransportDocument,
 		FirstReceivedFromPlatformCode: verifiedEnvelope.LastTransferChainEntry.EblPlatform,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			reqLogger.Info("Transport document already received",
-				slog.String("checksum", verifiedEnvelope.TransportDocumentChecksum),
+				slog.String("checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
 				slog.String("platform_code", s.platformCode),
 				slog.String("first_received_from_platform_code", verifiedEnvelope.LastTransferChainEntry.EblPlatform),
 			)
@@ -586,12 +485,12 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 12. Create a record of the new envelope transfer if it hasn't been received previously
+	// Step 11. Create a record of the new envelope transfer if it hasn't been received previously
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	newEnvelopeRecord, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
-		TransportDocumentChecksum: verifiedEnvelope.TransportDocumentChecksum,
-		EnvelopeState:             string(lastTransaction.ActionCode),
+		TransportDocumentChecksum: string(verifiedEnvelope.TransportDocumentChecksum),
+		ActionCode:                string(lastTransaction.ActionCode),
 		SentByPlatformCode:        verifiedEnvelope.LastTransferChainEntry.EblPlatform,
 		LastTransferChainEntrySignedContentPayloadChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum,
 		LastTransferChainEntrySignedContentChecksum:        verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
@@ -604,7 +503,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 13. Create transfer chain entries
+	// Step 12. Create transfer chain entries
 
 	// the transfer chain is a linked list that can grow (e.g. we first receive
 	// entries 0-3, now we receive entries 0-5) - use this map so we only append the new items.
@@ -665,7 +564,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		// Store the new transfer chain entry
 		_, err = txQueries.CreateTransferChainEntry(ctx, database.CreateTransferChainEntryParams{
 			SignedContentPayloadChecksum:  entryPayloadChecksum,
-			TransportDocumentChecksum:     verifiedEnvelope.TransportDocumentChecksum,
+			TransportDocumentChecksum:     string(verifiedEnvelope.TransportDocumentChecksum),
 			EnvelopeID:                    newEnvelopeRecord.ID,
 			SignedContent:                 string(entryJWS),
 			SignedContentChecksum:         entryJWSChecksum,
@@ -679,7 +578,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 14. Create placeholder records for missing additional documents (where applicable)
+	// Step 15. Create placeholder records for missing additional documents (where applicable)
 	for _, doc := range missingDocuments {
 		_, err = txQueries.CreateExpectedAdditionalDocument(ctx, database.CreateExpectedAdditionalDocumentParams{
 			EnvelopeID:         newEnvelopeRecord.ID,
@@ -695,6 +594,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
+	// Step 16. If no outstanding additional documents, mark envelope as accepted
+	if len(missingDocuments) == 0 {
+		if err := txQueries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
+			return
+		}
+	}
+
 	// Commit db changes
 	if err := tx.Commit(ctx); err != nil {
 		logger.ContextWithLogAttrs(ctx,
@@ -705,14 +612,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 15. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
+	// Step 17. Handle request with no outstanding additional documents (immediate acceptance - 200/RECE)
 	if len(missingDocuments) == 0 {
-		// Mark envelope as accepted
-		if err := s.queries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
-			return
-		}
-
 		// Create and sign the RECE response
 		receivedDocs := []string{}
 		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
@@ -734,7 +635,7 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Step 16. Return response for pending transfer (201 Created/unsigned response).
+	// Step 18. Return response for pending transfer (201 Created/unsigned response).
 	response := &pint.EnvelopeTransferStartedResponse{
 		EnvelopeReference:                                   newEnvelopeRecord.ID.String(),
 		TransportDocumentChecksum:                           verifiedEnvelope.TransportDocumentChecksum,
@@ -818,8 +719,84 @@ func checkTransferChainConsistency(
 				seq, existingPayloadChecksum, newPayloadChecksum)
 		}
 	}
+	// TODO where there has been one or more transfers, we should also check the endorsement chain is consistent
+	// (i.e for each transfer chain entry, the endorsee and transfer recipient should be the same party, and
+	// the actor of the transfer transaction should be the endorsee of the previous entry).
+	// Note there is still a question mark about what counts as being 'the same party' (do all identifying codes for a party need to match etc.)
 
 	return nil
+}
+
+// verifyRecipientParty verifies that the recipient party is known and active on the platform.
+//
+// Senders may provide multiple identifyingCodes for the recipient - each should uniquely
+// identify a party, and if multiple codes exist, they must refer to the same legal entity.
+// Multiple codes enable different downstream systems to use their preferred identifier
+// (e.g., both DID and LEI for the same company).
+//
+// **Validation Strategy**
+// Validate each code via the party validator service and ensure all successfully validated
+// codes refer to the same internal party ID.
+//
+// a. No codes validate = REJECT
+// b. Codes validate to different party IDs = REJECT
+// c. Some codes validate, others don't = REJECT
+// e. All codes validate to same party ID = ACCEPT
+//
+// TODO: check the expectation for receiver logic:
+//   - Rule b is implied by the spec (which says the sender should take care not to send conflicting codes).
+//   - Rule c is not explicitly required but seems sensible: accepting unmatched codes
+//     risks downstream confusion since there is no way for the downstream system
+//     to know which code(s) were successfully validated.
+func (s *StartTransferHandler) verifyRecipientParty(ctx context.Context, recipient *ebl.RecipientParty) (reason string, error error) {
+
+	validatedPartyIDs := make(map[string]bool) // partyID -> true
+	var unrecognizedCodes []string
+
+	//  see which codes are on the db
+	for _, code := range recipient.IdentifyingCodes {
+		// convert to PartyIdentifyingCode
+		identifyingCode := services.PartyIdentifyingCode{
+			CodeListProvider: code.CodeListProvider,
+			PartyCode:        code.PartyCode,
+			CodeListName:     code.CodeListName,
+		}
+		partyID, err := s.partyValidator.GetPartyIDByIdentifyingCode(ctx, identifyingCode)
+		if err != nil {
+			if errors.Is(err, services.ErrPartyNotFound) {
+				// Track unrecognized codes
+				unrecognizedCodes = append(unrecognizedCodes,
+					fmt.Sprintf("%s:%s", code.CodeListProvider, code.PartyCode))
+				continue
+			}
+
+			// internal error
+			return "", fmt.Errorf("failed to validate party: %w", err)
+		}
+
+		// Track validated party IDs
+		validatedPartyIDs[partyID] = true
+	}
+
+	// Reject if no codes validated
+	if len(validatedPartyIDs) == 0 {
+		reason = fmt.Sprintf("The recipient party <%s> could not be located using the provided identifying codes", recipient.PartyName)
+		return reason, services.ErrPartyNotFound
+	}
+
+	// Reject if any codes were not recognized
+	if len(unrecognizedCodes) > 0 {
+		reason = fmt.Sprintf("Could not validate all identifying codes for recipient party <%s>. Unrecognized codes: %v.", recipient.PartyName, unrecognizedCodes)
+		return reason, services.ErrPartyNotFound
+	}
+
+	// Reject if codes validated to different parties
+	if len(validatedPartyIDs) > 1 {
+		reason = fmt.Sprintf("Identifying codes for <%s> resolved to multiple different parties", recipient.PartyName)
+		return reason, services.ErrPartyNotFound
+	}
+
+	return "", nil
 }
 
 // getAdditionalDocumentList extracts a list of all the expected additional document checksums from the manifest

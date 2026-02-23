@@ -19,8 +19,6 @@ CREATE TABLE envelopes (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
 
-    -- envelope_state - the state of the eBL at the time of the transfer.
-    envelope_state TEXT NOT NULL CHECK (envelope_state IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY')),
 
     -- Links to the eBL document being transferred
     transport_document_checksum TEXT NOT NULL,
@@ -36,6 +34,9 @@ CREATE TABLE envelopes (
     -- checksum will change even if they use the same payload and private key.
     last_transfer_chain_entry_signed_content_checksum TEXT NOT NULL, 
 
+    -- action_code - the action code of the last transaction in the last transfer chain entry
+    -- when sending an envelope, this is the action the sender wants the platform to accept
+    action_code TEXT NOT NULL CHECK (action_code IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY')),
     sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
 
     -- Signed content (JWS tokens) - kept for audit trail

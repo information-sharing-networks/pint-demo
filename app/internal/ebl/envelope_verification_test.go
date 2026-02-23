@@ -1,6 +1,7 @@
 package ebl
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,19 @@ import (
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl/testutil"
+)
+
+var (
+	validEnvelopePath         = "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	validPublicKeyPath        = "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
+	validCarrierPublicKeyPath = "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk"
+	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
+	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
+	validDomain               = "ed25519-eblplatform.example.com"
+	validISSUChainEntryPath   = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
+	validTRSNSChainEntryPath  = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
+	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
 )
 
 // TestVerifyValidEnvelopeTransfer tests valid envelopes using different signature algorithms
@@ -127,7 +141,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			// Verify the envelope
-			result, err := VerifyEnvelope(input)
+			result, err := VerifyEnvelope(context.Background(), input)
 			if err != nil {
 				t.Fatalf("Envelope verification failed: %v", err)
 			}
@@ -196,40 +210,25 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 	}
 }
 
-var (
-	validEnvelopePath         = "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-	validPublicKeyPath        = "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
-	validCarrierPublicKeyPath = "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk"
-	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
-	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
-	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
-	validDomain               = "ed25519-eblplatform.example.com"
-	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
-)
-
 func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
-	// Test data
-	actor := ActorParty{
-		PartyName:   "Test Actor",
-		EblPlatform: "WAVE",
-		IdentifyingCodes: []IdentifyingCode{
-			{
-				CodeListProvider: "W3C",
-				PartyCode:        "did:example:123",
-			},
-		},
+	// Sign the new manifest
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to read private key: %v", err)
 	}
-	recipient := RecipientParty{
-		PartyName:   "Test Recipient",
-		EblPlatform: "BOLE",
-		IdentifyingCodes: []IdentifyingCode{
-			{
-				CodeListProvider: "W3C",
-				PartyCode:        "did:example:456",
-			},
-		},
+
+	certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
+	if err != nil {
+		t.Fatalf("Failed to read cert chain: %v", err)
 	}
+
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+	keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
+	if err != nil {
+		t.Fatal("failed to compute key ID: %w", err)
+	}
+
 	tests := []struct {
 		name            string
 		tamperEnvelope  func(*Envelope) error
@@ -347,19 +346,8 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				}
 
 				// Verify the checksum matches what we expect
-				if newManifest.TransportDocumentChecksum != newChecksum {
+				if newManifest.TransportDocumentChecksum != TransportDocumentChecksum(newChecksum) {
 					return fmt.Errorf("checksum mismatch in test setup: expected %s, got %s", newChecksum, newManifest.TransportDocumentChecksum)
-				}
-
-				// Sign the new manifest
-				privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
-				if err != nil {
-					return err
-				}
-
-				certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
-				if err != nil {
-					return err
 				}
 
 				newManifestJWS, err := newManifest.Sign(privateKey, certChain)
@@ -408,12 +396,26 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return fmt.Errorf("no transactions in last entry")
 				}
 
-				// Keep the existing transactions but add SURRENDER_FOR_DELIVERY and then another TRANSFER (which is invalid)
-
-				// use the ebl package to make a surrender for delivery transaction
-				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient)
+				actor, recipient := GetPartiesFromFile(t, validTRSNSChainEntryPath)
 
 				transferTx := CreateTransferTransaction(actor, recipient)
+
+				// Keep the existing transactions but add SURRENDER_FOR_DELIVERY and then another TRANSFER (which is invalid)
+				actor, recipient = GetPartiesFromFile(t, validISSUChainEntryPath)
+
+				// surrenders must be to the original carrier:
+				// switch the actor and recipient for the transfer transaction
+				carrier := RecipientParty{}
+				newActor := ActorParty{}
+
+				carrier.PartyName = actor.PartyName
+				carrier.EblPlatform = actor.EblPlatform
+				carrier.IdentifyingCodes = actor.IdentifyingCodes
+				newActor.PartyName = recipient.PartyName
+				newActor.EblPlatform = recipient.EblPlatform
+				newActor.IdentifyingCodes = recipient.IdentifyingCodes
+
+				surrenderTx := CreateSurrenderForDeliveryTransaction(newActor, carrier)
 
 				// Add both new transactions
 				transactions = append(transactions, surrenderTx, transferTx)
@@ -423,22 +425,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				modifiedPayloadJSON, err := json.Marshal(lastEntryPayload)
 				if err != nil {
 					return fmt.Errorf("failed to marshal modified payload: %w", err)
-				}
-
-				privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(validPrivateKeyPath)
-				if err != nil {
-					return fmt.Errorf("failed to read private key: %w", err)
-				}
-
-				certChain, err := crypto.ReadCertChainFromPEMFile(validFullChainPath)
-				if err != nil {
-					return fmt.Errorf("failed to read cert chain: %w", err)
-				}
-
-				publicKey := privateKey.Public().(ed25519.PublicKey)
-				keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
-				if err != nil {
-					return fmt.Errorf("failed to compute key ID: %w", err)
 				}
 
 				modifiedEntryJWS, err := crypto.SignJSONWithEd25519AndX5C(modifiedPayloadJSON, privateKey, keyID, certChain)
@@ -476,6 +462,79 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			useWrongCAPath:  false,
 			wantErrCode:     string(ErrCodeDispute),
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
+		},
+		{
+			name: "returns BENV when SURRENDER_FOR_DELIVERY not to original carrier",
+			tamperEnvelope: func(env *Envelope) error {
+				// Decode the last transfer chain entry (which has a TRANSFER transaction)
+				lastIdx := len(env.EnvelopeTransferChain) - 1
+				lastEntryPayload, err := testutil.DecodeJWSPayload(string(env.EnvelopeTransferChain[lastIdx]))
+				if err != nil {
+					return fmt.Errorf("failed to decode last entry: %w", err)
+				}
+
+				// Get the existing transactions
+				transactions, ok := lastEntryPayload["transactions"].([]any)
+				if !ok {
+					return fmt.Errorf("transactions field is not an array")
+				}
+
+				if len(transactions) == 0 {
+					return fmt.Errorf("no transactions in last entry")
+				}
+
+				actor, recipient := GetPartiesFromFile(t, validTRSNSChainEntryPath)
+
+				transferTx := CreateTransferTransaction(actor, recipient)
+
+				// we are using the ebl2 recipient as the carrier, which should fail
+				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient)
+
+				// Add both new transactions
+				transactions = append(transactions, surrenderTx, transferTx)
+				lastEntryPayload["transactions"] = transactions
+
+				// Re-sign the modified entry
+				modifiedPayloadJSON, err := json.Marshal(lastEntryPayload)
+				if err != nil {
+					return fmt.Errorf("failed to marshal modified payload: %w", err)
+				}
+
+				modifiedEntryJWS, err := crypto.SignJSONWithEd25519AndX5C(modifiedPayloadJSON, privateKey, keyID, certChain)
+				if err != nil {
+					return fmt.Errorf("failed to sign modified entry: %w", err)
+				}
+
+				// Replace the last entry
+				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+
+				// Update the manifest to point to the new last entry
+				transportDocJSON, err := json.Marshal(env.TransportDocument)
+				if err != nil {
+					return fmt.Errorf("failed to marshal transport document: %w", err)
+				}
+
+				envelopeManifest, err := NewEnvelopeManifestBuilder().
+					WithTransportDocument(transportDocJSON).
+					WithLastTransferChainEntry(env.EnvelopeTransferChain[lastIdx]).
+					Build()
+				if err != nil {
+					return fmt.Errorf("failed to create envelope manifest: %w", err)
+				}
+
+				envelopeManifestJWS, err := envelopeManifest.Sign(privateKey, certChain)
+				if err != nil {
+					return fmt.Errorf("failed to sign envelope manifest: %w", err)
+				}
+
+				env.EnvelopeManifestSignedContent = envelopeManifestJWS
+				return nil
+			},
+			publicKeyPath:   validPublicKeyPath,
+			domain:          validDomain,
+			useWrongCAPath:  false,
+			wantErrCode:     string(ErrCodeEnvelope),
+			wantErrContains: "surrender request must be addressed to the issuing carrier",
 		},
 	}
 
@@ -556,7 +615,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			}
 
 			// Verify the envelope - should fail
-			_, err = VerifyEnvelope(input)
+			_, err = VerifyEnvelope(context.Background(), input)
 
 			// Check we got an error
 			if err == nil {
@@ -703,7 +762,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 		KeyProvider: keyProvider,
 	}
 
-	_, err = VerifyEnvelope(input)
+	_, err = VerifyEnvelope(context.Background(), input)
 	if err == nil {
 		t.Fatal("Expected verification to fail for broken chain link, but it succeeded")
 	}
@@ -807,7 +866,7 @@ func TestVerifyEnvelopeTransfer_TamperedTransferChain(t *testing.T) {
 		KeyProvider: keyProvider,
 	}
 
-	_, err = VerifyEnvelope(input)
+	_, err = VerifyEnvelope(context.Background(), input)
 	if err == nil {
 		t.Fatal("Expected verification to fail for wrong manifest checksum, but it succeeded")
 	}
@@ -889,7 +948,7 @@ func TestVerifyEnvelope_SenderPlatformMismatch(t *testing.T) {
 		RecipientPlatformCode: "EBL2", // Correct recipient
 	}
 
-	result, err := VerifyEnvelope(input)
+	result, err := VerifyEnvelope(context.Background(), input)
 
 	// Should get an error about platform mismatch in the transfer chain
 	if err == nil {
@@ -925,4 +984,21 @@ func loadEnvelopeFromFile(t *testing.T, filePath string) (*Envelope, error) {
 	}
 
 	return &envelope, nil
+}
+
+// getPartiesFromFile returns the actor and recipient parties from a transfer chain entry file
+// e.g HHL71800000-transfer-chain-entry-TRNS-ed25519.json
+func GetPartiesFromFile(t *testing.T, transferChainEntryPath string) (ActorParty, RecipientParty) {
+	t.Helper()
+	lastTransferChainEntryData, err := os.ReadFile(transferChainEntryPath)
+	if err != nil {
+		t.Fatalf("Failed to read last transfer chain entry: %v", err)
+	}
+	var lastTransferChainEntry EnvelopeTransferChainEntry
+	if err := json.Unmarshal(lastTransferChainEntryData, &lastTransferChainEntry); err != nil {
+		t.Fatalf("Failed to parse last transfer chain entry: %v", err)
+	}
+
+	return lastTransferChainEntry.Transactions[0].Actor, *lastTransferChainEntry.Transactions[0].Recipient
+
 }

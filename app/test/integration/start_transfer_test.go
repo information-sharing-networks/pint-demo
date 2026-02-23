@@ -23,7 +23,7 @@ import (
 func TestStartTransfer(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2")
 	defer testEnv.shutdown()
-	createValidParties(t, testEnv)
+	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	// the test envelope with additional documents (1 ebl visualization, 2 supporting documents)
@@ -31,6 +31,8 @@ func TestStartTransfer(t *testing.T) {
 
 	// test envelope with no additional documents
 	testEnvelopeNoDocsPath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
+
+	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	// signing key is ed25519
 	signingKeyPath := "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
@@ -91,7 +93,8 @@ func TestStartTransfer(t *testing.T) {
 			if test.resetDatabase {
 				t.Log("Resetting database for test")
 				cleanupDatabase(t, testEnv.pool)
-				createValidParties(t, testEnv)
+				// needed to pass the party validation
+				_, _ = createPartiesFromFile(t, testEnv, testTransferChainEntryPath)
 			}
 
 			// Load valid test envelope
@@ -247,7 +250,7 @@ func TestStartTransfer(t *testing.T) {
 				}
 
 				// Verify transportDocumentChecksum matches the actual SHA-256 of the transport document
-				if parsedResponse.TransportDocumentChecksum != expectedTransportDocChecksum {
+				if parsedResponse.TransportDocumentChecksum != ebl.TransportDocumentChecksum(expectedTransportDocChecksum) {
 					t.Errorf("TransportDocumentChecksum mismatch:\n  expected: %s\n  got:      %s",
 						expectedTransportDocChecksum, parsedResponse.TransportDocumentChecksum)
 				}
@@ -278,7 +281,7 @@ func TestStartTransfer(t *testing.T) {
 						envelopeRef, envelope.ID)
 				}
 
-				if envelope.TransportDocumentChecksum != parsedResponse.TransportDocumentChecksum {
+				if envelope.TransportDocumentChecksum != string(ebl.TransportDocumentChecksum(parsedResponse.TransportDocumentChecksum)) {
 					t.Errorf("Database checksum mismatch: expected %s, got %s",
 						parsedResponse.TransportDocumentChecksum, envelope.TransportDocumentChecksum)
 				}
@@ -432,6 +435,7 @@ func TestStartTransfer(t *testing.T) {
 func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
 	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	tests := []struct {
 		name            string
@@ -459,7 +463,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 			// Start server as the specified platform
 			env := startInProcessServer(t, tt.serverPlatform)
 			defer env.shutdown()
-			createValidParties(t, env)
+			createPartiesFromFile(t, env, testTransferChainEntryPath)
 
 			envelopesURL := env.baseURL + "/v3/envelopes"
 
@@ -514,6 +518,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
 	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
+	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	tests := []struct {
 		name             string
@@ -524,9 +529,11 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 		wantErrContains  string
 	}{
 		{
-			name:           "accepts when recipient party exists",
-			envelopePath:   testEnvelopePath,
-			setupParties:   createValidParties,
+			name:         "accepts when recipient party exists",
+			envelopePath: testEnvelopePath,
+			setupParties: func(t *testing.T, testEnv *testEnv) {
+				_, _ = createPartiesFromFile(t, testEnv, testTransferChainEntryPath)
+			},
 			expectedStatus: http.StatusCreated,
 		},
 		{
@@ -605,47 +612,6 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 	}
 }
 
-// TestStartTransfer_TransferChainValidation tests that the transfer chain is consistent with existing entries for this eBL
-func TestStartTransfer_TransferChainValidation(t *testing.T) {
-	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
-	// and includes 2 transfer chain entries:
-	// - the first is the issuance entry (signed by the carrier and sent to EBL1)
-	// - the second is a transfer entry (signed by EBL1 and sent to EBL2)
-	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-
-	// signing key is ed25519
-
-	_ = []struct {
-		name             string
-		envelopePath     string
-		modifyEnvelope   func(t *testing.T, envelope []byte) []byte
-		expectedStatus   int
-		expectedResponse pint.ResponseCode
-		wantErrContains  string
-	}{
-		{
-			name:           "accepts valid transfer chain",
-			envelopePath:   testEnvelopePath,
-			expectedStatus: http.StatusCreated,
-		},
-		{
-			name: "returns DISE when transfer chain is inconsistent",
-			modifyEnvelope: func(t *testing.T, envelope []byte) []byte {
-				// parse the envelope
-				var env map[string]any
-				if err := json.Unmarshal(envelope, &env); err != nil {
-					t.Fatalf("Failed to parse envelope: %v", err)
-				}
-
-				return []byte("{}")
-			},
-			expectedStatus:   http.StatusConflict,
-			expectedResponse: pint.ResponseCodeDISE,
-			wantErrContains:  "transfer chain fork detected",
-		},
-	}
-}
-
 // TestDISE tests that the server returns a DISE response when the transfer chain is inconsistent with a previously accepted transfer
 func TestDISE(t *testing.T) {
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
@@ -657,6 +623,7 @@ func TestDISE(t *testing.T) {
 		t.Fatalf("Failed to read cert chain: %v", err)
 	}
 
+	testPlatform := "EBL1"
 	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
 	testEnvelopeData, err := os.ReadFile(testEnvelopePath)
 	if err != nil {
@@ -668,11 +635,9 @@ func TestDISE(t *testing.T) {
 		t.Fatalf("Failed to parse envelope: %v", err)
 	}
 
-	actor, recipient := returnValidParties(t)
-
 	env := startInProcessServer(t, "EBL2")
 	defer env.shutdown()
-	createValidParties(t, env)
+	actor, recipient := createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 
 	// post the initial envelope (2 entries in the transfer chain)
 	resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(testEnvelopeData))
@@ -687,17 +652,14 @@ func TestDISE(t *testing.T) {
 	// post the envelope again with an valid extra transfer chain entry
 	// the chain is now 3 entries long
 	transaction := ebl.CreateTransferTransaction(actor, recipient)
-	signedEntry, err := ebl.CreateTransferChainEntry(&testEnvelope, []ebl.Transaction{transaction}, actor.EblPlatform, privateKey, certChain)
-	if err != nil {
-		t.Fatalf("Failed to create transfer chain entry: %v", err)
-	}
-	newEnvelope, err := ebl.CreateEnvelope(
+	newEnvelope, err := ebl.CreateEnvelopeForDelivery(
 		ebl.CreateEnvelopeInput{
-			ReceivedEnvelope:                   &testEnvelope,
-			NewTransferChainEntrySignedContent: &signedEntry,
+			ReceivedEnvelope: &testEnvelope,
+			NewTransactions:  []ebl.Transaction{transaction},
 		},
 		privateKey,
 		certChain,
+		testPlatform,
 	)
 	if err != nil {
 		t.Fatalf("Failed to create extended envelope: %v", err)
@@ -739,18 +701,18 @@ func TestDISE(t *testing.T) {
 
 				// Add a new transfer chain entry to the orginal envelope (will conflict with the chain currently stored for this ebl)
 				transaction := ebl.CreateTransferTransaction(actor, recipient)
-				signedEntry, err := ebl.CreateTransferChainEntry(&testEnvelope, []ebl.Transaction{transaction}, actor.EblPlatform, privateKey, certChain)
 				if err != nil {
 					t.Fatalf("Failed to create transfer chain entry: %v", err)
 				}
 
-				conflictEnvelope, err := ebl.CreateEnvelope(
+				conflictEnvelope, err := ebl.CreateEnvelopeForDelivery(
 					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope:                   &testEnvelope,
-						NewTransferChainEntrySignedContent: &signedEntry,
+						ReceivedEnvelope: &testEnvelope,
+						NewTransactions:  []ebl.Transaction{transaction},
 					},
 					privateKey,
 					certChain,
+					testPlatform,
 				)
 				if err != nil {
 					t.Fatalf("Failed to create accepted envelope: %v", err)

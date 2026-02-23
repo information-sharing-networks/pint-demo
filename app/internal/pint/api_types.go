@@ -1,5 +1,7 @@
 package pint
 
+import "github.com/information-sharing-networks/pint-demo/app/internal/ebl"
+
 // these are the types correpsonding to the API responses for the PINT API (see DCSA EBL_PINT 3.0.0)
 
 // ReceiverValidationResponse is returned when a party is successfully validated (200 OK)
@@ -23,7 +25,7 @@ type EnvelopeTransferStartedResponse struct {
 
 	// TransportDocumentChecksum is the SHA-256 checksum of the transport document (eBL).
 	// Computed on the canonical form of the JSON.
-	TransportDocumentChecksum string `json:"transportDocumentChecksum" example:"583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
+	TransportDocumentChecksum ebl.TransportDocumentChecksum `json:"transportDocumentChecksum" example:"583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006"`
 
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
 	// transfer chain entry received.
