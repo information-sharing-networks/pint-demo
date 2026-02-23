@@ -109,14 +109,9 @@ func TestStartTransfer(t *testing.T) {
 				t.Fatalf("Failed to parse test envelope: %v", err)
 			}
 
-			// Calculate expected transport document checksum
-			canonicalTransportDoc, err := crypto.CanonicalizeJSON(testEnvelope["transportDocument"])
+			expectedTransportDocChecksum, err := ebl.TransportDocument(testEnvelope["transportDocument"]).Checksum()
 			if err != nil {
-				t.Fatalf("Failed to canonicalize transport document: %v", err)
-			}
-			expectedTransportDocChecksum, err := crypto.Hash(canonicalTransportDoc)
-			if err != nil {
-				t.Fatalf("Failed to hash transport document: %v", err)
+				t.Fatalf("Failed to compute transport document checksum: %v", err)
 			}
 
 			// Parse transfer chain to get the last entry (array of JWS strings)
@@ -260,7 +255,7 @@ func TestStartTransfer(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to retrieve envelope from database: %v", err)
 				}
-				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != envelope.LastTransferChainEntrySignedContentChecksum {
+				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != ebl.TransferChainEntrySignedContentChecksum(envelope.LastTransferChainEntrySignedContentChecksum) {
 					t.Errorf("LastEnvelopeTransferChainEntrySignedContentChecksum mismatch:\n  expected: %s\n  but database has:      %s",
 						expectedLastChainChecksum, parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum)
 				}
@@ -321,7 +316,7 @@ func TestStartTransfer(t *testing.T) {
 				}
 
 				// Verify the response checksum matches what's stored in the database
-				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != envelope.LastTransferChainEntrySignedContentChecksum {
+				if parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum != ebl.TransferChainEntrySignedContentChecksum(envelope.LastTransferChainEntrySignedContentChecksum) {
 					t.Errorf("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to match database value: expected %s, got %s",
 						envelope.LastTransferChainEntrySignedContentChecksum, parsedResponse.LastEnvelopeTransferChainEntrySignedContentChecksum)
 				}

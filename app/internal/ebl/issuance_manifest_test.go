@@ -1,121 +1,61 @@
 package ebl
 
 import (
-	"encoding/base64"
 	"testing"
 )
 
 // Test data for issuance manifest tests
 var (
-	validDocument      = []byte(`{"transportDocumentReference":"MAEU123456"}`)
-	validIssueTo       = []byte(`{"partyName":"Test Company"}`)
-	validBinaryContent = []byte(`mock pdf binary content here`)
-	validContentBase64 = base64.StdEncoding.EncodeToString(validBinaryContent)
+	validDocument               = TransportDocumentChecksum(`{"transportDocumentReference":"MAEU123456"}`)
+	validIssueTo                = IssueToChecksum(`{"partyName":"Test Company"}`)
+	validVisualisationByCarrier = EBLVisualisationByCarrierChecksum(`d870e9d766ca0b9087f86d8d05ea6bf48d166717c0bf375efff54cedeb3d00b8`)
 )
 
 func TestIssuanceManifestBuilderNew(t *testing.T) {
 	tests := []struct {
-		name                      string
-		document                  []byte
-		issueTo                   []byte
-		eBLVisualisationByCarrier *EBLVisualisationByCarrier
-		wantErr                   bool
+		name                              string
+		documentChecksum                  TransportDocumentChecksum
+		issueToChecksum                   IssueToChecksum
+		eBLVisualisationByCarrierChecksum EBLVisualisationByCarrierChecksum
+		wantErr                           bool
 	}{
 		{
-			name:     "valid - no Visualisation",
-			document: validDocument,
-			issueTo:  validIssueTo,
-			wantErr:  false,
+			name:             "valid - no Visualisation",
+			documentChecksum: validDocument,
+			issueToChecksum:  validIssueTo,
+			wantErr:          false,
 		},
 		{
-			name:     "valid - including Visualisation",
-			document: validDocument,
-			issueTo:  validIssueTo,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     validContentBase64,
-				ContentType: "application/pdf",
-			},
-			wantErr: false,
+			name:                              "valid - including Visualisation",
+			documentChecksum:                  validDocument,
+			issueToChecksum:                   validIssueTo,
+			eBLVisualisationByCarrierChecksum: validVisualisationByCarrier,
+			wantErr:                           false,
 		},
 		{
-			name:     "missing document",
-			document: nil,
-			issueTo:  validIssueTo,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     validContentBase64,
-				ContentType: "application/pdf",
-			},
-			wantErr: true,
+			name:                              "missing transport document",
+			issueToChecksum:                   validIssueTo,
+			eBLVisualisationByCarrierChecksum: validVisualisationByCarrier,
+			wantErr:                           true,
 		},
 		{
-			name:     "missing issueTo",
-			document: validDocument,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     validContentBase64,
-				ContentType: "application/pdf",
-			},
-			issueTo: nil,
-			wantErr: true,
-		},
-		{
-			name:     "invalid document json",
-			document: []byte(`invalid json`),
-			issueTo:  validIssueTo,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     validContentBase64,
-				ContentType: "application/pdf",
-			},
-			wantErr: true,
-		},
-		{
-			name:     "invalid issueTo json",
-			document: validDocument,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     validContentBase64,
-				ContentType: "application/pdf",
-			},
-			issueTo: []byte(`invalid json`),
-			wantErr: true,
-		},
-		{
-			name:     "valid base64 encoded Visualisation",
-			document: validDocument,
-			issueTo:  validIssueTo,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     validContentBase64,
-				ContentType: "application/pdf",
-			},
-			wantErr: false,
-		},
-		{
-			name:     "invalid - raw binary Visualisation (not base64)",
-			document: validDocument,
-			issueTo:  validIssueTo,
-			eBLVisualisationByCarrier: &EBLVisualisationByCarrier{
-				Name:        "test.pdf",
-				Content:     string([]byte{0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34}), // Raw binary as string (not base64)
-				ContentType: "application/pdf",
-			},
-			wantErr: true,
+			name:                              "missing issueTo",
+			documentChecksum:                  validDocument,
+			eBLVisualisationByCarrierChecksum: validVisualisationByCarrier,
+			wantErr:                           true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			builder := NewIssuanceManifestBuilder()
-			if tt.document != nil {
-				builder.WithDocument(tt.document)
+			if tt.documentChecksum != "" {
+				builder.WithDocumentChecksum(tt.documentChecksum)
 			}
-			if tt.issueTo != nil {
-				builder.WithIssueTo(tt.issueTo)
+			if tt.issueToChecksum != "" {
+				builder.WithIssueTo(tt.issueToChecksum)
 			}
-			if tt.eBLVisualisationByCarrier != nil {
-				builder.WithEBLVisualisation(tt.eBLVisualisationByCarrier)
+			if tt.eBLVisualisationByCarrierChecksum != "" {
+				builder.WitheBLVisualisationByCarrierChecksum(tt.eBLVisualisationByCarrierChecksum)
 			}
 			manifest, err := builder.Build()
 			if (err != nil) != tt.wantErr {
@@ -134,16 +74,10 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 			if manifest.DocumentChecksum == "" {
 				t.Error("DocumentChecksum is empty")
 			}
-			if len(manifest.DocumentChecksum) != 64 {
-				t.Errorf("DocumentChecksum length = %d, want 64", len(manifest.DocumentChecksum))
-			}
 			if manifest.IssueToChecksum == "" {
 				t.Error("IssueToChecksum is empty")
 			}
-			if len(manifest.IssueToChecksum) != 64 {
-				t.Errorf("IssueToChecksum length = %d, want 64", len(manifest.IssueToChecksum))
-			}
-			if tt.eBLVisualisationByCarrier != nil && (manifest.EBLVisualisationByCarrierChecksum == nil || *manifest.EBLVisualisationByCarrierChecksum == "") {
+			if tt.eBLVisualisationByCarrierChecksum != "" && (manifest.EBLVisualisationByCarrierChecksum == nil || *manifest.EBLVisualisationByCarrierChecksum == "") {
 				t.Error("EBLVisualisationByCarrierChecksum should be set")
 			}
 		})

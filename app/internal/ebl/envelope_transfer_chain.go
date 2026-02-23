@@ -5,9 +5,11 @@ package ebl
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
@@ -38,10 +40,6 @@ type EnvelopeTransferChainEntry struct {
 	// Transactions: List of transactions (at least one required)
 	Transactions []Transaction `json:"transactions"`
 }
-
-// SHA-256 of transfer chain entry JWS token.
-// The token is the JWS string created whe signing an EnvelopeTransferChainEntry payload.
-type TransferChainEntrySignedContentChecksum string
 
 // ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification
 func (b *EnvelopeTransferChainEntry) ValidateStructure(isFirstEntry bool) error {
@@ -106,7 +104,7 @@ func (b *EnvelopeTransferChainEntry) ValidateStructure(isFirstEntry bool) error 
 // If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in Envelope.envelopeTransferChain
-func (b *EnvelopeTransferChainEntry) Sign(privateKey any, certChain []*x509.Certificate) (EnvelopeTransferChainEntrySignedContent, error) {
+func (b *EnvelopeTransferChainEntry) Sign(privateKey any, certChain []*x509.Certificate) (TransferChainEntrySignedContent, error) {
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(b)
 	if err != nil {
@@ -125,8 +123,82 @@ func (b *EnvelopeTransferChainEntry) Sign(privateKey any, certChain []*x509.Cert
 		return "", WrapSignatureError(err, "failed to sign transfer chain entry")
 	}
 
-	return EnvelopeTransferChainEntrySignedContent(jws), nil
+	return TransferChainEntrySignedContent(jws), nil
 }
+
+// TransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
+//
+// An array of all the signed transfer chain entries is included in envelope.envelopeTransferChain and
+// represents the activity that has happened to the eBL prior to this transfer.
+type TransferChainEntrySignedContent string
+
+// Checksum returns the SHA-256 checksum of the transfer chain entry JWS token
+// This checksum is used to ensure the transfer chain entry has not been tampered with.
+// Do not use this to identify the transfer chain entry as it will change if the signature changes.
+// use PayloadChecksum() instead.
+func (e TransferChainEntrySignedContent) Checksum() (TransferChainEntrySignedContentChecksum, error) {
+	c, err := crypto.Hash([]byte(e))
+	if err != nil {
+		return "", fmt.Errorf("failed to crypto.Hash transfer chain entry: %w", err)
+	}
+	return TransferChainEntrySignedContentChecksum(c), nil
+}
+
+// Header extracts the JWS header from the transfer chain entry.
+func (e TransferChainEntrySignedContent) Header() (crypto.JWSHeader, error) {
+	return crypto.ParseJWSHeader(string(e))
+}
+
+// Payload extracts the payload from the transfer chain entry.
+func (e TransferChainEntrySignedContent) Payload() (*EnvelopeTransferChainEntry, error) {
+	// extract the eBL visualization from the manifest
+	// We don't verify the signature here because the envelope was already verified when received
+	parts := strings.Split(string(e), ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
+	}
+
+	entryPayload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode manifest JWS payload %v", err)
+	}
+
+	var entry EnvelopeTransferChainEntry
+	if err := json.Unmarshal(entryPayload, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal received envelope manifest: %v", err)
+	}
+	return &entry, nil
+}
+
+// PayloadChecksum returns the SHA-256 checksum of the payload of the transfer chain entry JWS token.
+func (e TransferChainEntrySignedContent) PayloadChecksum() (TransferChainEntrySignedContentPayloadChecksum, error) {
+	payload, err := e.Payload()
+	if err != nil {
+		return "", err
+	}
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	canonicalPayload, err := crypto.CanonicalizeJSON(jsonBytes)
+	if err != nil {
+		return "", err
+	}
+	checksum, err := crypto.Hash(canonicalPayload)
+	if err != nil {
+		return "", err
+	}
+	return TransferChainEntrySignedContentPayloadChecksum(checksum), nil
+}
+
+// SHA-256 of transfer chain entry JWS token.
+// The token is the JWS string created whe signing an EnvelopeTransferChainEntry payload.
+type TransferChainEntrySignedContentChecksum string
+
+// LastTransferChainEntrySignedContentPayloadChecksum is the SHA-256 checksum of the payload of the last transfer chain entry JWS token
+// this uniquely identifies a specific transfer attempt and is used to detect duplicate transfer attempts.
+// (envelopes.id is a proxy for this field in the database).
+type TransferChainEntrySignedContentPayloadChecksum string
 
 // EnvelopeTransferChainEntryBuilder helps build transfer chain entries and handles checksum calculations, validations and so on.
 //

@@ -83,6 +83,19 @@ func (e EnvelopeManifestSignedContent) Payload() (*EnvelopeManifest, error) {
 	return &envelopeManifest, nil
 }
 
+func (e EnvelopeManifestSignedContent) Checksum() (string, error) {
+	c, err := crypto.Hash([]byte(e))
+	if err != nil {
+		return "", fmt.Errorf("failed to crypto.Hash envelope manifest: %w", err)
+	}
+	return c, nil
+}
+
+// Header extracts the JWS header from the envelope manifest.
+func (e EnvelopeManifestSignedContent) Header() (crypto.JWSHeader, error) {
+	return crypto.ParseJWSHeader(string(e))
+}
+
 // ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification.
 func (e *EnvelopeManifest) ValidateStructure() error {
 	if e.TransportDocumentChecksum == "" {
@@ -112,7 +125,7 @@ type EnvelopeManifestBuilder struct {
 	transportDocumentJSON []byte
 
 	// lastEnvelopeTransferChainEntrySignedContent is the JWS compact serialization of the most recent EnvelopeTransferChainEntry
-	lastEnvelopeTransferChainEntrySignedContent EnvelopeTransferChainEntrySignedContent
+	lastEnvelopeTransferChainEntrySignedContent TransferChainEntrySignedContent
 
 	// Optional: eBL visualisation metadata - contains the checksum of the decoded binary content
 	eblVisualisationByCarrierContent *DocumentMetadata
@@ -140,8 +153,8 @@ func (e *EnvelopeManifestBuilder) WithTransportDocument(doc json.RawMessage) *En
 }
 
 // WithLastTransferChainEntry sets the last transfer chain entry JWS.
-func (e *EnvelopeManifestBuilder) WithLastTransferChainEntry(jwsString EnvelopeTransferChainEntrySignedContent) *EnvelopeManifestBuilder {
-	e.lastEnvelopeTransferChainEntrySignedContent = jwsString
+func (e *EnvelopeManifestBuilder) WithLastTransferChainEntry(JwsToken TransferChainEntrySignedContent) *EnvelopeManifestBuilder {
+	e.lastEnvelopeTransferChainEntrySignedContent = JwsToken
 	return e
 }
 
@@ -172,16 +185,9 @@ func (e *EnvelopeManifestBuilder) Build() (*EnvelopeManifest, error) {
 		return nil, NewEnvelopeError("last transfer chain entry is required")
 	}
 
-	// Canonicalize transport document
-	canonicalDocument, err := crypto.CanonicalizeJSON(e.transportDocumentJSON)
+	transportDocumentChecksum, err := TransportDocument(e.transportDocumentJSON).Checksum()
 	if err != nil {
-		return nil, WrapInternalError(err, "failed to canonicalize transport document")
-	}
-
-	// Calculate checksums
-	transportDocumentChecksum, err := crypto.Hash(canonicalDocument)
-	if err != nil {
-		return nil, WrapInternalError(err, "failed to crypto.Hash transport document")
+		return nil, WrapInternalError(err, "failed to calculate transport document checksum")
 	}
 
 	// Calculate the checksum of the last envelope transfer chain entry

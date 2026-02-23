@@ -129,7 +129,7 @@ type EnvelopeVerificationResult struct {
 	// LastTransferChainEntrySignedContentPayloadChecksum is the SHA-256 checksum of the payload of the last transfer chain entry JWS token
 	// this uniquely identifies a specific transfer attempt and is used to detect duplicate transfer attempts.
 	// (envelopes.id is a proxy for this field in the database).
-	LastTransferChainEntrySignedContentPayloadChecksum string
+	LastTransferChainEntrySignedContentPayloadChecksum TransferChainEntrySignedContentPayloadChecksum
 
 	// LastTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
 	// This checksum is used to ensure the transfer chain entry has not been tampered with.
@@ -137,7 +137,7 @@ type EnvelopeVerificationResult struct {
 	// Note this is not used for duplicate detection (see LastTransferChainEntrySignedContentPayloadChecksum)
 	// because the payload checksum includes the signature which will change on retries
 	// for the same payload/private key where non-deterministic signature algorithms are used (e.g. PS256).
-	LastTransferChainEntrySignedContentChecksum string
+	LastTransferChainEntrySignedContentChecksum TransferChainEntrySignedContentChecksum
 
 	// TrustLevel indicates the trust level achieved by the signature
 	TrustLevel crypto.TrustLevel
@@ -191,7 +191,9 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		return nil, NewEnvelopeError("envelope transfer chain is empty")
 	}
 	lastEntryJWS := input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]
-	lastEntryJWSChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+	//lastEntryJWSChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+
+	lastEntryJWSChecksum, err := TransferChainEntrySignedContent(lastEntryJWS).Checksum()
 	if err != nil {
 		return nil, WrapInternalError(err, "failed to retrieve last entry checksum")
 	}
@@ -263,7 +265,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	result.TransportDocumentReference = transportDocumentResult.TransportDocumentReference
 
 	// Step 8: Get the transport document type
-	result.TransportDocumentType, err = DeriveTransportDocumentType(input.Envelope.TransportDocument)
+	result.TransportDocumentType, err = TransportDocument(input.Envelope.TransportDocument).Type()
 	if err != nil {
 		return result, WrapEnvelopeError(err, "failed to derive transport document type")
 	}
@@ -291,24 +293,9 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	result.FirstTransferChainEntry = transferChain[0]
 	result.LastTransferChainEntry = transferChain[len(transferChain)-1]
 
-	// Step 10: Extract the payload from the last transfer chain entry JWS token
+	// Step 10: get checksum of the last entry payload
 	// the checksum of the payload is used to uniquely identify this transfer
-	lastEntryPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
-		string(input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]),
-		input.KeyProvider,
-		input.RootCAs,
-	)
-	if err != nil {
-		return result, WrapSignatureError(err, "failed to verify last transfer chain entry")
-	}
-
-	// canonicalize the payload before hashing
-	canonicalPayload, err := crypto.CanonicalizeJSON(lastEntryPayloadBytes)
-	if err != nil {
-		return result, WrapInternalError(err, "failed to canonicalize last transfer chain entry payload")
-	}
-
-	result.LastTransferChainEntrySignedContentPayloadChecksum, err = crypto.Hash(canonicalPayload)
+	result.LastTransferChainEntrySignedContentPayloadChecksum, err = lastEntryJWS.PayloadChecksum()
 	if err != nil {
 		return result, WrapInternalError(err, "failed to hash last transfer chain entry payload")
 	}
@@ -361,7 +348,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	}
 
 	// Extract the key ID (kid) from the envelope manifest signature header
-	manifestHeader, err := crypto.ParseJWSHeader(string(input.Envelope.EnvelopeManifestSignedContent))
+	manifestHeader, err := input.Envelope.EnvelopeManifestSignedContent.Header()
 	if err != nil {
 		return result, WrapSignatureError(err, "failed to parse manifest header")
 	}
@@ -413,14 +400,7 @@ func verifyTransportDocumentChecksum(
 	expectedChecksum TransportDocumentChecksum,
 ) (*TransportDocumentResult, error) {
 
-	// Canonicalize the transport document JSON
-	canonicalJSON, err := crypto.CanonicalizeJSON(transportDocument)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, "failed to canonicalize transport document")
-	}
-
-	// Compute SHA-256 checksum
-	actualChecksum, err := crypto.Hash(canonicalJSON)
+	actualChecksum, err := TransportDocument(transportDocument).Checksum()
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to compute transport document checksum")
 	}
@@ -528,7 +508,7 @@ func verifyIssuanceManifest(
 // Returns all verified and decoded transfer chain entries in order (first to last)
 func verifyEnvelopeTransferChain(
 	ctx context.Context,
-	envelopeTransferChain []EnvelopeTransferChainEntrySignedContent,
+	envelopeTransferChain []TransferChainEntrySignedContent,
 	manifest *EnvelopeManifest,
 	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,

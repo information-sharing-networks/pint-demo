@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
+	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 	"github.com/jackc/pgx/v5"
@@ -164,7 +165,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		reason := fmt.Sprintf("cannot accept envelope transfer: %d additional document(s) not yet received", len(missingDocs))
 
 		signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: ebl.TransferChainEntrySignedContentChecksum(envelope.LastTransferChainEntrySignedContentChecksum),
 			ResponseCode:                       pint.ResponseCodeMDOC,
 			Reason:                             &reason,
 			MissingAdditionalDocumentChecksums: missingDocs,
@@ -199,7 +200,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		)
 
 		signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
+			LastEnvelopeTransferChainEntrySignedContentChecksum: ebl.TransferChainEntrySignedContentChecksum(envelope.LastTransferChainEntrySignedContentChecksum),
 			ResponseCode: pint.ResponseCodeDUPE,
 			DuplicateOfAcceptedEnvelopeTransferChainEntrySignedContent: &envelope.LastTransferChainEntrySignedContent,
 			ReceivedAdditionalDocumentChecksums:                        &receivedDocs,
@@ -226,7 +227,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 
 	// Step 8: Create and return signed RECE response
 	signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-		LastEnvelopeTransferChainEntrySignedContentChecksum: envelope.LastTransferChainEntrySignedContentChecksum,
+		LastEnvelopeTransferChainEntrySignedContentChecksum: ebl.TransferChainEntrySignedContentChecksum(envelope.LastTransferChainEntrySignedContentChecksum),
 		ResponseCode:                        pint.ResponseCodeRECE,
 		ReceivedAdditionalDocumentChecksums: &receivedDocs,
 	})

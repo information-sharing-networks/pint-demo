@@ -77,7 +77,7 @@ func CreateEnvelopeForDelivery(
 
 	// Step 2: Build the complete transfer chain
 	// Start with the received envelope's transfer chain (the existing history)
-	receivedTransferEntryChain := make([]EnvelopeTransferChainEntrySignedContent, 0, len(input.ReceivedEnvelope.EnvelopeTransferChain)+1)
+	receivedTransferEntryChain := make([]TransferChainEntrySignedContent, 0, len(input.ReceivedEnvelope.EnvelopeTransferChain)+1)
 	receivedTransferEntryChain = append(receivedTransferEntryChain, input.ReceivedEnvelope.EnvelopeTransferChain...)
 
 	// Append the new transfer chain entry if provided
