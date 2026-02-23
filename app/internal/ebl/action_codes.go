@@ -7,8 +7,6 @@ import "slices"
 // ActionCode is the action code of a transaction in the transfer chain.
 type ActionCode string
 
-/*
- */
 const (
 	// ActionCodeUnset is the zero value for ActionCode.
 	ActionCodeUnset ActionCode = ""
@@ -28,8 +26,8 @@ const (
 	// However, this transaction does NOT result in the transfer of possession of the eBL contained in the envelope.
 	ActionCodeEndorse ActionCode = "ENDORSE"
 
-	// ActionCodeEndorseToOrder
-	//is used to endorse a negotiable eBL to a new endorsee. This recipient CAN further endorse the eBL to another party.
+	// ActionCodeEndorseToOrder is used to endorse a negotiable eBL to a new endorsee.
+	// The recipient CAN further endorse the eBL to another party.
 	// The endorsement must always take place on the eBL platform of the current endorsee, who also holds possession of the eBL.
 	//
 	// If the new endorsee is on a different eBL platform than the current endorsee, the envelope transfer process is used to notify them of the `ENDORSE_TO_ORDER`
@@ -82,10 +80,13 @@ const (
 	ActionCodeSREJ ActionCode = "SREJ"
 )
 
+// TODO: confirm the rules for the action code state transition
 var validActionCodeTransitions = map[ActionCode][]ActionCode{
 	ActionCodeIssue:                 {ActionCodeTransfer, ActionCodeSign},
 	ActionCodeTransfer:              {ActionCodeTransfer, ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeSign, ActionCodeSurrenderForAmendment, ActionCodeSurrenderForDelivery},
-	ActionCodeEndorse:               {ActionCodeTransfer, ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeSign, ActionCodeSurrenderForAmendment, ActionCodeSurrenderForDelivery},
+	ActionCodeEndorse:               {ActionCodeTransfer},
+	ActionCodeEndorseToOrder:        {ActionCodeTransfer},
+	ActionCodeBlankEndorse:          {ActionCodeTransfer, ActionCodeSign, ActionCodeSurrenderForAmendment, ActionCodeSurrenderForDelivery},
 	ActionCodeSign:                  {ActionCodeTransfer, ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeSign, ActionCodeSurrenderForAmendment, ActionCodeSurrenderForDelivery},
 	ActionCodeSurrenderForAmendment: {ActionCodeSACC, ActionCodeSREJ},
 	ActionCodeSurrenderForDelivery:  {ActionCodeSACC, ActionCodeSREJ},
