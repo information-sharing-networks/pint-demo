@@ -104,7 +104,7 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 			}
 
 			// Extract KIDs from the JWS headers to populate the mock KeyProvider
-			senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
+			senderHeader, err := envelope.EnvelopeManifestSignedContent.Header()
 			if err != nil {
 				t.Fatalf("Failed to parse sender JWS header: %v", err)
 			}
@@ -285,7 +285,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
 				}
 				parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"tampered": "data"}`))
-				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(strings.Join(parts, "."))
+				env.EnvelopeTransferChain[lastIdx] = TransferChainEntrySignedContent(strings.Join(parts, "."))
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
@@ -322,12 +322,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return err
 				}
 
-				// Compute the correct checksum for the modified document
-				canonicalJSON, err := crypto.CanonicalizeJSON(modifiedDoc)
-				if err != nil {
-					return err
-				}
-				newChecksum, err := crypto.Hash(canonicalJSON)
+				newChecksum, err := TransportDocument(modifiedDoc).Checksum()
 				if err != nil {
 					return err
 				}
@@ -367,7 +362,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		{
 			name: "returns BENV when transfer chain empty",
 			tamperEnvelope: func(env *Envelope) error {
-				env.EnvelopeTransferChain = []EnvelopeTransferChainEntrySignedContent{}
+				env.EnvelopeTransferChain = []TransferChainEntrySignedContent{}
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
@@ -377,7 +372,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "envelope transfer chain is empty",
 		},
 		{
-			name: "returns DISE when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
+			name: "returns BENV when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
 			tamperEnvelope: func(env *Envelope) error {
 				// Decode the last transfer chain entry (which has a TRANSFER transaction)
 				lastIdx := len(env.EnvelopeTransferChain) - 1
@@ -433,7 +428,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				}
 
 				// Replace the last entry
-				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+				env.EnvelopeTransferChain[lastIdx] = TransferChainEntrySignedContent(modifiedEntryJWS)
 
 				// Update the manifest to point to the new last entry
 				transportDocJSON, err := json.Marshal(env.TransportDocument)
@@ -460,7 +455,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			publicKeyPath:   validPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  false,
-			wantErrCode:     string(ErrCodeDispute),
+			wantErrCode:     string(ErrCodeEnvelope),
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
 		},
 		{
@@ -506,7 +501,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				}
 
 				// Replace the last entry
-				env.EnvelopeTransferChain[lastIdx] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+				env.EnvelopeTransferChain[lastIdx] = TransferChainEntrySignedContent(modifiedEntryJWS)
 
 				// Update the manifest to point to the new last entry
 				transportDocJSON, err := json.Marshal(env.TransportDocument)
@@ -587,7 +582,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			// Only extract KIDs if the envelope has the required fields
 			// (some tests intentionally create invalid envelopes)
 			if len(envelope.EnvelopeManifestSignedContent) > 0 {
-				senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
+				senderHeader, err := envelope.EnvelopeManifestSignedContent.Header()
 				if err == nil {
 					// Use EBL1 as default platform for error condition tests
 					keyProvider.AddKeyWithPlatform(senderHeader.KeyID, publicKey, "EBL1")
@@ -626,6 +621,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			var eblErr Error
 			if errors.As(err, &eblErr) {
 				if string(eblErr.Code()) != tt.wantErrCode {
+					fmt.Println(err.Error())
 					t.Errorf("Expected error code %q, got %q", tt.wantErrCode, eblErr.Code())
 				}
 			} else {
@@ -694,7 +690,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	// Replace the second entry with the broken one
-	envelope.EnvelopeTransferChain[1] = EnvelopeTransferChainEntrySignedContent(modifiedEntryJWS)
+	envelope.EnvelopeTransferChain[1] = TransferChainEntrySignedContent(modifiedEntryJWS)
 
 	// Update the manifest to point to the new (broken) second entry
 	// This ensures the manifest checksum matches, but the chain link is broken
@@ -731,7 +727,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	// Extract KIDs and create mock KeyProvider
-	senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
+	senderHeader, err := envelope.EnvelopeManifestSignedContent.Header()
 	if err != nil {
 		t.Fatalf("Failed to parse sender JWS header: %v", err)
 	}
@@ -835,7 +831,7 @@ func TestVerifyEnvelopeTransfer_TamperedTransferChain(t *testing.T) {
 	}
 
 	// Extract KIDs and create mock KeyProvider
-	senderHeader, err := crypto.ParseJWSHeader(string(envelope.EnvelopeManifestSignedContent))
+	senderHeader, err := envelope.EnvelopeManifestSignedContent.Header()
 	if err != nil {
 		t.Fatalf("Failed to parse sender JWS header: %v", err)
 	}

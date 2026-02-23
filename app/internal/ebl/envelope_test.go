@@ -15,8 +15,8 @@ var (
 
 func TestEnvelopeBuilder(t *testing.T) {
 	// mock transfer chain entries (in reality these would be signed JWS strings)
-	transferChainEntry1 := EnvelopeTransferChainEntrySignedContent("eyJhbGci...ENTRY_1_JWS")
-	transferChainEntry2 := EnvelopeTransferChainEntrySignedContent("eyJhbGci...ENTRY_2_JWS")
+	transferChainEntry1 := TransferChainEntrySignedContent("eyJhbGci...ENTRY_1_JWS")
+	transferChainEntry2 := TransferChainEntrySignedContent("eyJhbGci...ENTRY_2_JWS")
 
 	// 3. Create mock envelope manifest signed content (in reality this would be a signed JWS)
 	envelopeManifest := EnvelopeManifestSignedContent("eyJhbGci...MANIFEST_JWS")
@@ -67,7 +67,7 @@ func TestEnvelopeValidation(t *testing.T) {
 			envelope: &Envelope{
 				TransportDocument:             []byte(`{"test": "data"}`),
 				EnvelopeManifestSignedContent: "eyJhbGci...",
-				EnvelopeTransferChain:         []EnvelopeTransferChainEntrySignedContent{"eyJhbGci..."},
+				EnvelopeTransferChain:         []TransferChainEntrySignedContent{"eyJhbGci..."},
 			},
 			expectError: false,
 		},
@@ -75,7 +75,7 @@ func TestEnvelopeValidation(t *testing.T) {
 			name: "missing transport document",
 			envelope: &Envelope{
 				EnvelopeManifestSignedContent: "eyJhbGci...",
-				EnvelopeTransferChain:         []EnvelopeTransferChainEntrySignedContent{"eyJhbGci..."},
+				EnvelopeTransferChain:         []TransferChainEntrySignedContent{"eyJhbGci..."},
 			},
 			expectError: true,
 			errorMsg:    "transportDocument is required",
@@ -84,7 +84,7 @@ func TestEnvelopeValidation(t *testing.T) {
 			name: "missing manifest",
 			envelope: &Envelope{
 				TransportDocument:     []byte(`{"test": "data"}`),
-				EnvelopeTransferChain: []EnvelopeTransferChainEntrySignedContent{"eyJhbGci..."},
+				EnvelopeTransferChain: []TransferChainEntrySignedContent{"eyJhbGci..."},
 			},
 			expectError: true,
 			errorMsg:    "envelopeManifestSignedContent is required",
@@ -94,7 +94,7 @@ func TestEnvelopeValidation(t *testing.T) {
 			envelope: &Envelope{
 				TransportDocument:             []byte(`{"test": "data"}`),
 				EnvelopeManifestSignedContent: "eyJhbGci...",
-				EnvelopeTransferChain:         []EnvelopeTransferChainEntrySignedContent{},
+				EnvelopeTransferChain:         []TransferChainEntrySignedContent{},
 			},
 			expectError: true,
 			errorMsg:    "envelopeTransferChain must contain at least one entry",
@@ -104,7 +104,7 @@ func TestEnvelopeValidation(t *testing.T) {
 			envelope: &Envelope{
 				TransportDocument:             []byte(`{invalid json}`),
 				EnvelopeManifestSignedContent: "eyJhbGci...",
-				EnvelopeTransferChain:         []EnvelopeTransferChainEntrySignedContent{"eyJhbGci..."},
+				EnvelopeTransferChain:         []TransferChainEntrySignedContent{"eyJhbGci..."},
 			},
 			expectError: true,
 			errorMsg:    "transportDocument must be valid JSON",
@@ -158,7 +158,7 @@ func TestRecreateSampleEnvelope(t *testing.T) {
 
 	// extract the transfer chain from the test envelope
 	envelopeTransferChainRaw := testEnvelope["envelopeTransferChain"]
-	var transferChain []EnvelopeTransferChainEntrySignedContent
+	var transferChain []TransferChainEntrySignedContent
 	if err := json.Unmarshal(envelopeTransferChainRaw, &transferChain); err != nil {
 		t.Fatalf("failed to unmarshal transfer chain: %v", err)
 	}

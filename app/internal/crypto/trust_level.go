@@ -81,12 +81,12 @@ func (t TrustLevel) String() string {
 // This means the signature has no identity proof - recommended for testing only.
 //
 // Parameters:
-//   - jwsString: JWS compact serialization (header.payload.signature)
+//   - JwsToken: JWS compact serialization (header.payload.signature)
 //
 // Returns the trust level based on the certificate type in the x5c header.
-func DetermineTrustLevel(jwsString string) (TrustLevel, error) {
+func DetermineTrustLevel(JwsToken string) (TrustLevel, error) {
 	// Extract x5c from JWS (optional)
-	certChain, err := ParseX5CFromJWS(jwsString)
+	certChain, err := ParseX5CFromJWS(JwsToken)
 	if err != nil {
 		return TrustLevelNoX5C, WrapCertificateError(err, "failed to parse x5c")
 	}

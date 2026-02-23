@@ -116,9 +116,9 @@ func TestParseX5CFromJWS(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// create the JWS string
-			jwsString := tc.setupJWS(t)
+			JwsToken := tc.setupJWS(t)
 
-			parsedCerts, err := ParseX5CFromJWS(jwsString)
+			parsedCerts, err := ParseX5CFromJWS(JwsToken)
 
 			if tc.wantError {
 				if err == nil {

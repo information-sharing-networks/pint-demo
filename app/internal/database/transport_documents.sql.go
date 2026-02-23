@@ -8,46 +8,41 @@ package database
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const CreateTransportDocumentIfNew = `-- name: CreateTransportDocumentIfNew :one
 INSERT INTO transport_documents (
     checksum,
-    content,
-    first_seen_at,
-    first_received_from_platform_code
+    created_at,
+    content
 ) VALUES (
     $1,
-    $2,
     NOW(),
-    $3
+    $2
 )
 ON CONFLICT (checksum) DO NOTHING
-RETURNING checksum, content, first_seen_at, first_received_from_platform_code
+RETURNING checksum, created_at, content
 `
 
 type CreateTransportDocumentIfNewParams struct {
-	Checksum                      string          `json:"checksum"`
-	Content                       json.RawMessage `json:"content"`
-	FirstReceivedFromPlatformCode string          `json:"first_received_from_platform_code"`
+	Checksum string          `json:"checksum"`
+	Content  json.RawMessage `json:"content"`
 }
 
 // Insert transport document if it doesn't exist, otherwise return existing
 // This is used when receiving a new envelope transfer
 func (q *Queries) CreateTransportDocumentIfNew(ctx context.Context, arg CreateTransportDocumentIfNewParams) (TransportDocument, error) {
-	row := q.db.QueryRow(ctx, CreateTransportDocumentIfNew, arg.Checksum, arg.Content, arg.FirstReceivedFromPlatformCode)
+	row := q.db.QueryRow(ctx, CreateTransportDocumentIfNew, arg.Checksum, arg.Content)
 	var i TransportDocument
-	err := row.Scan(
-		&i.Checksum,
-		&i.Content,
-		&i.FirstSeenAt,
-		&i.FirstReceivedFromPlatformCode,
-	)
+	err := row.Scan(&i.Checksum, &i.CreatedAt, &i.Content)
 	return i, err
 }
 
 const GetTransportDocument = `-- name: GetTransportDocument :one
-SELECT checksum, content, first_seen_at, first_received_from_platform_code FROM transport_documents
+SELECT checksum, created_at, content FROM transport_documents
 WHERE checksum = $1
 `
 
@@ -55,11 +50,46 @@ WHERE checksum = $1
 func (q *Queries) GetTransportDocument(ctx context.Context, checksum string) (TransportDocument, error) {
 	row := q.db.QueryRow(ctx, GetTransportDocument, checksum)
 	var i TransportDocument
+	err := row.Scan(&i.Checksum, &i.CreatedAt, &i.Content)
+	return i, err
+}
+
+const GetTransportDocumentPossessor = `-- name: GetTransportDocumentPossessor :one
+SELECT id AS envelope_id,
+    transport_document_checksum,
+    action_code,
+    received_by_platform_code AS possessor_platform_code,
+    created_at,
+    accepted_at
+FROM envelopes
+WHERE transport_document_checksum = $1
+    AND accepted_at IS NOT NULL
+    AND action_code IN ('ISSUE', 'TRANSFER', 'SACC')
+ORDER BY accepted_at DESC
+LIMIT 1
+`
+
+type GetTransportDocumentPossessorRow struct {
+	EnvelopeID                uuid.UUID          `json:"envelope_id"`
+	TransportDocumentChecksum string             `json:"transport_document_checksum"`
+	ActionCode                string             `json:"action_code"`
+	PossessorPlatformCode     string             `json:"possessor_platform_code"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	AcceptedAt                pgtype.Timestamptz `json:"accepted_at"`
+}
+
+// Get the platform that currently possesses the eBL.
+// Possession is established by the most recently accepted ISSUE, TRANSFER, or SACC action in the chain.
+func (q *Queries) GetTransportDocumentPossessor(ctx context.Context, transportDocumentChecksum string) (GetTransportDocumentPossessorRow, error) {
+	row := q.db.QueryRow(ctx, GetTransportDocumentPossessor, transportDocumentChecksum)
+	var i GetTransportDocumentPossessorRow
 	err := row.Scan(
-		&i.Checksum,
-		&i.Content,
-		&i.FirstSeenAt,
-		&i.FirstReceivedFromPlatformCode,
+		&i.EnvelopeID,
+		&i.TransportDocumentChecksum,
+		&i.ActionCode,
+		&i.PossessorPlatformCode,
+		&i.CreatedAt,
+		&i.AcceptedAt,
 	)
 	return i, err
 }

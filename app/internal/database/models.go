@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// Expected and received additional documents, scoped to specific transfer sessions.
 type AdditionalDocument struct {
 	ID                 uuid.UUID          `json:"id"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
@@ -25,21 +24,19 @@ type AdditionalDocument struct {
 	ReceivedAt         pgtype.Timestamptz `json:"received_at"`
 }
 
-// Each row = one transfer session. Multiple rows can exist for same transport_document_checksum.
 type Envelope struct {
 	ID                                                 uuid.UUID          `json:"id"`
 	CreatedAt                                          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt                                          pgtype.Timestamptz `json:"updated_at"`
+	AcceptedAt                                         pgtype.Timestamptz `json:"accepted_at"`
 	TransportDocumentChecksum                          string             `json:"transport_document_checksum"`
 	LastTransferChainEntrySignedContentPayloadChecksum string             `json:"last_transfer_chain_entry_signed_content_payload_checksum"`
-	// UNIQUE constraint prevents duplicate transfers of same chain.
-	LastTransferChainEntrySignedContentChecksum string             `json:"last_transfer_chain_entry_signed_content_checksum"`
-	ActionCode                                  string             `json:"action_code"`
-	SentByPlatformCode                          string             `json:"sent_by_platform_code"`
-	EnvelopeManifestSignedContent               string             `json:"envelope_manifest_signed_content"`
-	LastTransferChainEntrySignedContent         string             `json:"last_transfer_chain_entry_signed_content"`
-	TrustLevel                                  int32              `json:"trust_level"`
-	AcceptedAt                                  pgtype.Timestamptz `json:"accepted_at"`
+	LastTransferChainEntrySignedContentChecksum        string             `json:"last_transfer_chain_entry_signed_content_checksum"`
+	ActionCode                                         string             `json:"action_code"`
+	SentByPlatformCode                                 string             `json:"sent_by_platform_code"`
+	ReceivedByPlatformCode                             string             `json:"received_by_platform_code"`
+	EnvelopeManifestSignedContent                      string             `json:"envelope_manifest_signed_content"`
+	LastTransferChainEntrySignedContent                string             `json:"last_transfer_chain_entry_signed_content"`
+	TrustLevel                                         int32              `json:"trust_level"`
 }
 
 type Party struct {
@@ -60,7 +57,6 @@ type PartyIdentifyingCode struct {
 	CodeListName     *string            `json:"code_list_name"`
 }
 
-// Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_signed_content_checksum
 type TransferChainEntry struct {
 	SignedContentPayloadChecksum  string             `json:"signed_content_payload_checksum"`
 	CreatedAt                     pgtype.Timestamptz `json:"created_at"`
@@ -72,10 +68,8 @@ type TransferChainEntry struct {
 	Sequence                      int32              `json:"sequence"`
 }
 
-// Registry of unique eBL documents. Same eBL can be transferred multiple times.
 type TransportDocument struct {
-	Checksum                      string             `json:"checksum"`
-	Content                       json.RawMessage    `json:"content"`
-	FirstSeenAt                   pgtype.Timestamptz `json:"first_seen_at"`
-	FirstReceivedFromPlatformCode string             `json:"first_received_from_platform_code"`
+	Checksum  string             `json:"checksum"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Content   json.RawMessage    `json:"content"`
 }

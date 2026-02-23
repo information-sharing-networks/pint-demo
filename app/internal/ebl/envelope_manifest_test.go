@@ -7,7 +7,7 @@ import (
 var (
 	transportDocumentString = `{"transportDocumentReference":"test"}`
 	transportDocument       = []byte(transportDocumentString)
-	lastTransferChain       = EnvelopeTransferChainEntrySignedContent("mockjsws")
+	lastTransferChain       = TransferChainEntrySignedContent("mockjsws")
 
 	eblVisualisation = &DocumentMetadata{
 		Name:             "ebl.pdf",
@@ -35,7 +35,7 @@ func TestEnvelopeManifestBuilder(t *testing.T) {
 	tests := []struct {
 		name                string
 		transportDocument   []byte
-		lastTransferChain   EnvelopeTransferChainEntrySignedContent
+		lastTransferChain   TransferChainEntrySignedContent
 		eblVisualisation    *DocumentMetadata
 		supportingDocuments []DocumentMetadata
 		wantErr             bool

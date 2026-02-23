@@ -11,9 +11,9 @@ import (
 
 // test data
 var (
-	testTransportDoc         = []byte(`{"transportDocumentReference":"test"}`)
-	testTransportDocChecksum = TransportDocumentChecksum(checksumFromJSON(testTransportDoc)) // SHA-256 of canonical JSON
-	testActor                = ActorParty{
+	testTransportDoc            = []byte(`{"transportDocumentReference":"test"}`)
+	testTransportDocChecksum, _ = TransportDocument(testTransportDoc).Checksum()
+	testActor                   = ActorParty{
 		PartyName:   "Test Carrier",
 		EblPlatform: "WAVE",
 		IdentifyingCodes: []IdentifyingCode{
@@ -34,7 +34,7 @@ var (
 		ActionDateTime: "2024-01-15T10:30:00.000Z",
 	}
 	testIssuanceManifestJWS = IssuanceManifestSignedContent("eyJhbGci...manifest")
-	testPreviousEntryJWS    = EnvelopeTransferChainEntrySignedContent("eyJhbGci...entry")
+	testPreviousEntryJWS    = TransferChainEntrySignedContent("eyJhbGci...entry")
 )
 
 // TestEnvelopeTransferChainEntry_Sign* test the core signing functionality of transfer chain entries.
@@ -598,20 +598,7 @@ func createTestEntry(t *testing.T) *EnvelopeTransferChainEntry {
 	}
 }
 
-// checksumFromJSON computes the SHA-256 checksum of canonical JSON for testing
-func checksumFromJSON(jsonData []byte) string {
-	canonical, err := crypto.CanonicalizeJSON(jsonData)
-	if err != nil {
-		panic("failed to canonicalize test data: " + err.Error())
-	}
-	checksum, err := crypto.Hash(canonical)
-	if err != nil {
-		panic("failed to crypto.Hash test data: " + err.Error())
-	}
-	return checksum
-}
-
-func checksumFromToken(token EnvelopeTransferChainEntrySignedContent, t *testing.T) TransferChainEntrySignedContentChecksum {
+func checksumFromToken(token TransferChainEntrySignedContent, t *testing.T) TransferChainEntrySignedContentChecksum {
 
 	p, err := crypto.Hash([]byte(token))
 	if err != nil {

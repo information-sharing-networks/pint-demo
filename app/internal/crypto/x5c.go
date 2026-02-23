@@ -28,9 +28,9 @@ import (
 //
 // Returns the parsed certificate chain, or nil if x5c is not present.
 // Error is returned for any parsing errors.
-func ParseX5CFromJWS(jwsString string) ([]*x509.Certificate, error) {
+func ParseX5CFromJWS(JwsToken string) ([]*x509.Certificate, error) {
 	// JWS format: header.payload.signature
-	parts := strings.Split(jwsString, ".")
+	parts := strings.Split(JwsToken, ".")
 	if len(parts) != 3 {
 		return nil, NewValidationError(fmt.Sprintf("invalid JWS format: expected 3 parts, got %d", len(parts)))
 	}

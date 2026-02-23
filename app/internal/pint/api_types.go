@@ -29,7 +29,7 @@ type EnvelopeTransferStartedResponse struct {
 
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
 	// transfer chain entry received.
-	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
+	LastEnvelopeTransferChainEntrySignedContentChecksum ebl.TransferChainEntrySignedContentChecksum `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
 
 	// MissingAdditionalDocumentChecksums lists the checksums of additional documents that
 	// the receiving platform expects to receive before accepting the envelope transfer.
@@ -52,7 +52,7 @@ type EnvelopeTransferFinishedResponse struct {
 
 	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last
 	// transfer chain entry received.
-	LastEnvelopeTransferChainEntrySignedContentChecksum string `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
+	LastEnvelopeTransferChainEntrySignedContentChecksum ebl.TransferChainEntrySignedContentChecksum `json:"lastEnvelopeTransferChainEntrySignedContentChecksum" example:"20a0257b313ae08417e07f6555c4ec829a512c083f3ead16b41158018a22abe9"`
 
 	// ResponseCode indicates the result of the envelope transfer.
 	ResponseCode ResponseCode `json:"responseCode" example:"BSIG"`

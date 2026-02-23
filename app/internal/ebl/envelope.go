@@ -2,8 +2,6 @@ package ebl
 
 // envelope.go includes the builders for creating DCSA PINT API envelopes.
 //
-// For standard TRANSFER usage you don't need to call the envelope builder directly
-// use CreateTranferEnvelope() or createEnvelope() instead.
 
 import (
 	"encoding/json"
@@ -18,8 +16,8 @@ type Envelope struct {
 	// TransportDocument: The transport document (Bill of Lading) as a JSON object.
 	TransportDocument json.RawMessage `json:"transportDocument" swaggertype:"object"`
 
-	// Signed manifest covering the transport document, transfer chain and supporting documents
-	// Use the EnvelopeManifestBuilder to create the manifest and sign it.
+	// Signed manifest covering the transport document, transfer chain and supporting documents.
+	// See EnvelopeManifest for details of the payload.
 	EnvelopeManifestSignedContent EnvelopeManifestSignedContent `json:"envelopeManifestSignedContent"`
 
 	// EnvelopeTransferChain: Ordered list of JWS tokens representing the complete
@@ -31,14 +29,8 @@ type Envelope struct {
 	// The full chain is required by the receiver to verify the complete history and detect tampering.
 	//
 	// Use the EnvelopeTransferChainEntryBuilder to create the transfer chain entries and sign them.
-	EnvelopeTransferChain []EnvelopeTransferChainEntrySignedContent `json:"envelopeTransferChain"`
+	EnvelopeTransferChain []TransferChainEntrySignedContent `json:"envelopeTransferChain"`
 }
-
-// EnvelopeTransferChainEntrySignedContent represents a JWS compact serialization of an EnvelopeTransferChainEntry.
-//
-// An array of all the signed transfer chain entries is included in envelope.envelopeTransferChain and
-// represents the activity that has happened to the eBL prior to this transfer.
-type EnvelopeTransferChainEntrySignedContent string
 
 // ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification.
 func (e *Envelope) ValidateStructure() error {
@@ -62,13 +54,13 @@ func (e *Envelope) ValidateStructure() error {
 type EnvelopeBuilder struct {
 	transportDocument             []byte
 	envelopeManifestSignedContent EnvelopeManifestSignedContent
-	envelopeTransferChain         []EnvelopeTransferChainEntrySignedContent
+	envelopeTransferChain         []TransferChainEntrySignedContent
 }
 
 // NewEnvelopeBuilder creates a new builder for Envelope.
 func NewEnvelopeBuilder() *EnvelopeBuilder {
 	return &EnvelopeBuilder{
-		envelopeTransferChain: make([]EnvelopeTransferChainEntrySignedContent, 0),
+		envelopeTransferChain: make([]TransferChainEntrySignedContent, 0),
 	}
 }
 
@@ -85,13 +77,13 @@ func (e *EnvelopeBuilder) WithEnvelopeManifestSignedContent(jws EnvelopeManifest
 }
 
 // WithEnvelopeTransferChain sets the complete transfer chain (array of JWS strings).
-func (e *EnvelopeBuilder) WithEnvelopeTransferChain(chain []EnvelopeTransferChainEntrySignedContent) *EnvelopeBuilder {
+func (e *EnvelopeBuilder) WithEnvelopeTransferChain(chain []TransferChainEntrySignedContent) *EnvelopeBuilder {
 	e.envelopeTransferChain = chain
 	return e
 }
 
 // AddTransferChainEntry appends a single transfer chain entry JWS to the chain.
-func (e *EnvelopeBuilder) AddTransferChainEntry(jws EnvelopeTransferChainEntrySignedContent) *EnvelopeBuilder {
+func (e *EnvelopeBuilder) AddTransferChainEntry(jws TransferChainEntrySignedContent) *EnvelopeBuilder {
 	e.envelopeTransferChain = append(e.envelopeTransferChain, jws)
 	return e
 }
