@@ -74,8 +74,37 @@ type TransferChainEntry struct {
 
 // Registry of unique eBL documents. Same eBL can be transferred multiple times.
 type TransportDocument struct {
-	Checksum                      string             `json:"checksum"`
-	Content                       json.RawMessage    `json:"content"`
-	FirstSeenAt                   pgtype.Timestamptz `json:"first_seen_at"`
-	FirstReceivedFromPlatformCode string             `json:"first_received_from_platform_code"`
+	Checksum  string             `json:"checksum"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Content   json.RawMessage    `json:"content"`
+}
+
+type TransportDocumentEvent struct {
+	ID                        uuid.UUID          `json:"id"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	TransportDocumentChecksum string             `json:"transport_document_checksum"`
+	EnvelopeID                uuid.UUID          `json:"envelope_id"`
+	ActionCode                string             `json:"action_code"`
+	PlatformCode              string             `json:"platform_code"`
+	Accepted                  bool               `json:"accepted"`
+}
+
+type TransportDocumentLatest struct {
+	ID                        uuid.UUID          `json:"id"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	TransportDocumentChecksum string             `json:"transport_document_checksum"`
+	EnvelopeID                uuid.UUID          `json:"envelope_id"`
+	ActionCode                string             `json:"action_code"`
+	PlatformCode              string             `json:"platform_code"`
+	Accepted                  bool               `json:"accepted"`
+}
+
+type TransportDocumentLatestAccepted struct {
+	ID                        uuid.UUID          `json:"id"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	TransportDocumentChecksum string             `json:"transport_document_checksum"`
+	EnvelopeID                uuid.UUID          `json:"envelope_id"`
+	ActionCode                string             `json:"action_code"`
+	PlatformCode              string             `json:"platform_code"`
+	Accepted                  bool               `json:"accepted"`
 }

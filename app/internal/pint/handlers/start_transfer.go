@@ -468,9 +468,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	// Step 10. Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
-		Checksum:                      string(verifiedEnvelope.TransportDocumentChecksum),
-		Content:                       envelope.TransportDocument,
-		FirstReceivedFromPlatformCode: verifiedEnvelope.LastTransferChainEntry.EblPlatform,
+		Checksum: string(verifiedEnvelope.TransportDocumentChecksum),
+		Content:  envelope.TransportDocument,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

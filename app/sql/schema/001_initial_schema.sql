@@ -3,9 +3,8 @@
 -- transport_documents - Registry of unique eBL documents (transport documents) seen by this platform.
 CREATE TABLE transport_documents (
     checksum TEXT PRIMARY KEY, -- SHA-256 checksum of canonical JSON (per DCSA spec)
-    content JSONB NOT NULL, -- The actual transport document content
-    first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    first_received_from_platform_code TEXT NOT NULL -- DCSA platform code that first sent this eBL to us (e.g., "WAVE", "CARX")
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    content JSONB NOT NULL -- The actual transport document content
 );
 
 -- envelopes - each row represents an transfer of a eBL received by this platform
@@ -36,7 +35,7 @@ CREATE TABLE envelopes (
 
     -- action_code - the action code of the last transaction in the last transfer chain entry
     -- when sending an envelope, this is the action the sender wants the platform to accept
-    action_code TEXT NOT NULL CHECK (action_code IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY')),
+    action_code TEXT NOT NULL CHECK (action_code IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY', 'SACC', 'SREJ')),
     sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
 
     -- Signed content (JWS tokens) - kept for audit trail

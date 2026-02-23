@@ -2,8 +2,6 @@ package ebl
 
 // envelope.go includes the builders for creating DCSA PINT API envelopes.
 //
-// For standard TRANSFER usage you don't need to call the envelope builder directly
-// use CreateTranferEnvelope() or createEnvelope() instead.
 
 import (
 	"encoding/json"

@@ -3,14 +3,12 @@
 -- This is used when receiving a new envelope transfer
 INSERT INTO transport_documents (
     checksum,
-    content,
-    first_seen_at,
-    first_received_from_platform_code
+    created_at,
+    content
 ) VALUES (
     sqlc.arg(checksum),
-    sqlc.arg(content),
     NOW(),
-    sqlc.arg(first_received_from_platform_code)
+    sqlc.arg(content)
 )
 ON CONFLICT (checksum) DO NOTHING
 RETURNING *;
