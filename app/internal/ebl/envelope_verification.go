@@ -663,7 +663,7 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 7: Validate transactions are sequenced correctly and contain necessary data
+	// Step 7: Validate transactions are sequenced correctly inside the transfer chain
 	currentActionCode := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
 
@@ -686,7 +686,7 @@ func verifyEnvelopeTransferChain(
 				continue
 			}
 
-			// Step 7a: Validate action code transition
+			// Step 7b: Validate action code transition
 			isValid, reason, err := isValidActionCodeTransition(&ActionCodeTransiton{
 				previousActionCode:    currentActionCode,
 				nextActionCode:        nextActionCode,
@@ -703,7 +703,7 @@ func verifyEnvelopeTransferChain(
 					currentActionCode, nextActionCode, i, j, reason))
 			}
 
-			// Step 7b: Surrender requests must be addressed to the carrier that issued the eBL
+			// Step 7c: Surrender requests must be addressed to the carrier that issued the eBL
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
 				if transaction.Recipient == nil || !identifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes) {
 					return nil, NewEnvelopeError(fmt.Sprintf(

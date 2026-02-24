@@ -109,6 +109,8 @@ type ActionCodeTransiton struct {
 
 // isValidActionCodeTransition checks if a transition from one action code in the chain to another is valid.
 //
+// the function also prevents straight B/Ls from being endorsed or transferred.
+//
 // Returns true if the transition is allowed, false otherwise.
 // The reason for the failure is returned in the reason string.
 // An error is returned if an uexpected condition is encountered (suggests a bug in the code)
@@ -131,7 +133,6 @@ func isValidActionCodeTransition(transition *ActionCodeTransiton) (isValid bool,
 	}
 
 	// Step 3: Transactions must follow valid state transitions
-
 	return slices.Contains(validTransitions, transition.nextActionCode), "", nil
 }
 
