@@ -1,11 +1,12 @@
 package ebl
 
-// action_codes.go defines the DCSA action codes and the valid transitions that can occur in a
-// chain of transactions.
-
 import (
+	"fmt"
 	"slices"
 )
+
+// action_codes.go defines the DCSA action codes and the valid transitions that can occur in a
+// chain of transactions.
 
 // ActionCode is the action code of a transaction in the transfer chain.
 type ActionCode string
@@ -98,15 +99,40 @@ var validActionCodeTransitions = map[ActionCode][]ActionCode{
 	ActionCodeSACC:                  {}, // terminal state
 }
 
+type ActionCodeTransiton struct {
+	previousActionCode    ActionCode
+	nextActionCode        ActionCode
+	previousPlatformCode  string
+	nextPlatformCode      string
+	transportDocumentType TransportDocumentType
+}
+
 // isValidActionCodeTransition checks if a transition from one action code in the chain to another is valid.
 //
 // Returns true if the transition is allowed, false otherwise.
-func isValidActionCodeTransition(currentActionCode, nextActionCode ActionCode) bool {
-	validTransitions, ok := validActionCodeTransitions[currentActionCode]
+// The reason for the failure is returned in the reason string.
+// An error is returned if an uexpected condition is encountered (suggests a bug in the code)
+func isValidActionCodeTransition(transition *ActionCodeTransiton) (isValid bool, reason string, error error) {
+
+	// lookup allowed state transitions for the previous action
+	validTransitions, ok := validActionCodeTransitions[transition.previousActionCode]
 	if !ok {
-		return false
+		return false, "", fmt.Errorf("bug - unknown current action code: %s", transition.previousActionCode)
 	}
-	return slices.Contains(validTransitions, nextActionCode)
+
+	// Step 2: Transfer and endorsements are not allowed for straight BLs
+	if transition.transportDocumentType == TransportDocumentTypeStraightBL {
+		if transition.nextActionCode == ActionCodeEndorse ||
+			transition.nextActionCode == ActionCodeEndorseToOrder ||
+			transition.nextActionCode == ActionCodeBlankEndorse ||
+			transition.nextActionCode == ActionCodeTransfer {
+			return false, fmt.Sprintf("straight BLs cannot be transferred or endorsed, got %s", transition.nextActionCode), nil
+		}
+	}
+
+	// Step 3: Transactions must follow valid state transitions
+
+	return slices.Contains(validTransitions, transition.nextActionCode), "", nil
 }
 
 // SurrenderForAmendmentReasonCode represents the reason for SURRENDER_FOR_AMENDMENT according to DCSA specification.

@@ -663,51 +663,53 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 7: Validate transactions follow the DSCA rules
+	// Step 7: Validate transactions are in a logical sequence
 	currentState := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
 	for i, entry := range allEntries {
-		for j, tx := range entry.Transactions {
-			nextActionCode := ActionCode(tx.ActionCode)
+		for j, transaction := range entry.Transactions {
+			nextActionCode := ActionCode(transaction.ActionCode)
 
-			// Step 7a: First transaction must be ISSUE
+			// 7a first transaction must be ISSUE
 			if currentState == ActionCodeUnset {
+
 				if nextActionCode != ActionCodeIssue {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"first transaction must be ISSUE, got %s (entry %d, transaction %d)",
-						tx.ActionCode, i, j))
+						nextActionCode, i, j))
 				}
-				issueActorCodes = tx.Actor.IdentifyingCodes
+
+				// get the issuing Actor (carrier) identifying codes
+				issueActorCodes = transaction.Actor.IdentifyingCodes
 				currentState = nextActionCode
 				continue
 			}
 
-			// Step 7b: Transfer and endorsements are not allowed for straight BLs
-			if docType == TransportDocumentTypeStraightBL {
-				switch nextActionCode {
-				case ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeTransfer:
-					return nil, NewEnvelopeError(fmt.Sprintf(
-						"straight BLs cannot be transferred or endorsed, got %s (entry %d, transaction %d)",
-						tx.ActionCode, i, j))
-				}
+			// Step 7b: Validate action code transition
+			isValid, reason, err := isValidActionCodeTransition(&ActionCodeTransiton{
+				previousActionCode:    currentState,
+				nextActionCode:        nextActionCode,
+				previousPlatformCode:  transaction.Actor.EblPlatform,
+				nextPlatformCode:      transaction.Recipient.EblPlatform,
+				transportDocumentType: docType,
+			})
+			if err != nil {
+				return nil, WrapInternalError(err, fmt.Sprintf("failed to validate action code transition (entry %d, transaction %d)", i, j))
 			}
 
-			// Step 7c: Transactions must follow valid state transitions
-			if !isValidActionCodeTransition(currentState, nextActionCode) {
-				return nil, NewDisputeError(fmt.Sprintf(
-					"invalid state transition from %s to %s (entry %d, transaction %d)",
-					currentState, nextActionCode, i, j))
+			if !isValid {
+				return nil, NewEnvelopeError(fmt.Sprintf("invalid state transition from %s to %s (entry %d, transaction %d): %s",
+					currentState, nextActionCode, i, j, reason))
 			}
 
-			// Step 7d: Surrender requests must be addressed to the carrier that issued the eBL
+			// Step 7a: Surrender requests must be addressed to the carrier that issued the eBL
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
-				if tx.Recipient == nil || !identifyingCodesMatch(tx.Recipient.IdentifyingCodes, issueActorCodes) {
+				if transaction.Recipient == nil || !identifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes) {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
 						i, j))
 				}
 			}
-
 			currentState = nextActionCode
 		}
 	}
