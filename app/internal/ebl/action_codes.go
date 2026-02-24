@@ -1,8 +1,11 @@
 package ebl
 
-// action_codes.go defines the DCSA action codes and the valid transitions between them.
+// action_codes.go defines the DCSA action codes and the valid transitions that can occur in a
+// chain of transactions.
 
-import "slices"
+import (
+	"slices"
+)
 
 // ActionCode is the action code of a transaction in the transfer chain.
 type ActionCode string
@@ -80,7 +83,8 @@ const (
 	ActionCodeSREJ ActionCode = "SREJ"
 )
 
-// TODO: confirm the rules for the action code state transition
+// These transitions apply within a chain - if the chain contains invalid transitions it is rejected with a DISE error.
+// TODO: confirm the rules are correct
 var validActionCodeTransitions = map[ActionCode][]ActionCode{
 	ActionCodeIssue:                 {ActionCodeTransfer, ActionCodeSign},
 	ActionCodeTransfer:              {ActionCodeTransfer, ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeSign, ActionCodeSurrenderForAmendment, ActionCodeSurrenderForDelivery},
@@ -94,16 +98,15 @@ var validActionCodeTransitions = map[ActionCode][]ActionCode{
 	ActionCodeSACC:                  {}, // terminal state
 }
 
-// isValidActionCodeTransition checks if a transition from currentState to nextState is valid
-// according to the DCSA specification.
+// isValidActionCodeTransition checks if a transition from one action code in the chain to another is valid.
 //
 // Returns true if the transition is allowed, false otherwise.
-func isValidActionCodeTransition(currentState, nextState ActionCode) bool {
-	validTransitions, ok := validActionCodeTransitions[currentState]
+func isValidActionCodeTransition(currentActionCode, nextActionCode ActionCode) bool {
+	validTransitions, ok := validActionCodeTransitions[currentActionCode]
 	if !ok {
 		return false
 	}
-	return slices.Contains(validTransitions, nextState)
+	return slices.Contains(validTransitions, nextActionCode)
 }
 
 // SurrenderForAmendmentReasonCode represents the reason for SURRENDER_FOR_AMENDMENT according to DCSA specification.

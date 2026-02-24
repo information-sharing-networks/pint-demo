@@ -484,13 +484,14 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Step 11. Create a record of the new envelope transfer if it hasn't been received previously
+	// Step 11. Create a record of the new envelope transfer (not yet accepted - need to check if additional documents are required first)
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	newEnvelopeRecord, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
 		TransportDocumentChecksum: string(verifiedEnvelope.TransportDocumentChecksum),
 		ActionCode:                string(lastTransaction.ActionCode),
-		SentByPlatformCode:        verifiedEnvelope.LastTransferChainEntry.EblPlatform,
+		SendingPlatformCode:       verifiedEnvelope.LastTransferChainEntry.EblPlatform,
+		ReceivingPlatformCode:     s.platformCode,
 		LastTransferChainEntrySignedContentPayloadChecksum: string(verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum),
 		LastTransferChainEntrySignedContentChecksum:        string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
 		EnvelopeManifestSignedContent:                      string(envelope.EnvelopeManifestSignedContent),

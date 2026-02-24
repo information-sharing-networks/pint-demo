@@ -7,16 +7,20 @@ CREATE TABLE transport_documents (
     content JSONB NOT NULL -- The actual transport document content
 );
 
--- envelopes - each row represents an transfer of a eBL received by this platform
+-- envelopes - each row represents an eBL envelope received by this platform
 -- The same eBL can be transferred multiple times and go back and forth between platforms.
--- Each transfer has a unique chain of transactions (transfer chain entries) that are cryptographically linked
--- and uniquely identified by the last_transfer_chain_entry_signed_content_checksum
+-- Each envelope has a unique chain of transactions (transfer chain entries) that are cryptographically linked
+-- and uniquely identified by the last_transfer_chain_entry_signed_content_payload_checksum
+-- valid envelopes are inserted initially with accepted_at = NULL and are marked as accepted when the final
+-- all outstand additional documents have been received.
 CREATE TABLE envelopes (
     -- Used as an opaque ID ('envelope_reference') in API responses 
     id UUID PRIMARY KEY, 
 
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+
+    -- envelope acceptance tracking (NULL = not yet accepted, timestamp = when transfer was accepted with RECE)
+    accepted_at TIMESTAMP WITH TIME ZONE,
 
 
     -- Links to the eBL document being transferred
@@ -36,17 +40,18 @@ CREATE TABLE envelopes (
     -- action_code - the action code of the last transaction in the last transfer chain entry
     -- when sending an envelope, this is the action the sender wants the platform to accept
     action_code TEXT NOT NULL CHECK (action_code IN ('ISSUE', 'TRANSFER', 'ENDORSE', 'ENDORSE_TO_ORDER', 'BLANK_ENDORSE', 'SIGN', 'SURRENDER_FOR_AMENDMENT', 'SURRENDER_FOR_DELIVERY', 'SACC', 'SREJ')),
-    sent_by_platform_code TEXT NOT NULL, -- DCSA platform code of sender (e.g., "WAVE", "CARX")
+
+    -- DCSA platform codes (WAVE, CARGX etc) - sending = the platform that posts the envelope /v3/envelopes
+    -- receiving = the platform that processed the http request
+    sending_platform_code TEXT NOT NULL, 
+    receiving_platform_code TEXT NOT NULL,
 
     -- Signed content (JWS tokens) - kept for audit trail
-    envelope_manifest_signed_content TEXT NOT NULL, -- JWS of EnvelopeManifest
-    last_transfer_chain_entry_signed_content TEXT NOT NULL, -- JWS of last entry 
+    envelope_manifest_signed_content TEXT NOT NULL, 
+    last_transfer_chain_entry_signed_content TEXT NOT NULL, 
 
     -- Trust level from certificate validation (1=NoX5C, 2=DV, 3=EV/OV)
     trust_level INTEGER NOT NULL CHECK (trust_level IN (1, 2, 3)),
-
-    -- Transfer acceptance tracking (NULL = not yet accepted, timestamp = when transfer was accepted with RECE)
-    accepted_at TIMESTAMP WITH TIME ZONE,
 
     CONSTRAINT fk_envelopes_transport_document FOREIGN KEY (transport_document_checksum)
         REFERENCES transport_documents(checksum)
@@ -65,7 +70,7 @@ CREATE TABLE transfer_chain_entries (
     
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 
-    -- Links to the eBL document (CRITICAL for DISE detection)
+    -- Links to the eBL document (included to support duplicate detection)
     transport_document_checksum TEXT NOT NULL,
 
     -- Links to the envelope/transfer that brought this entry to our platform
@@ -134,13 +139,6 @@ CREATE TABLE additional_documents (
     )
 );
 CREATE INDEX idx_additional_documents_envelope ON additional_documents(envelope_id);
-
-COMMENT ON TABLE transport_documents IS 'Registry of unique eBL documents. Same eBL can be transferred multiple times.';
-COMMENT ON TABLE envelopes IS 'Each row = one transfer session. Multiple rows can exist for same transport_document_checksum.';
-COMMENT ON TABLE transfer_chain_entries IS 'Each transfer has a unique chain of transactions that are cryptographically linked and uniquely identified by the last_transfer_chain_entry_signed_content_checksum';
-COMMENT ON TABLE additional_documents IS 'Expected and received additional documents, scoped to specific transfer sessions.';
-
-COMMENT ON COLUMN envelopes.last_transfer_chain_entry_signed_content_checksum IS 'UNIQUE constraint prevents duplicate transfers of same chain.';
 
 -- +goose Down
 DROP TABLE IF EXISTS additional_documents CASCADE;

@@ -15,18 +15,17 @@ const CreateEnvelope = `-- name: CreateEnvelope :one
 INSERT INTO envelopes (
     id,
     created_at,
-    updated_at,
     transport_document_checksum,
     action_code,
     last_transfer_chain_entry_signed_content_payload_checksum,
-    sent_by_platform_code,
+    sending_platform_code,
+    receiving_platform_code,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content_checksum,
     last_transfer_chain_entry_signed_content,
     trust_level
 ) VALUES (
     gen_random_uuid(),
-    NOW(),
     NOW(),
     $1,
     $2,
@@ -35,15 +34,17 @@ INSERT INTO envelopes (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, created_at, updated_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sent_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at
+    $8,
+    $9
+) RETURNING id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sending_platform_code, receiving_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level
 `
 
 type CreateEnvelopeParams struct {
 	TransportDocumentChecksum                          string `json:"transport_document_checksum"`
 	ActionCode                                         string `json:"action_code"`
 	LastTransferChainEntrySignedContentPayloadChecksum string `json:"last_transfer_chain_entry_signed_content_payload_checksum"`
-	SentByPlatformCode                                 string `json:"sent_by_platform_code"`
+	SendingPlatformCode                                string `json:"sending_platform_code"`
+	ReceivingPlatformCode                              string `json:"receiving_platform_code"`
 	EnvelopeManifestSignedContent                      string `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContentChecksum        string `json:"last_transfer_chain_entry_signed_content_checksum"`
 	LastTransferChainEntrySignedContent                string `json:"last_transfer_chain_entry_signed_content"`
@@ -59,7 +60,8 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		arg.TransportDocumentChecksum,
 		arg.ActionCode,
 		arg.LastTransferChainEntrySignedContentPayloadChecksum,
-		arg.SentByPlatformCode,
+		arg.SendingPlatformCode,
+		arg.ReceivingPlatformCode,
 		arg.EnvelopeManifestSignedContent,
 		arg.LastTransferChainEntrySignedContentChecksum,
 		arg.LastTransferChainEntrySignedContent,
@@ -69,16 +71,16 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.AcceptedAt,
 		&i.TransportDocumentChecksum,
 		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
 		&i.ActionCode,
-		&i.SentByPlatformCode,
+		&i.SendingPlatformCode,
+		&i.ReceivingPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
-		&i.AcceptedAt,
 	)
 	return i, err
 }
@@ -100,7 +102,7 @@ func (q *Queries) ExistsEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx
 }
 
 const GetEnvelopeByLastChainEntrySignedContentPayloadChecksum = `-- name: GetEnvelopeByLastChainEntrySignedContentPayloadChecksum :one
-SELECT id, created_at, updated_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sent_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
+SELECT id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sending_platform_code, receiving_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level FROM envelopes 
 WHERE last_transfer_chain_entry_signed_content_payload_checksum = $1
 `
 
@@ -112,22 +114,22 @@ func (q *Queries) GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx co
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.AcceptedAt,
 		&i.TransportDocumentChecksum,
 		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
 		&i.ActionCode,
-		&i.SentByPlatformCode,
+		&i.SendingPlatformCode,
+		&i.ReceivingPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
-		&i.AcceptedAt,
 	)
 	return i, err
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, updated_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sent_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level, accepted_at FROM envelopes 
+SELECT id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sending_platform_code, receiving_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level FROM envelopes 
 WHERE id = $1
 `
 
@@ -138,16 +140,16 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, id uuid.UUID) (Env
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.AcceptedAt,
 		&i.TransportDocumentChecksum,
 		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
 		&i.ActionCode,
-		&i.SentByPlatformCode,
+		&i.SendingPlatformCode,
+		&i.ReceivingPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
-		&i.AcceptedAt,
 	)
 	return i, err
 }
