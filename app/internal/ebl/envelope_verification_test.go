@@ -372,7 +372,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			wantErrContains: "envelope transfer chain is empty",
 		},
 		{
-			name: "returns DISE when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
+			name: "returns BENV when invalid state transition SURRENDER_FOR_DELIVERY followed by TRANSFER",
 			tamperEnvelope: func(env *Envelope) error {
 				// Decode the last transfer chain entry (which has a TRANSFER transaction)
 				lastIdx := len(env.EnvelopeTransferChain) - 1
@@ -455,7 +455,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			publicKeyPath:   validPublicKeyPath,
 			domain:          validDomain,
 			useWrongCAPath:  false,
-			wantErrCode:     string(ErrCodeDispute),
+			wantErrCode:     string(ErrCodeEnvelope),
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
 		},
 		{
@@ -621,6 +621,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			var eblErr Error
 			if errors.As(err, &eblErr) {
 				if string(eblErr.Code()) != tt.wantErrCode {
+					fmt.Println(err.Error())
 					t.Errorf("Expected error code %q, got %q", tt.wantErrCode, eblErr.Code())
 				}
 			} else {

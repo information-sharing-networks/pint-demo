@@ -663,15 +663,16 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 7: Validate transactions are in a logical sequence
-	currentState := ActionCodeUnset
+	// Step 7: Validate transactions are sequenced correctly and contain necessary data
+	currentActionCode := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
+
 	for i, entry := range allEntries {
 		for j, transaction := range entry.Transactions {
 			nextActionCode := ActionCode(transaction.ActionCode)
 
 			// 7a first transaction must be ISSUE
-			if currentState == ActionCodeUnset {
+			if currentActionCode == ActionCodeUnset {
 
 				if nextActionCode != ActionCodeIssue {
 					return nil, NewEnvelopeError(fmt.Sprintf(
@@ -681,13 +682,13 @@ func verifyEnvelopeTransferChain(
 
 				// get the issuing Actor (carrier) identifying codes
 				issueActorCodes = transaction.Actor.IdentifyingCodes
-				currentState = nextActionCode
+				currentActionCode = nextActionCode
 				continue
 			}
 
-			// Step 7b: Validate action code transition
+			// Step 7a: Validate action code transition
 			isValid, reason, err := isValidActionCodeTransition(&ActionCodeTransiton{
-				previousActionCode:    currentState,
+				previousActionCode:    currentActionCode,
 				nextActionCode:        nextActionCode,
 				previousPlatformCode:  transaction.Actor.EblPlatform,
 				nextPlatformCode:      transaction.Recipient.EblPlatform,
@@ -699,10 +700,10 @@ func verifyEnvelopeTransferChain(
 
 			if !isValid {
 				return nil, NewEnvelopeError(fmt.Sprintf("invalid state transition from %s to %s (entry %d, transaction %d): %s",
-					currentState, nextActionCode, i, j, reason))
+					currentActionCode, nextActionCode, i, j, reason))
 			}
 
-			// Step 7a: Surrender requests must be addressed to the carrier that issued the eBL
+			// Step 7b: Surrender requests must be addressed to the carrier that issued the eBL
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
 				if transaction.Recipient == nil || !identifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes) {
 					return nil, NewEnvelopeError(fmt.Sprintf(
@@ -710,7 +711,7 @@ func verifyEnvelopeTransferChain(
 						i, j))
 				}
 			}
-			currentState = nextActionCode
+			currentActionCode = nextActionCode
 		}
 	}
 	return allEntries, nil
