@@ -490,8 +490,8 @@ func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *htt
 	newEnvelopeRecord, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
 		TransportDocumentChecksum: string(verifiedEnvelope.TransportDocumentChecksum),
 		ActionCode:                string(lastTransaction.ActionCode),
-		SendingPlatformCode:       verifiedEnvelope.LastTransferChainEntry.EblPlatform,
-		ReceivingPlatformCode:     s.platformCode,
+		SentByPlatformCode:        verifiedEnvelope.LastTransferChainEntry.EblPlatform,
+		ReceivedByPlatformCode:    s.platformCode,
 		LastTransferChainEntrySignedContentPayloadChecksum: string(verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum),
 		LastTransferChainEntrySignedContentChecksum:        string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum),
 		EnvelopeManifestSignedContent:                      string(envelope.EnvelopeManifestSignedContent),

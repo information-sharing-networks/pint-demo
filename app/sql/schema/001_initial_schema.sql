@@ -43,8 +43,8 @@ CREATE TABLE envelopes (
 
     -- DCSA platform codes (WAVE, CARGX etc) - sending = the platform that posts the envelope /v3/envelopes
     -- receiving = the platform that processed the http request
-    sending_platform_code TEXT NOT NULL, 
-    receiving_platform_code TEXT NOT NULL,
+    sent_by_platform_code TEXT NOT NULL, 
+    received_by_platform_code TEXT NOT NULL,
 
     -- Signed content (JWS tokens) - kept for audit trail
     envelope_manifest_signed_content TEXT NOT NULL, 

@@ -18,8 +18,8 @@ INSERT INTO envelopes (
     transport_document_checksum,
     action_code,
     last_transfer_chain_entry_signed_content_payload_checksum,
-    sending_platform_code,
-    receiving_platform_code,
+    sent_by_platform_code,
+    received_by_platform_code,
     envelope_manifest_signed_content,
     last_transfer_chain_entry_signed_content_checksum,
     last_transfer_chain_entry_signed_content,
@@ -36,15 +36,15 @@ INSERT INTO envelopes (
     $7,
     $8,
     $9
-) RETURNING id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sending_platform_code, receiving_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level
+) RETURNING id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sent_by_platform_code, received_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level
 `
 
 type CreateEnvelopeParams struct {
 	TransportDocumentChecksum                          string `json:"transport_document_checksum"`
 	ActionCode                                         string `json:"action_code"`
 	LastTransferChainEntrySignedContentPayloadChecksum string `json:"last_transfer_chain_entry_signed_content_payload_checksum"`
-	SendingPlatformCode                                string `json:"sending_platform_code"`
-	ReceivingPlatformCode                              string `json:"receiving_platform_code"`
+	SentByPlatformCode                                 string `json:"sent_by_platform_code"`
+	ReceivedByPlatformCode                             string `json:"received_by_platform_code"`
 	EnvelopeManifestSignedContent                      string `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContentChecksum        string `json:"last_transfer_chain_entry_signed_content_checksum"`
 	LastTransferChainEntrySignedContent                string `json:"last_transfer_chain_entry_signed_content"`
@@ -60,8 +60,8 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		arg.TransportDocumentChecksum,
 		arg.ActionCode,
 		arg.LastTransferChainEntrySignedContentPayloadChecksum,
-		arg.SendingPlatformCode,
-		arg.ReceivingPlatformCode,
+		arg.SentByPlatformCode,
+		arg.ReceivedByPlatformCode,
 		arg.EnvelopeManifestSignedContent,
 		arg.LastTransferChainEntrySignedContentChecksum,
 		arg.LastTransferChainEntrySignedContent,
@@ -76,8 +76,8 @@ func (q *Queries) CreateEnvelope(ctx context.Context, arg CreateEnvelopeParams) 
 		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
 		&i.ActionCode,
-		&i.SendingPlatformCode,
-		&i.ReceivingPlatformCode,
+		&i.SentByPlatformCode,
+		&i.ReceivedByPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
@@ -102,7 +102,7 @@ func (q *Queries) ExistsEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx
 }
 
 const GetEnvelopeByLastChainEntrySignedContentPayloadChecksum = `-- name: GetEnvelopeByLastChainEntrySignedContentPayloadChecksum :one
-SELECT id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sending_platform_code, receiving_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level FROM envelopes 
+SELECT id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sent_by_platform_code, received_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level FROM envelopes 
 WHERE last_transfer_chain_entry_signed_content_payload_checksum = $1
 `
 
@@ -119,8 +119,8 @@ func (q *Queries) GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx co
 		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
 		&i.ActionCode,
-		&i.SendingPlatformCode,
-		&i.ReceivingPlatformCode,
+		&i.SentByPlatformCode,
+		&i.ReceivedByPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,
@@ -129,7 +129,7 @@ func (q *Queries) GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx co
 }
 
 const GetEnvelopeByReference = `-- name: GetEnvelopeByReference :one
-SELECT id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sending_platform_code, receiving_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level FROM envelopes 
+SELECT id, created_at, accepted_at, transport_document_checksum, last_transfer_chain_entry_signed_content_payload_checksum, last_transfer_chain_entry_signed_content_checksum, action_code, sent_by_platform_code, received_by_platform_code, envelope_manifest_signed_content, last_transfer_chain_entry_signed_content, trust_level FROM envelopes 
 WHERE id = $1
 `
 
@@ -145,8 +145,8 @@ func (q *Queries) GetEnvelopeByReference(ctx context.Context, id uuid.UUID) (Env
 		&i.LastTransferChainEntrySignedContentPayloadChecksum,
 		&i.LastTransferChainEntrySignedContentChecksum,
 		&i.ActionCode,
-		&i.SendingPlatformCode,
-		&i.ReceivingPlatformCode,
+		&i.SentByPlatformCode,
+		&i.ReceivedByPlatformCode,
 		&i.EnvelopeManifestSignedContent,
 		&i.LastTransferChainEntrySignedContent,
 		&i.TrustLevel,

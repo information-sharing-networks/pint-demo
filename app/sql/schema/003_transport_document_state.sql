@@ -2,7 +2,7 @@
 
 -- transport_document_latest - view showing the latest event for each eBL document
 CREATE VIEW transport_document_state AS
-    SELECT id envelope_id, transport_document_checksum, action_code, sending_platform_code, receiving_platform_code, created_at, accepted_at IS NOT NULL AS accepted, accepted_at FROM envelopes
+    SELECT id envelope_id, transport_document_checksum, action_code, sent_by_platform_code, received_by_platform_code, created_at, accepted_at IS NOT NULL AS accepted, accepted_at FROM envelopes
     WHERE id IN (
         SELECT id FROM envelopes e
         WHERE created_at = (
@@ -13,7 +13,7 @@ CREATE VIEW transport_document_state AS
     );
 
 CREATE VIEW transport_document_history AS
-    SELECT id envelope_id, transport_document_checksum, action_code, sending_platform_code, receiving_platform_code, created_at, accepted_at IS NOT NULL AS accepted, accepted_at FROM envelopes
+    SELECT id envelope_id, transport_document_checksum, action_code, sent_by_platform_code, received_by_platform_code, created_at, accepted_at IS NOT NULL AS accepted, accepted_at FROM envelopes
     ORDER BY created_at DESC;
 
 -- +goose Down

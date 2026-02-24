@@ -32,8 +32,8 @@ type Envelope struct {
 	LastTransferChainEntrySignedContentPayloadChecksum string             `json:"last_transfer_chain_entry_signed_content_payload_checksum"`
 	LastTransferChainEntrySignedContentChecksum        string             `json:"last_transfer_chain_entry_signed_content_checksum"`
 	ActionCode                                         string             `json:"action_code"`
-	SendingPlatformCode                                string             `json:"sending_platform_code"`
-	ReceivingPlatformCode                              string             `json:"receiving_platform_code"`
+	SentByPlatformCode                                 string             `json:"sent_by_platform_code"`
+	ReceivedByPlatformCode                             string             `json:"received_by_platform_code"`
 	EnvelopeManifestSignedContent                      string             `json:"envelope_manifest_signed_content"`
 	LastTransferChainEntrySignedContent                string             `json:"last_transfer_chain_entry_signed_content"`
 	TrustLevel                                         int32              `json:"trust_level"`
@@ -78,8 +78,8 @@ type TransportDocumentHistory struct {
 	EnvelopeID                uuid.UUID          `json:"envelope_id"`
 	TransportDocumentChecksum string             `json:"transport_document_checksum"`
 	ActionCode                string             `json:"action_code"`
-	SendingPlatformCode       string             `json:"sending_platform_code"`
-	ReceivingPlatformCode     string             `json:"receiving_platform_code"`
+	SentByPlatformCode        string             `json:"sent_by_platform_code"`
+	ReceivedByPlatformCode    string             `json:"received_by_platform_code"`
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	Accepted                  interface{}        `json:"accepted"`
 	AcceptedAt                pgtype.Timestamptz `json:"accepted_at"`
@@ -89,8 +89,8 @@ type TransportDocumentState struct {
 	EnvelopeID                uuid.UUID          `json:"envelope_id"`
 	TransportDocumentChecksum string             `json:"transport_document_checksum"`
 	ActionCode                string             `json:"action_code"`
-	SendingPlatformCode       string             `json:"sending_platform_code"`
-	ReceivingPlatformCode     string             `json:"receiving_platform_code"`
+	SentByPlatformCode        string             `json:"sent_by_platform_code"`
+	ReceivedByPlatformCode    string             `json:"received_by_platform_code"`
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	Accepted                  interface{}        `json:"accepted"`
 	AcceptedAt                pgtype.Timestamptz `json:"accepted_at"`
