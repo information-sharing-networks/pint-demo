@@ -18,9 +18,9 @@ import (
 
 func TestParseHeader(t *testing.T) {
 	// { "alg": "HS256", "typ": "JWT" } (unexpected header: typ)
-	invalidJwsString := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
+	invalidJwsToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
 
-	header, err := ParseJWSHeader(invalidJwsString)
+	header, err := ParseJWSHeader(invalidJwsToken)
 	if err == nil {
 		t.Errorf("ParseHeader failed to reject an invalid header - got: %v", header)
 	}
@@ -98,7 +98,7 @@ func TestSignAndVerifSignatureEdSCA(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			// sign
-			jwsString, err := SignJSONWithEd25519(tt.payload, tt.privateKey, tt.keyID)
+			JwsToken, err := SignJSONWithEd25519(tt.payload, tt.privateKey, tt.keyID)
 			if err != nil {
 				if tt.wantSignErr {
 					return
@@ -110,7 +110,7 @@ func TestSignAndVerifSignatureEdSCA(t *testing.T) {
 			}
 
 			// verify
-			p, err := VerifyJWSEd25519(jwsString, tt.publicKey)
+			p, err := VerifyJWSEd25519(JwsToken, tt.publicKey)
 			if err != nil {
 				if tt.wantVerifyErr {
 					return
@@ -201,7 +201,7 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			// sign
-			jwsString, err := SignJSONWithRSA(tt.payload, tt.privateKey, tt.keyID)
+			JwsToken, err := SignJSONWithRSA(tt.payload, tt.privateKey, tt.keyID)
 			if err != nil {
 				if tt.wantSignErr {
 					return
@@ -213,7 +213,7 @@ func TestSignAndVerifSignatureRSA(t *testing.T) {
 			}
 
 			// verify
-			p, err := VerifyJWSRSA(jwsString, tt.publicKey)
+			p, err := VerifyJWSRSA(JwsToken, tt.publicKey)
 			if err != nil {
 				if tt.wantVerifyErr {
 					return
@@ -252,20 +252,20 @@ func TestSignRSAWithX5C(t *testing.T) {
 	keyID := "test-rsa-key"
 
 	// Sign with x5c
-	jwsString, err := SignJSONWithRSAAndX5C(payload, privateKey, keyID, certChain)
+	JwsToken, err := SignJSONWithRSAAndX5C(payload, privateKey, keyID, certChain)
 	if err != nil {
 		t.Fatalf("SignRSAWithX5C() failed: %v", err)
 	}
 
 	// Verify JWS format (header.payload.signature)
-	parts := strings.Split(jwsString, ".")
+	parts := strings.Split(JwsToken, ".")
 	if len(parts) != 3 {
 		t.Fatalf("JWS format invalid: got %d parts, want 3", len(parts))
 	}
 
 	// Verify the signature is valid
 	publicKey := &privateKey.PublicKey
-	verifiedPayload, err := VerifyJWSRSA(jwsString, publicKey)
+	verifiedPayload, err := VerifyJWSRSA(JwsToken, publicKey)
 	if err != nil {
 		t.Fatalf("VerifyRSA() failed: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestSignRSAWithX5C(t *testing.T) {
 	}
 
 	// Verify x5c is present in the JWS header
-	extractedCerts, err := ParseX5CFromJWS(jwsString)
+	extractedCerts, err := ParseX5CFromJWS(JwsToken)
 	if err != nil {
 		t.Fatalf("ParseX5CFromJWS() failed: %v", err)
 	}
@@ -333,20 +333,20 @@ func TestSignEd25519WithX5C(t *testing.T) {
 	keyID := "test-ed25519-key"
 
 	// Sign with x5c
-	jwsString, err := SignJSONWithEd25519AndX5C(payload, privateKey, keyID, certChain)
+	JwsToken, err := SignJSONWithEd25519AndX5C(payload, privateKey, keyID, certChain)
 	if err != nil {
 		t.Fatalf("SignEd25519WithX5C() failed: %v", err)
 	}
 
 	// Verify JWS format
-	parts := strings.Split(jwsString, ".")
+	parts := strings.Split(JwsToken, ".")
 	if len(parts) != 3 {
 		t.Fatalf("JWS format invalid: got %d parts, want 3", len(parts))
 	}
 
 	// Verify the signature is valid
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	verifiedPayload, err := VerifyJWSEd25519(jwsString, publicKey)
+	verifiedPayload, err := VerifyJWSEd25519(JwsToken, publicKey)
 	if err != nil {
 		t.Fatalf("VerifyEd25519() failed: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestSignEd25519WithX5C(t *testing.T) {
 	}
 
 	// Verify x5c is present in the JWS header
-	extractedCerts, err := ParseX5CFromJWS(jwsString)
+	extractedCerts, err := ParseX5CFromJWS(JwsToken)
 	if err != nil {
 		t.Fatalf("ParseX5CFromJWS() failed: %v", err)
 	}

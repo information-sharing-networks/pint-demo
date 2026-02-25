@@ -1,6 +1,9 @@
 package ebl
 
 // envelope_verification.go provides high-level functions for verifying DCSA EBL_PINT API envelope transfers.
+// All the integrity checks are done on the received envelope content -
+// some additional checks are done when the envelope is processed (checking for duplicate transfers for instance
+// - see pint/handlers/StartTransferHandler)
 //
 // # Signature Verification Process
 //
@@ -29,24 +32,23 @@ package ebl
 // Platform identification is done by looking up the platform in the DCSA registry
 // using the JWS key ID.
 //
-// In production the keystore is populated with public keys retrieved either from the
-// platform's JWKS endpoint or from a local key store, depending on how the platform was
-// configured in the platform registry.
-//
-// # Key ID (kid) Usage
 // This app uses the JWK thumbprint of the signing public key as the key ID.
+//
+// The keystore is populated with public keys retrieved either from the
+// platform's JWKS endpoint or from a local store of manually configured keys, depending on how the platform was
+// configured in the platform registry.
 //
 // # Trust Hierarchy
 // This app implements a trust hierarchy based on the type of certificate in the
 // x5c header (if present) - see crypto/trust_level.go
 //
-// The caller (typically the HTTP handler) is responsible for enforcing the minimum acceptable trust level.
+// The verification process determines the trust level for the envelope - the caller (typically the HTTP handler)
+// is responsible for enforcing the minimum acceptable trust level.
 
 import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -54,12 +56,12 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
-// KeyProviderWithLookup extends jws.KeyProvider with platform lookup capability.
+// PlatformKeyProvider extends jws.KeyProvider with platform lookup capability.
 //
 // This interface is implemented by the KeyManager and allows envelope verification
 // to both fetch keys for signature verification and validate that keys belong to
 // the claimed platform.
-type KeyProviderWithLookup interface {
+type PlatformKeyProvider interface {
 	jws.KeyProvider
 	LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error)
 }
@@ -86,7 +88,7 @@ type EnvelopeVerificationInput struct {
 	//
 	// If the KeyProvider can't find the signature that the sending platform used to sign the
 	// envelope manifest/last transfer chain entry, validation of the envelope fails.
-	KeyProvider KeyProviderWithLookup
+	KeyProvider PlatformKeyProvider
 
 	// recipientPlatformCode is the platform code of the current platform.
 	// This is used to verify the envelope transfer is addressed to the correct platform.
@@ -105,7 +107,7 @@ type EnvelopeVerificationResult struct {
 	// TransferChain contains all verified transfer chain entries in order (first to last)
 	// This provides the complete history of the eBL from issuance to current state.
 	// The caller needs this to build the next transfer (must include entire chain + new entry)
-	TransferChain []*EnvelopeTransferChainEntry
+	TransferChain []*EnvelopeTransferChainEntry //  TransferChainEntrySignedPayloadChecksum > JWS checksum
 
 	// FirstTransferChainEntry is a convenience pointer to the first entry in TransferChain
 	// This entry contains the IssuanceManifestSignedContent from the carrier
@@ -129,7 +131,7 @@ type EnvelopeVerificationResult struct {
 	// LastTransferChainEntrySignedContentPayloadChecksum is the SHA-256 checksum of the payload of the last transfer chain entry JWS token
 	// this uniquely identifies a specific transfer attempt and is used to detect duplicate transfer attempts.
 	// (envelopes.id is a proxy for this field in the database).
-	LastTransferChainEntrySignedContentPayloadChecksum string
+	LastTransferChainEntrySignedContentPayloadChecksum TransferChainEntrySignedContentPayloadChecksum
 
 	// LastTransferChainEntrySignedContentChecksum is the SHA-256 checksum of the last transfer chain entry
 	// This checksum is used to ensure the transfer chain entry has not been tampered with.
@@ -137,7 +139,7 @@ type EnvelopeVerificationResult struct {
 	// Note this is not used for duplicate detection (see LastTransferChainEntrySignedContentPayloadChecksum)
 	// because the payload checksum includes the signature which will change on retries
 	// for the same payload/private key where non-deterministic signature algorithms are used (e.g. PS256).
-	LastTransferChainEntrySignedContentChecksum string
+	LastTransferChainEntrySignedContentChecksum TransferChainEntrySignedContentChecksum
 
 	// TrustLevel indicates the trust level achieved by the signature
 	TrustLevel crypto.TrustLevel
@@ -162,6 +164,10 @@ type EnvelopeVerificationResult struct {
 	// This is provided for informational purposes and logging.
 	SenderPlatform string
 
+	// PossessionTransaction is the transaction that establishes the current possessor of the eBL.
+	// the current possesor is the recipient of this transaction (PossessionTransaction.Recipient.EblPlatform).
+	PossessionTransaction *Transaction
+
 	// ActionCode is the action code of the last transaction in the last transfer chain entry
 	// When processing a newly recieved envelope, this is the action the sender wants the platform to accept
 	ActionCode ActionCode
@@ -172,8 +178,13 @@ type EnvelopeVerificationResult struct {
 	SenderKeyID string
 }
 
-// VerifyEnvelope performs technical verification (signatures, certificates, checksums, chain integrity)
+// VerifyEnvelope performs technical verification (signatures, certificates, checksums, chain integrity etc
 // on an incoming envelope transfer request.
+//
+// This function validates the internal consistency of the envelope and transfer chain, including checks to ensure;
+// all the signatures are valid, the chain is not tampered with, the chain is complete etc, the transaction sequence is valid, etc
+//
+// some checks must happen a run-time (e.g checking that the envelope is addressed to the current platform) c.f pint/handlers/start_transfer.go
 //
 // Returns;
 //   - Successful validation returns a complete EnvelopeVerificationResult, including the trust level and org information, and nil error.
@@ -191,7 +202,9 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		return nil, NewEnvelopeError("envelope transfer chain is empty")
 	}
 	lastEntryJWS := input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]
-	lastEntryJWSChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+	//lastEntryJWSChecksum, err := crypto.Hash([]byte(lastEntryJWS))
+
+	lastEntryJWSChecksum, err := TransferChainEntrySignedContent(lastEntryJWS).Checksum()
 	if err != nil {
 		return nil, WrapInternalError(err, "failed to retrieve last entry checksum")
 	}
@@ -205,7 +218,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		return result, WrapEnvelopeError(err, "envelope validation failed")
 	}
 
-	// Step 3: Verify JWS signature and validate x5c certificate chain (if present)
+	// Step 3: Verify the manifest JWS
 	manifestPayload, _, certChain, err := crypto.VerifyJWSWithKeyProvider(
 		string(input.Envelope.EnvelopeManifestSignedContent),
 		input.KeyProvider,
@@ -263,7 +276,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	result.TransportDocumentReference = transportDocumentResult.TransportDocumentReference
 
 	// Step 8: Get the transport document type
-	result.TransportDocumentType, err = DeriveTransportDocumentType(input.Envelope.TransportDocument)
+	result.TransportDocumentType, err = TransportDocument(input.Envelope.TransportDocument).Type()
 	if err != nil {
 		return result, WrapEnvelopeError(err, "failed to derive transport document type")
 	}
@@ -278,11 +291,6 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		result.TransportDocumentType,
 	)
 	if err != nil {
-		// Don't wrap DISE errors - they should be returned as-is with their own error code
-		var eblErr *EblError
-		if errors.As(err, &eblErr) && eblErr.Code() == ErrCodeDispute {
-			return result, err
-		}
 		return result, WrapEnvelopeError(err, "transfer chain verification failed")
 	}
 	result.TransferChain = transferChain
@@ -291,29 +299,14 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	result.FirstTransferChainEntry = transferChain[0]
 	result.LastTransferChainEntry = transferChain[len(transferChain)-1]
 
-	// Step 10: Extract the payload from the last transfer chain entry JWS token
+	// Step 10: get checksum of the last entry payload
 	// the checksum of the payload is used to uniquely identify this transfer
-	lastEntryPayloadBytes, _, _, err := crypto.VerifyJWSWithKeyProvider(
-		string(input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]),
-		input.KeyProvider,
-		input.RootCAs,
-	)
-	if err != nil {
-		return result, WrapSignatureError(err, "failed to verify last transfer chain entry")
-	}
-
-	// canonicalize the payload before hashing
-	canonicalPayload, err := crypto.CanonicalizeJSON(lastEntryPayloadBytes)
-	if err != nil {
-		return result, WrapInternalError(err, "failed to canonicalize last transfer chain entry payload")
-	}
-
-	result.LastTransferChainEntrySignedContentPayloadChecksum, err = crypto.Hash(canonicalPayload)
+	result.LastTransferChainEntrySignedContentPayloadChecksum, err = lastEntryJWS.PayloadChecksum()
 	if err != nil {
 		return result, WrapInternalError(err, "failed to hash last transfer chain entry payload")
 	}
 
-	// Step 11: Verify carrier's issuance manifest and document checksum
+	// Step 11: Verify carrier supplied issuance manifest and document checksum
 	if err := verifyIssuanceManifest(
 		result.FirstTransferChainEntry,
 		input.KeyProvider,
@@ -361,7 +354,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	}
 
 	// Extract the key ID (kid) from the envelope manifest signature header
-	manifestHeader, err := crypto.ParseJWSHeader(string(input.Envelope.EnvelopeManifestSignedContent))
+	manifestHeader, err := input.Envelope.EnvelopeManifestSignedContent.Header()
 	if err != nil {
 		return result, WrapSignatureError(err, "failed to parse manifest header")
 	}
@@ -370,6 +363,34 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	lastEntryHeader, err := crypto.ParseJWSHeader(string(input.Envelope.EnvelopeTransferChain[len(input.Envelope.EnvelopeTransferChain)-1]))
 	if err != nil {
 		return result, WrapSignatureError(err, "failed to parse last transfer chain entry header")
+	}
+
+	// Step 10: Get the current possessor of the eBL
+	// This is the last transaction that establishes possession of the eBL
+
+	// GetCurrentPossessionTransaction returns the transaction that establishes the current possessor of the eBL.
+	// This is done by walking through the chain backwards and finding the most recent ISSUE, TRANSFER, or SACC action
+	for i := len(transferChain) - 1; i >= 0; i-- {
+		entry := transferChain[i]
+		for j := len(entry.Transactions) - 1; j >= 0; j-- {
+			transaction := entry.Transactions[j]
+			if transaction.ActionCode == ActionCodeIssue || transaction.ActionCode == ActionCodeTransfer || transaction.ActionCode == ActionCodeSACC {
+				result.PossessionTransaction = &transaction
+			}
+		}
+	}
+
+	if result.PossessionTransaction == nil {
+		return result, NewEnvelopeError("invalid envelope: no transaction establishes possession of the eBL")
+	}
+
+	// Step 12: Check the platform requesting the current action is the current possessor of the eBL
+	if result.PossessionTransaction.Recipient.EblPlatform != senderPlatform {
+		return result, NewEnvelopeError(fmt.Sprintf("sender is not the current possessor of the eBL, current possessor is %s (resulting from %s action on %s)",
+			result.PossessionTransaction.Recipient.EblPlatform,
+			result.PossessionTransaction.ActionCode,
+			result.PossessionTransaction.ActionDateTime,
+		))
 	}
 
 	// Step 14: Verify that the manifest and last transfer chain entry were signed by the same key.
@@ -413,14 +434,7 @@ func verifyTransportDocumentChecksum(
 	expectedChecksum TransportDocumentChecksum,
 ) (*TransportDocumentResult, error) {
 
-	// Canonicalize the transport document JSON
-	canonicalJSON, err := crypto.CanonicalizeJSON(transportDocument)
-	if err != nil {
-		return nil, WrapEnvelopeError(err, "failed to canonicalize transport document")
-	}
-
-	// Compute SHA-256 checksum
-	actualChecksum, err := crypto.Hash(canonicalJSON)
+	actualChecksum, err := TransportDocument(transportDocument).Checksum()
 	if err != nil {
 		return nil, WrapEnvelopeError(err, "failed to compute transport document checksum")
 	}
@@ -478,7 +492,7 @@ func verifyIssuanceManifest(
 	}
 
 	// Step 1: Verify carrier's JWS signature on issuanceManifestSignedContent
-	// The carrier is treated as just another business entity in the PINT network and verified the same way as a platform.
+	// The carrier is treated as just another platform in the PINT network and verified the same way as other eBL platforms.
 	// The KeyProvider will extract the carrier's KID from the JWS header and fetch the appropriate key.
 
 	// Extract kid for logging
@@ -522,15 +536,12 @@ func verifyIssuanceManifest(
 // The issuanceManifestSignedContent (inside the first entry) is signed by the carrier
 // and is verified separately in verifyIssuanceManifest().
 //
-// **Note** this function cannot detect double spends (where the same eBL is sent twice with different transfer chains)
-// this will need a CTR lookup to detect or for the platforms to share a common database.
-//
-// Returns all verified and decoded transfer chain entries in order (first to last)
+// Returns the decoded transfer chain entries in order (first to last) - nil if verification fails with an error.
 func verifyEnvelopeTransferChain(
 	ctx context.Context,
-	envelopeTransferChain []EnvelopeTransferChainEntrySignedContent,
+	envelopeTransferChain []TransferChainEntrySignedContent,
 	manifest *EnvelopeManifest,
-	keyProvider jws.KeyProvider,
+	keyProvider PlatformKeyProvider,
 	rootCAs *x509.CertPool,
 	docType TransportDocumentType,
 ) ([]*EnvelopeTransferChainEntry, error) {
@@ -578,9 +589,8 @@ func verifyEnvelopeTransferChain(
 		return nil, NewEnvelopeError("first entry should contain an issuanceManifestSignedContent field")
 	}
 
-	// Step 5: verify the chain and collect all entries
-	// We allocate the slice with the exact size needed
-	allEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
+	// Step 5: verify the chain signatures and hash links
+	allTransferChainEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
 
 	// Start from the last entry and walk backwards to the first entry
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
@@ -618,10 +628,6 @@ func verifyEnvelopeTransferChain(
 		// If previous receiving platforms are functioning correctly they will not accept incorrectly addresssed envelopes
 		// so this problem should only ever be detected in the latest transfer chain entry
 		// (we check them all just in case).
-		kp, ok := keyProvider.(KeyProviderWithLookup)
-		if !ok {
-			return nil, NewEnvelopeError("keyProvider must implement KeyProviderWithLookup for platform validation")
-		}
 
 		// Extract the key ID from the JWS header
 		entryHeader, err := crypto.ParseJWSHeader(string(currentEntryJWS))
@@ -629,7 +635,7 @@ func verifyEnvelopeTransferChain(
 			return nil, WrapSignatureError(err, fmt.Sprintf("failed to parse entry %d header", i))
 		}
 
-		signingPlatform, err := kp.LookupPlatformByKeyID(ctx, entryHeader.KeyID)
+		signingPlatform, err := keyProvider.LookupPlatformByKeyID(ctx, entryHeader.KeyID)
 		if err != nil {
 			return nil, WrapSignatureError(err, fmt.Sprintf("failed to lookup platform for key %s in entry %d", entryHeader.KeyID, i))
 		}
@@ -641,7 +647,7 @@ func verifyEnvelopeTransferChain(
 		}
 
 		// Store the entry in the result slice
-		allEntries[i] = &currentEntry
+		allTransferChainEntries[i] = &currentEntry
 
 		// Step 5c: verify the chain link from this entry to the previous entry (if not the first entry)
 		// this prevents an attacker from replacing a valid entry with a valid one from a different transfer.
@@ -669,67 +675,70 @@ func verifyEnvelopeTransferChain(
 
 	// Step 6: Verify transport document checksum matches the manifest and is consistent across all entries
 	// All entries must reference the same transport document - it cannot change during transfers
-	firstChecksum := allEntries[0].TransportDocumentChecksum
+	firstChecksum := allTransferChainEntries[0].TransportDocumentChecksum
 
 	if firstChecksum != manifest.TransportDocumentChecksum {
 		return nil, NewEnvelopeError(fmt.Sprintf("transport doc checksum in first transfer chain entry does not match manifest: expected %s, got %s",
 			manifest.TransportDocumentChecksum, firstChecksum))
 	}
 
-	for i := 1; i < len(allEntries); i++ {
-		if allEntries[i].TransportDocumentChecksum != firstChecksum {
+	for i := 1; i < len(allTransferChainEntries); i++ {
+		if allTransferChainEntries[i].TransportDocumentChecksum != firstChecksum {
 			return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum changed in entry %d: expected %s, got %s",
-				i, firstChecksum, allEntries[i].TransportDocumentChecksum))
+				i, firstChecksum, allTransferChainEntries[i].TransportDocumentChecksum))
 		}
 	}
 
-	// Step 7: Validate transactions follow the DSCA rules
-	currentState := ActionCodeUnset
+	// Step 7: Validate transactions are sequenced correctly inside the transfer chain
+	currentActionCode := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
-	for i, entry := range allEntries {
-		for j, tx := range entry.Transactions {
-			nextActionCode := ActionCode(tx.ActionCode)
 
-			// Step 7a: First transaction must be ISSUE
-			if currentState == ActionCodeUnset {
+	for i, entry := range allTransferChainEntries {
+		for j, transaction := range entry.Transactions {
+			nextActionCode := ActionCode(transaction.ActionCode)
+
+			// Step 7a: first transaction must be ISSUE
+			if currentActionCode == ActionCodeUnset {
+
 				if nextActionCode != ActionCodeIssue {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"first transaction must be ISSUE, got %s (entry %d, transaction %d)",
-						tx.ActionCode, i, j))
+						nextActionCode, i, j))
 				}
-				issueActorCodes = tx.Actor.IdentifyingCodes
-				currentState = nextActionCode
+
+				// get the issuing Actor (carrier) identifying codes
+				issueActorCodes = transaction.Actor.IdentifyingCodes
+				currentActionCode = nextActionCode
 				continue
 			}
 
-			// Step 7b: Transfer and endorsements are not allowed for straight BLs
-			if docType == TransportDocumentTypeStraightBL {
-				switch nextActionCode {
-				case ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeTransfer:
-					return nil, NewEnvelopeError(fmt.Sprintf(
-						"straight BLs cannot be transferred or endorsed, got %s (entry %d, transaction %d)",
-						tx.ActionCode, i, j))
-				}
+			// Step 7b: Validate action code transition
+			isValid, reason, err := isValidActionCodeTransition(&ActionCodeTransiton{
+				previousActionCode:    currentActionCode,
+				nextActionCode:        nextActionCode,
+				previousPlatformCode:  transaction.Actor.EblPlatform,
+				nextPlatformCode:      transaction.Recipient.EblPlatform,
+				transportDocumentType: docType,
+			})
+			if err != nil {
+				return nil, WrapInternalError(err, fmt.Sprintf("failed to validate action code transition (entry %d, transaction %d)", i, j))
 			}
 
-			// Step 7c: Transactions must follow valid state transitions
-			if !isValidActionCodeTransition(currentState, nextActionCode) {
-				return nil, NewDisputeError(fmt.Sprintf(
-					"invalid state transition from %s to %s (entry %d, transaction %d)",
-					currentState, nextActionCode, i, j))
+			if !isValid {
+				return nil, NewEnvelopeError(fmt.Sprintf("invalid state transition from %s to %s (entry %d, transaction %d): %s",
+					currentActionCode, nextActionCode, i, j, reason))
 			}
 
-			// Step 7d: Surrender requests must be addressed to the carrier that issued the eBL
+			// Step 7c: Surrender requests must be addressed to the carrier that issued the eBL
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
-				if tx.Recipient == nil || !identifyingCodesMatch(tx.Recipient.IdentifyingCodes, issueActorCodes) {
+				if transaction.Recipient == nil || !identifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes) {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
 						i, j))
 				}
 			}
-
-			currentState = nextActionCode
+			currentActionCode = nextActionCode
 		}
 	}
-	return allEntries, nil
+	return allTransferChainEntries, nil
 }

@@ -1,12 +1,70 @@
 package ebl
 
 // transport_document.go provides functions for working with DCSA transport documents (e.g. Bill of Lading)
-// use the DeriveTransportDocumentType function to determine the type of eBL document.
 
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
+
+// TransportDocumentJSON is a helper type for working with transport document JSON.
+type TransportDocument json.RawMessage
+
+// Canonicalize returns the canonicalized transport document JSON.
+func (t TransportDocument) Canonicalize() ([]byte, error) {
+	c, err := crypto.CanonicalizeJSON([]byte(t))
+	if err != nil {
+		return nil, fmt.Errorf("failed to canonicalize transport document: %w", err)
+	}
+	return c, nil
+}
+
+// Checksum returns the SHA-256 checksum of the canonicalized transport document JSON.
+func (t TransportDocument) Checksum() (TransportDocumentChecksum, error) {
+	c, err := t.Canonicalize()
+	if err != nil {
+		return "", err
+	}
+	h, err := crypto.Hash(c)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash transport document: %w", err)
+	}
+	return TransportDocumentChecksum(h), nil
+}
+
+// Type returns the type of eBL document (Straight, To-Order, Blank Endorsed)
+func (t TransportDocument) Type() (TransportDocumentType, error) {
+	var td struct {
+		IsToOrder       *bool `json:"isToOrder"`
+		DocumentParties struct {
+			Endorsee *EndorseeParty `json:"endorsee"`
+		} `json:"documentParties"`
+	}
+
+	if err := json.Unmarshal([]byte(t), &td); err != nil {
+		return "", fmt.Errorf("failed to parse transport document: %w", err)
+	}
+
+	if td.IsToOrder == nil {
+		return "", fmt.Errorf("failed to determine transport document type: isToOrder not present")
+	}
+
+	if !*td.IsToOrder && td.DocumentParties.Endorsee != nil {
+		return "", fmt.Errorf("isToOrder is false but endorsee is present")
+	}
+
+	if !*td.IsToOrder {
+		return TransportDocumentTypeStraightBL, nil
+	}
+
+	if td.DocumentParties.Endorsee == nil {
+		return TransportDocumentTypeToOrderBL, nil
+	}
+
+	return TransportDocumentTypeBlankEndorsedBL, nil
+}
 
 // TransportDocumentChecksum is the SHA-256 checksum of the canonicalized transport document JSON.
 type TransportDocumentChecksum string
@@ -40,37 +98,4 @@ const (
 type EndorseeParty struct {
 	PartyName        string            `json:"partyName"`
 	IdentifyingCodes []IdentifyingCode `json:"identifyingCodes"`
-}
-
-// DeriveTransportDocumentType derives the bill of lading type from the transport document JSON.
-// The input is the transport document object itself (not wrapped in {"transportDocument": ...}).
-func DeriveTransportDocumentType(transportDocumentJSON json.RawMessage) (TransportDocumentType, error) {
-	var td struct {
-		IsToOrder       *bool `json:"isToOrder"`
-		DocumentParties struct {
-			Endorsee *EndorseeParty `json:"endorsee"`
-		} `json:"documentParties"`
-	}
-
-	if err := json.Unmarshal(transportDocumentJSON, &td); err != nil {
-		return "", fmt.Errorf("failed to parse transport document: %w", err)
-	}
-
-	if td.IsToOrder == nil {
-		return "", fmt.Errorf("failed to determine transport document type: isToOrder not present")
-	}
-
-	if !*td.IsToOrder && td.DocumentParties.Endorsee != nil {
-		return "", fmt.Errorf("isToOrder is false but endorsee is present")
-	}
-
-	if !*td.IsToOrder {
-		return TransportDocumentTypeStraightBL, nil
-	}
-
-	if td.DocumentParties.Endorsee == nil {
-		return TransportDocumentTypeToOrderBL, nil
-	}
-
-	return TransportDocumentTypeBlankEndorsedBL, nil
 }

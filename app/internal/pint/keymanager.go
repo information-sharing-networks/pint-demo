@@ -651,7 +651,7 @@ func (k *KeyManager) GetKey(ctx context.Context, keyID string) (*PublicKeyInfo, 
 }
 
 // LookupPlatformByKeyID returns the platform code that owns the given key ID.
-// This implements the ebl.KeyLookupPlatformByKeyID interface
+// This implements the ebl.PlatformKeyProvider interface.
 //
 // Returns an error if the key is not found in the registry.
 func (k *KeyManager) LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error) {

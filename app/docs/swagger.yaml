@@ -73,8 +73,8 @@ definitions:
     properties:
       envelopeManifestSignedContent:
         description: |-
-          Signed manifest covering the transport document, transfer chain and supporting documents
-          Use the EnvelopeManifestBuilder to create the manifest and sign it.
+          Signed manifest covering the transport document, transfer chain and supporting documents.
+          See EnvelopeManifest for details of the payload.
         type: string
       envelopeTransferChain:
         description: |-
@@ -109,7 +109,7 @@ definitions:
           that the downstream receivers can receive and verify the document.
       lastEnvelopeTransferChainEntrySignedContentChecksum:
         description: |-
-          LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry
+          LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the most recent entry
           in the transfer chain.
 
           The transfer chain contains a history of transactions that have happened to the eBL.
@@ -129,7 +129,7 @@ definitions:
         type: array
       transportDocumentChecksum:
         description: |-
-          TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized eBL document (aka transport document).
+          TransportDocumentChecksum is the SHA-256 hash of the canonicalized eBL document (aka transport document).
 
           This should not change during the lifetime of the BL.
         type: string
@@ -142,7 +142,7 @@ definitions:
         type: string
       eblPlatform:
         description: 'EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX")
-          responsible for this entry'
+          that created this entry.'
         type: string
       issuanceManifestSignedContent:
         description: |-
@@ -883,8 +883,10 @@ paths:
         The trust level is checked after signature verification, and a valid JWS with an insufficient trust
         level will return a `422 Unprocessable Entity` (BSIG) response.
 
-        Note that if an x5c cert is included, it must be signed by a trusted root CA and the
+        Note that if an x5c cert is included, it must be signed by a root CA trusted by the receiving platform, and the
         public key in the certificate must match the key used to sign the JWS.
+
+        See the README.md at https://github.com/information-sharing-networks/pint-demo for more information on how to the trusted root CAs on the receiving platform are configured.
 
         **Unsigned Error Responses**
 

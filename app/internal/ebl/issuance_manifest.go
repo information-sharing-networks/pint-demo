@@ -1,36 +1,18 @@
 package ebl
 
 // issuance.go contains the builders for issuance manifests.
-//
-// These functions are included to allow the pint-demo app to do a full end to end flow
-// of the DCSA APIs from issuance to surrender.
-//
-// Most developers should use the wrapper functions in issuance_request.go.
-// The IssuanceManifestBuilder in this file is for advanced use cases requiring fine-grained control.
-//
-// This file contains:
-//  - IssuanceManifest type and methods
-//  - IssuanceManifestBuilder for custom workflows (advanced use only)
-//  - Low-level signing methods
-//
-// # DCSA Issuance Flow (performed by the carrier)
-//
-//  1. Generate canonical JSON for document and issueTo
-//  2. Calculate SHA-256 checksums (document + issueTo)
-//  3. Decode eBL visualisation (if provided) from Base64 to binary and calculate checksum
-//  4. Create IssuanceManifest with checksums (document, issueTo, eblVisualisationByCarrier)
-//  5. Sign the canonical IssuanceManifest to create JWS
-//  6. Include JWS in IssuanceRequest.issuanceManifestSignedContent
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
-// IssuanceManifest represents the DCSA IssuanceManifest structure
-// the issuance manifest is used to verify the transport document and the issueTo party have not been tampered with.
+// IssuanceManifest is signed by the carrier and included with the initial issuance.
 // This is the payload that gets signed in issuanceManifestSignedContent
 type IssuanceManifest struct {
 
@@ -38,14 +20,11 @@ type IssuanceManifest struct {
 	DocumentChecksum TransportDocumentChecksum `json:"documentChecksum"`
 
 	// IssueToChecksum: SHA-256 of canonicalized issueTo party JSON
-	IssueToChecksum string `json:"issueToChecksum"`
+	IssueToChecksum IssueToChecksum `json:"issueToChecksum"`
 
 	// EBLVisualisationByCarrierChecksum: SHA-256 of decoded visualisation content (optional)
-	EBLVisualisationByCarrierChecksum *string `json:"eBLVisualisationByCarrierChecksum,omitempty"`
+	EBLVisualisationByCarrierChecksum *EBLVisualisationByCarrierChecksum `json:"eBLVisualisationByCarrierChecksum,omitempty"`
 }
-
-// IssuanceManifestSignedContent represents a JWS compact serialization of an IssuanceManifest.
-type IssuanceManifestSignedContent string
 
 // ValidateStructure checks that all required fields are present per DCSA EBL_ISS specification
 func (i *IssuanceManifest) ValidateStructure() error {
@@ -58,46 +37,55 @@ func (i *IssuanceManifest) ValidateStructure() error {
 	return nil
 }
 
+// IssuanceManifestSignedContent a compact JWS serialization of an IssuanceManifest.
+type IssuanceManifestSignedContent string
+
+// IssueToChecksum is the SHA-256 checksum of the canonicalized issueTo party JSON.
+type IssueToChecksum string
+
+// Payload extract the eBL visualization from the manifest
+// Note this function does not verify the JWS signature.
+func (i IssuanceManifestSignedContent) Payload() (*IssuanceManifest, error) {
+	parts := strings.Split(string(i), ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
+	}
+
+	manifestPayload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode manifest JWS payload %v", err)
+	}
+
+	var issuanceManifest IssuanceManifest
+	if err := json.Unmarshal(manifestPayload, &issuanceManifest); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal issuance manifest: %v", err)
+	}
+	return &issuanceManifest, nil
+}
+
+// Checksum returns the SHA-256 checksum of the issuance manifest JWS token.
+func (i IssuanceManifestSignedContent) Checksum() (string, error) {
+	c, err := crypto.Hash([]byte(i))
+	if err != nil {
+		return "", fmt.Errorf("failed to crypto.Hash issuance manifest: %w", err)
+	}
+	return c, nil
+}
+
+// Header extracts the JWS header from the issuance manifest.
+func (i IssuanceManifestSignedContent) Header() (crypto.JWSHeader, error) {
+	return crypto.ParseJWSHeader(string(i))
+}
+
 // IssuanceManifestBuilder is used to build IssuanceManifest with DCSA-compliant checksums
 type IssuanceManifestBuilder struct {
-
-	// documentJSON: JSON bytes of the transport document
-	documentJSON []byte
-
-	// issueToJSON: JSON bytes of the issueTo party
-	issueToJSON []byte
-
-	// eblVisualisationByCarrier: eBL visualisation metadata
-	eBLVisualisationByCarrier *EBLVisualisationByCarrier
+	documentChecksum                  TransportDocumentChecksum
+	issueToChecksum                   IssueToChecksum
+	eBLVisualisationByCarrierChecksum EBLVisualisationByCarrierChecksum
 }
 
-// EBLVisualisationByCarrier represents the eBL visualisation document.
-// (optionally, the carrier can provide a human-readable visualisation of the eBL for the end user)
-type EBLVisualisationByCarrier struct {
-
-	// name: The name of the visualisation file
-	Name string `json:"name"`
-
-	// content: Base64-encoded binary content of the human readable visualisation (e.g a PDF)
-	Content string `json:"content"`
-
-	// contentType: The Media Type (MIME type) of the content
-	ContentType string `json:"contentType"`
-}
-
-// ValidateStructure checks that all required fields are present per DCSA EBL_ISS specification
-func (e *EBLVisualisationByCarrier) ValidateStructure() error {
-	if e.Name == "" {
-		return NewIssuanceBadRequestError("name is required")
-	}
-	if e.Content == "" {
-		return NewIssuanceBadRequestError("content is required")
-	}
-	if e.ContentType == "" {
-		return NewIssuanceBadRequestError("contentType is required")
-	}
-	return nil
-}
+// EBLVisualisationByCarrierChecksum is the SHA-256 checksum of the decoded eBL visualisation content.
+type EBLVisualisationByCarrierChecksum string
 
 // NewIssuanceManifestBuilder creates a new builder for IssuanceManifest.
 func NewIssuanceManifestBuilder() *IssuanceManifestBuilder {
@@ -106,15 +94,15 @@ func NewIssuanceManifestBuilder() *IssuanceManifestBuilder {
 
 // WithDocument sets the transport document (must be valid JSON)
 // The document will be canonicalized by the Build() method before checksum calculation
-func (b *IssuanceManifestBuilder) WithDocument(documentJSON []byte) *IssuanceManifestBuilder {
-	b.documentJSON = documentJSON
+func (b *IssuanceManifestBuilder) WithDocumentChecksum(checksum TransportDocumentChecksum) *IssuanceManifestBuilder {
+	b.documentChecksum = checksum
 	return b
 }
 
 // WithIssueTo sets the issueTo party (must be valid JSON)
 // The issueTo will be canonicalized by the Build() method before checksum calculation
-func (b *IssuanceManifestBuilder) WithIssueTo(issueToJSON []byte) *IssuanceManifestBuilder {
-	b.issueToJSON = issueToJSON
+func (b *IssuanceManifestBuilder) WithIssueTo(issueToChecksum IssueToChecksum) *IssuanceManifestBuilder {
+	b.issueToChecksum = issueToChecksum
 	return b
 }
 
@@ -122,8 +110,8 @@ func (b *IssuanceManifestBuilder) WithIssueTo(issueToJSON []byte) *IssuanceManif
 //
 // Expects the base64-encoded string from eblVisualisationByCarrier.content field in the JSON.
 // The content will be decoded before calculating the checksum - Build() will return an error if the content is not valid base64.
-func (b *IssuanceManifestBuilder) WithEBLVisualisation(EBLVisualisationByCarrier *EBLVisualisationByCarrier) *IssuanceManifestBuilder {
-	b.eBLVisualisationByCarrier = EBLVisualisationByCarrier
+func (b *IssuanceManifestBuilder) WitheBLVisualisationByCarrierChecksum(checksum EBLVisualisationByCarrierChecksum) *IssuanceManifestBuilder {
+	b.eBLVisualisationByCarrierChecksum = checksum
 	return b
 }
 
@@ -136,55 +124,15 @@ func (b *IssuanceManifestBuilder) WithEBLVisualisation(EBLVisualisationByCarrier
 //   - calculate the SHA-256 checksum of the decoded eblVisualisationByCarrier content (if provided)
 func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 
-	// Validate required fields
-	if len(b.documentJSON) == 0 {
-		return nil, NewIssuanceBadRequestError("document is required")
-	}
-	if len(b.issueToJSON) == 0 {
-		return nil, NewIssuanceBadRequestError("issueTo is required")
-	}
-
-	// Canonicalize JSON documents
-	canonicalDocument, err := crypto.CanonicalizeJSON(b.documentJSON)
-	if err != nil {
-		return nil, WrapIssuanceBadRequestError(err, "failed to canonicalize document")
-	}
-
-	canonicalIssueTo, err := crypto.CanonicalizeJSON(b.issueToJSON)
-	if err != nil {
-		return nil, WrapIssuanceBadRequestError(err, "failed to canonicalize issueTo")
-	}
-
-	// Calculate SHA-256 checksums
-	documentChecksum, err := crypto.Hash(canonicalDocument)
-	if err != nil {
-		return nil, WrapInternalError(err, "failed to crypto.Hash document")
-	}
-	issueToChecksum, err := crypto.Hash(canonicalIssueTo)
-	if err != nil {
-		return nil, WrapInternalError(err, "failed to crypto.Hash issueTo")
-	}
-
-	// Create IssuanceManifest
 	issuanceManifest := &IssuanceManifest{
-		DocumentChecksum: TransportDocumentChecksum(documentChecksum),
-		IssueToChecksum:  issueToChecksum,
+		DocumentChecksum: b.documentChecksum,
+		IssueToChecksum:  IssueToChecksum(b.issueToChecksum),
 	}
-
-	// add eBL visualisation checksum
-	if b.eBLVisualisationByCarrier != nil {
-		if err := b.eBLVisualisationByCarrier.ValidateStructure(); err != nil {
-			return nil, crypto.WrapValidationError(err, "eBLVisualisationByCarrier")
-		}
-
-		// the checksum is calculated from the decoded binary content
-		visualisationChecksum, err := crypto.HashFromBase64(
-			b.eBLVisualisationByCarrier.Content,
-		)
-		if err != nil {
-			return nil, crypto.WrapValidationError(err, "failed to crypto.Hash eBL visualisation")
-		}
-		issuanceManifest.EBLVisualisationByCarrierChecksum = &visualisationChecksum
+	if b.eBLVisualisationByCarrierChecksum != "" {
+		issuanceManifest.EBLVisualisationByCarrierChecksum = &b.eBLVisualisationByCarrierChecksum
+	}
+	if err := issuanceManifest.ValidateStructure(); err != nil {
+		return nil, err
 	}
 
 	return issuanceManifest, nil

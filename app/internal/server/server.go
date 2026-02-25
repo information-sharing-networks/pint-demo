@@ -247,7 +247,7 @@ func (s *Server) registerPintRoutes() {
 
 	s.router.Route("/v3", func(r chi.Router) {
 		r.Post("/receiver-validation", receiverValidation.HandleReceiverValidation)
-		r.Post("/envelopes", startTransfer.HandleStartTransfer)
+		r.Post("/envelopes", startTransfer.HandleStartEnvelopeTransfer)
 		r.Put("/envelopes/{envelopeReference}/additional-documents/{documentChecksum}", transferAdditionalDocument.HandleTransferAdditionalDocument)
 		r.Put("/envelopes/{envelopeReference}/finish-transfer", finishEnvelopeTransfer.HandleFinishEnvelopeTransfer)
 	})

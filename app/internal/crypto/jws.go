@@ -49,7 +49,7 @@ type JWSHeader struct {
 // separately after verification.
 //
 // Parameters:
-//   - jwsString: JWS compact serialization (header.payload.signature)
+//   - JwsToken: JWS compact serialization (header.payload.signature)
 //   - publicKey: Public key for signature verification (ed25519.PublicKey or *rsa.PublicKey)
 //   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
 //
@@ -58,7 +58,7 @@ type JWSHeader struct {
 //   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
 //   - error: Any validation errors
 func VerifyJWS(
-	jwsString string,
+	JwsToken string,
 	publicKey any,
 	rootCAs *x509.CertPool,
 ) (payload []byte, certChain []*x509.Certificate, err error) {
@@ -67,17 +67,17 @@ func VerifyJWS(
 		return nil, nil, NewInternalError("public key is required")
 	}
 
-	if jwsString == "" {
-		return nil, nil, NewInternalError("jwsString is required")
+	if JwsToken == "" {
+		return nil, nil, NewInternalError("JwsToken is required")
 	}
 
 	// Step 1: Verify the JWS signature
 	// This proves the signer owns the private key corresponding to publicKey
 	switch key := publicKey.(type) {
 	case ed25519.PublicKey:
-		payload, err = VerifyJWSEd25519(jwsString, key)
+		payload, err = VerifyJWSEd25519(JwsToken, key)
 	case *rsa.PublicKey:
-		payload, err = VerifyJWSRSA(jwsString, key)
+		payload, err = VerifyJWSRSA(JwsToken, key)
 	default:
 		return nil, nil, NewValidationError("unsupported public key type")
 	}
@@ -87,7 +87,7 @@ func VerifyJWS(
 	}
 
 	// Step 2: Extract x5c certificate chain (if present)
-	certChain, err = ParseX5CFromJWS(jwsString)
+	certChain, err = ParseX5CFromJWS(JwsToken)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -128,7 +128,7 @@ func VerifyJWS(
 // separately after verification.
 //
 // Parameters:
-//   - jwsString: JWS compact serialization (header.payload.signature)
+//   - JwsToken: JWS compact serialization (header.payload.signature)
 //   - keyProvider: KeyProvider that fetches keys based on KID from JWS header
 //     (c.f pint.KeyManager which implements this interface)
 //   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
@@ -139,7 +139,7 @@ func VerifyJWS(
 //   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
 //   - error: Any validation errors
 func VerifyJWSWithKeyProvider(
-	jwsString string,
+	JwsToken string,
 	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,
 ) (payload []byte, publicKey any, certChain []*x509.Certificate, err error) {
@@ -148,8 +148,8 @@ func VerifyJWSWithKeyProvider(
 		return nil, nil, nil, NewInternalError("keyProvider is required")
 	}
 
-	if jwsString == "" {
-		return nil, nil, nil, NewInternalError("jwsString is required")
+	if JwsToken == "" {
+		return nil, nil, nil, NewInternalError("JwsToken is required")
 	}
 
 	// Step 1: Verify the JWS signature using the KeyProvider
@@ -163,7 +163,7 @@ func VerifyJWSWithKeyProvider(
 	// look up the corresponding key, and add it to the sink using sink.Key().
 	// Verify() then uses the key to verify the JWS signature.
 	var keyUsed any
-	payload, err = jws.Verify([]byte(jwsString), jws.WithKeyProvider(keyProvider), jws.WithKeyUsed(&keyUsed))
+	payload, err = jws.Verify([]byte(JwsToken), jws.WithKeyProvider(keyProvider), jws.WithKeyUsed(&keyUsed))
 	if err != nil {
 		return nil, nil, nil, WrapSignatureError(err, "failed to verify JWS")
 	}
@@ -180,7 +180,7 @@ func VerifyJWSWithKeyProvider(
 	}
 
 	// Step 3: Extract x5c certificate chain (if present)
-	certChain, err = ParseX5CFromJWS(jwsString)
+	certChain, err = ParseX5CFromJWS(JwsToken)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -210,9 +210,9 @@ func VerifyJWSWithKeyProvider(
 }
 
 // VerifyJWSEd25519 verifies a Ed25519 JWS compact serialization signature and returns the payload
-func VerifyJWSEd25519(jwsString string, publicKey ed25519.PublicKey) ([]byte, error) {
+func VerifyJWSEd25519(JwsToken string, publicKey ed25519.PublicKey) ([]byte, error) {
 	// Verify the JWS using EdDSA algorithm
-	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(jwa.EdDSA(), publicKey))
+	payload, err := jws.Verify([]byte(JwsToken), jws.WithKey(jwa.EdDSA(), publicKey))
 	if err != nil {
 		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}
@@ -223,9 +223,9 @@ func VerifyJWSEd25519(jwsString string, publicKey ed25519.PublicKey) ([]byte, er
 // VerifyJWSRSA verifies a RSA JWS compact serialization signature and returns the payload.
 // Supports all RSA signature algorithms: RS256, RS384, RS512 (PKCS#1 v1.5) and PS256, PS384, PS512 (RSA-PSS).
 // The algorithm is determined from the JWS header.
-func VerifyJWSRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
+func VerifyJWSRSA(JwsToken string, publicKey *rsa.PublicKey) ([]byte, error) {
 	// Parse the JWS to extract the algorithm from the header
-	msg, err := jws.Parse([]byte(jwsString))
+	msg, err := jws.Parse([]byte(JwsToken))
 	if err != nil {
 		return nil, WrapSignatureError(err, "failed to parse JWS")
 	}
@@ -240,7 +240,7 @@ func VerifyJWSRSA(jwsString string, publicKey *rsa.PublicKey) ([]byte, error) {
 	}
 
 	// Verify using the algorithm from the header
-	payload, err := jws.Verify([]byte(jwsString), jws.WithKey(alg, publicKey))
+	payload, err := jws.Verify([]byte(JwsToken), jws.WithKey(alg, publicKey))
 	if err != nil {
 		return nil, WrapSignatureError(err, "failed to verify JWS")
 	}
@@ -460,9 +460,9 @@ func SignJSONWithRSA(payload []byte, privateKey *rsa.PrivateKey, keyID string) (
 // ParseJWSHeader extracts the header from a JWS without verifying
 // use this function if you need to extract the key ID (JWSHeader.KeyID)
 // The function returns an error if the header contains something other than the fields in JWSHeader
-func ParseJWSHeader(jwsString string) (JWSHeader, error) {
+func ParseJWSHeader(JwsToken string) (JWSHeader, error) {
 	// Parse the JWS message
-	msg, err := jws.Parse([]byte(jwsString))
+	msg, err := jws.Parse([]byte(JwsToken))
 	if err != nil {
 		return JWSHeader{}, WrapValidationError(err, "failed to parse JWS")
 	}

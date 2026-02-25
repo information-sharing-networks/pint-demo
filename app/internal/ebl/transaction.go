@@ -183,3 +183,18 @@ func CreateSurrenderForDeliveryTransaction(actor ActorParty, recipient Recipient
 		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 	}
 }
+
+// CreateSACCTransaction creates a SACC transaction.
+//
+// This is used when the carrier accepts a surrender request.
+//
+// TODO what is in a SACC transaction?
+// Returns a Transaction ready to include in a transfer chain entry.
+func CreateSACCTransaction(actor ActorParty, recipient RecipientParty) Transaction {
+	return Transaction{
+		ActionCode:     ActionCodeSACC,
+		Actor:          actor,
+		Recipient:      &recipient,
+		ActionDateTime: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}
+}

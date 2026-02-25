@@ -56,7 +56,14 @@ func createTestParty(t *testing.T, queries *database.Queries, partyName string, 
 	t.Helper()
 	ctx := context.Background()
 
-	party, err := queries.CreateParty(ctx, database.CreatePartyParams{
+	// check if party already exists
+	party, err := queries.GetPartyByPartyName(ctx, partyName)
+	if err == nil {
+		// party already exists, return it
+		return party
+	}
+
+	party, err = queries.CreateParty(ctx, database.CreatePartyParams{
 		PartyName: partyName,
 		Active:    active,
 	})
@@ -87,6 +94,8 @@ func cleanupDatabase(t *testing.T, pool *pgxpool.Pool) {
 
 	_, err := pool.Exec(ctx, `
 		TRUNCATE TABLE transport_documents CASCADE;
+		TRUNCATE TABLE envelopes CASCADE;
+		TRUNCATE TABLE transfer_chain_entries CASCADE;
 		TRUNCATE TABLE parties CASCADE;
 	`)
 	if err != nil {
