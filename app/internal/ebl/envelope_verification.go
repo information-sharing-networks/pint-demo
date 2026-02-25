@@ -53,12 +53,12 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
-// KeyProviderWithLookup extends jws.KeyProvider with platform lookup capability.
+// PlatformKeyProvider extends jws.KeyProvider with platform lookup capability.
 //
 // This interface is implemented by the KeyManager and allows envelope verification
 // to both fetch keys for signature verification and validate that keys belong to
 // the claimed platform.
-type KeyProviderWithLookup interface {
+type PlatformKeyProvider interface {
 	jws.KeyProvider
 	LookupPlatformByKeyID(ctx context.Context, keyID string) (string, error)
 }
@@ -85,7 +85,7 @@ type EnvelopeVerificationInput struct {
 	//
 	// If the KeyProvider can't find the signature that the sending platform used to sign the
 	// envelope manifest/last transfer chain entry, validation of the envelope fails.
-	KeyProvider KeyProviderWithLookup
+	KeyProvider PlatformKeyProvider
 
 	// recipientPlatformCode is the platform code of the current platform.
 	// This is used to verify the envelope transfer is addressed to the correct platform.
@@ -501,7 +501,7 @@ func verifyEnvelopeTransferChain(
 	ctx context.Context,
 	envelopeTransferChain []TransferChainEntrySignedContent,
 	manifest *EnvelopeManifest,
-	keyProvider jws.KeyProvider,
+	keyProvider PlatformKeyProvider,
 	rootCAs *x509.CertPool,
 	docType TransportDocumentType,
 ) ([]*EnvelopeTransferChainEntry, error) {
@@ -588,10 +588,6 @@ func verifyEnvelopeTransferChain(
 		// If previous receiving platforms are functioning correctly they will not accept incorrectly addresssed envelopes
 		// so this problem should only ever be detected in the latest transfer chain entry
 		// (we check them all just in case).
-		kp, ok := keyProvider.(KeyProviderWithLookup)
-		if !ok {
-			return nil, NewEnvelopeError("keyProvider must implement KeyProviderWithLookup for platform validation")
-		}
 
 		// Extract the key ID from the JWS header
 		entryHeader, err := crypto.ParseJWSHeader(string(currentEntryJWS))
@@ -599,7 +595,7 @@ func verifyEnvelopeTransferChain(
 			return nil, WrapSignatureError(err, fmt.Sprintf("failed to parse entry %d header", i))
 		}
 
-		signingPlatform, err := kp.LookupPlatformByKeyID(ctx, entryHeader.KeyID)
+		signingPlatform, err := keyProvider.LookupPlatformByKeyID(ctx, entryHeader.KeyID)
 		if err != nil {
 			return nil, WrapSignatureError(err, fmt.Sprintf("failed to lookup platform for key %s in entry %d", entryHeader.KeyID, i))
 		}
