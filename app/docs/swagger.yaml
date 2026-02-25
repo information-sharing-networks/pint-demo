@@ -883,8 +883,10 @@ paths:
         The trust level is checked after signature verification, and a valid JWS with an insufficient trust
         level will return a `422 Unprocessable Entity` (BSIG) response.
 
-        Note that if an x5c cert is included, it must be signed by a trusted root CA and the
+        Note that if an x5c cert is included, it must be signed by a root CA trusted by the receiving platform, and the
         public key in the certificate must match the key used to sign the JWS.
+
+        See the README.md at https://github.com/information-sharing-networks/pint-demo for more information on how to the trusted root CAs on the receiving platform are configured.
 
         **Unsigned Error Responses**
 

@@ -136,8 +136,10 @@ func NewStartTransferHandler(
 //	@Description	The trust level is checked after signature verification, and a valid JWS with an insufficient trust
 //	@Description	level will return a `422 Unprocessable Entity` (BSIG) response.
 //	@Description
-//	@Description	Note that if an x5c cert is included, it must be signed by a trusted root CA and the
+//	@Description	Note that if an x5c cert is included, it must be signed by a root CA trusted by the receiving platform, and the
 //	@Description	public key in the certificate must match the key used to sign the JWS.
+//	@Description
+//	@Description	See the README.md at https://github.com/information-sharing-networks/pint-demo for more information on how to the trusted root CAs on the receiving platform are configured.
 //	@Description
 //	@Description	**Unsigned Error Responses**
 //	@Description
