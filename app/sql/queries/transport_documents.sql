@@ -19,18 +19,19 @@ SELECT * FROM transport_documents
 WHERE checksum = $1;
 
 
--- name: GetTransportDocumentState :one
--- Get the current state of the eBL on this platform
-SELECT * FROM transport_document_state
-WHERE transport_document_checksum = $1;
 
 -- name: GetTransportDocumentPossessor :one
 -- Get the platform that currently possesses the eBL.
---
--- Note the platform may have accepted actions for eBLs they don't possess:
--- for insance, a transfer is pending additional docs, or it has received an endorsement 
--- action, but have not yet received the transfer action.
---
--- Use this query before determing what action to take when receiving a new envelope transfer.
-SELECT * FROM transport_document_possessor
-WHERE transport_document_checksum = $1;
+-- Possession is established by the most recently accepted ISSUE, TRANSFER, or SACC action in the chain.
+SELECT id AS envelope_id,
+    transport_document_checksum,
+    action_code,
+    received_by_platform_code AS possessor_platform_code,
+    created_at,
+    accepted_at
+FROM envelopes
+WHERE transport_document_checksum = $1
+    AND accepted_at IS NOT NULL
+    AND action_code IN ('ISSUE', 'TRANSFER', 'SACC')
+ORDER BY accepted_at DESC
+LIMIT 1;

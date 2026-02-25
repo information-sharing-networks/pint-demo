@@ -8,6 +8,9 @@ package database
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const CreateTransportDocumentIfNew = `-- name: CreateTransportDocumentIfNew :one
@@ -52,48 +55,40 @@ func (q *Queries) GetTransportDocument(ctx context.Context, checksum string) (Tr
 }
 
 const GetTransportDocumentPossessor = `-- name: GetTransportDocumentPossessor :one
-SELECT envelope_id, transport_document_checksum, action_code, possessor_platform_code, created_at, accepted_at FROM transport_document_possessor
+SELECT id AS envelope_id,
+    transport_document_checksum,
+    action_code,
+    received_by_platform_code AS possessor_platform_code,
+    created_at,
+    accepted_at
+FROM envelopes
 WHERE transport_document_checksum = $1
+    AND accepted_at IS NOT NULL
+    AND action_code IN ('ISSUE', 'TRANSFER', 'SACC')
+ORDER BY accepted_at DESC
+LIMIT 1
 `
 
+type GetTransportDocumentPossessorRow struct {
+	EnvelopeID                uuid.UUID          `json:"envelope_id"`
+	TransportDocumentChecksum string             `json:"transport_document_checksum"`
+	ActionCode                string             `json:"action_code"`
+	PossessorPlatformCode     string             `json:"possessor_platform_code"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	AcceptedAt                pgtype.Timestamptz `json:"accepted_at"`
+}
+
 // Get the platform that currently possesses the eBL.
-//
-// Note the platform may have accepted actions for eBLs they don't possess:
-// for insance, a transfer is pending additional docs, or it has received an endorsement
-// action, but have not yet received the transfer action.
-//
-// Use this query before determing what action to take when receiving a new envelope transfer.
-func (q *Queries) GetTransportDocumentPossessor(ctx context.Context, transportDocumentChecksum string) (TransportDocumentPossessor, error) {
+// Possession is established by the most recently accepted ISSUE, TRANSFER, or SACC action in the chain.
+func (q *Queries) GetTransportDocumentPossessor(ctx context.Context, transportDocumentChecksum string) (GetTransportDocumentPossessorRow, error) {
 	row := q.db.QueryRow(ctx, GetTransportDocumentPossessor, transportDocumentChecksum)
-	var i TransportDocumentPossessor
+	var i GetTransportDocumentPossessorRow
 	err := row.Scan(
 		&i.EnvelopeID,
 		&i.TransportDocumentChecksum,
 		&i.ActionCode,
 		&i.PossessorPlatformCode,
 		&i.CreatedAt,
-		&i.AcceptedAt,
-	)
-	return i, err
-}
-
-const GetTransportDocumentState = `-- name: GetTransportDocumentState :one
-SELECT envelope_id, transport_document_checksum, action_code, sent_by_platform_code, received_by_platform_code, created_at, accepted, accepted_at FROM transport_document_state
-WHERE transport_document_checksum = $1
-`
-
-// Get the current state of the eBL on this platform
-func (q *Queries) GetTransportDocumentState(ctx context.Context, transportDocumentChecksum string) (TransportDocumentState, error) {
-	row := q.db.QueryRow(ctx, GetTransportDocumentState, transportDocumentChecksum)
-	var i TransportDocumentState
-	err := row.Scan(
-		&i.EnvelopeID,
-		&i.TransportDocumentChecksum,
-		&i.ActionCode,
-		&i.SentByPlatformCode,
-		&i.ReceivedByPlatformCode,
-		&i.CreatedAt,
-		&i.Accepted,
 		&i.AcceptedAt,
 	)
 	return i, err

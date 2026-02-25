@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
@@ -244,11 +245,11 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		slog.String("transport_document_checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
 	)
 
-	// the envelope is structuraly valid and properly signed at this point - now check if we have processed this envelope before
+	// the envelope is structuraly valid and properly signed at this point - now check if we have processed this envelope before (retries)
 	// 	- Notify the sender if we have already accepted the envelope
-	//  - Notify the sender if we already have a pending transfer for this eBL but there are outstanding supporting docs
+	//  - Notify the sender if we already have this envelope but are awaiting additional documents
 
-	// Step 4. See if this envelope was already received (DUPE case)
+	// Step 3. See if this envelope was already received
 	envelopeAlreadyReceived := false
 
 	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx, string(verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum))
@@ -261,7 +262,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		envelopeAlreadyReceived = true
 	}
 
-	// Step 5. Establish the list of missing documents (if any)
+	// Step 4. Establish the list of missing documents (if any)
 	// since the handler allows for retries of transfers, some docments may already be received
 	additionalDocuments := getAdditionalDocumentList(verifiedEnvelope.Manifest)
 	receivedDocumentChecksums := []string{}
@@ -287,7 +288,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 6. Handle retries
+	// Step 5. Handle retry responses
 	if envelopeAlreadyReceived {
 		if len(missingDocuments) == 0 {
 			// All documents have already been received and the transfer was accepted - return DUPE/200
@@ -329,11 +330,125 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	// From this point we are handing new envelopes - check we can accept the envelope:
 	//	- is the envelope addressed to this platform?
 	//	- does the signature comply with this server's minimum trust level policy?
-	//  - Check if the sender is allowed to perform the action (current possessor)?
+	//  - is the sender allowed to perform the action (current possessor)?
 	//	- do the parties referenced in the last transfer chain entry exist on this platform?
 	//	- dispute detection (have we seen a transfer for this eBL from a different platform with a conflicting history?)
 
-	// Step 3. Check for transfer chain conflicts (DISE detection)
+	// Step 6. check the envelope is addressed to this platform (failures return 422)
+	// This prevents a platform from accidentally sending to the wrong platform.
+	if verifiedEnvelope.RecipientPlatform != s.platformCode {
+		reqLogger.Warn("Transfer intended for different platform",
+			slog.String("intended_for", verifiedEnvelope.RecipientPlatform),
+			slog.String("this_platform", s.platformCode))
+
+		reason = fmt.Sprintf("envelope does not list the receiving platform as the intended recipient (intended for %s but this server is %s)",
+			verifiedEnvelope.RecipientPlatform, s.platformCode)
+
+		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+			ResponseCode: pint.ResponseCodeBENV,
+			Reason:       &reason,
+		})
+		if err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+			return
+		}
+
+		reqLogger.Info("Envelope transfer rejected",
+			slog.String("response_code", string(pint.ResponseCodeBENV)),
+			slog.String("reason", reason),
+			slog.String("last_entry_signed_content_checksum", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
+		)
+
+		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+		return
+	}
+
+	// Step 7. Check trust level meets platform minimum (failures return 422 )
+	if verifiedEnvelope.TrustLevel < s.minTrustLevel {
+
+		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
+			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
+
+		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+			ResponseCode: pint.ResponseCodeBSIG,
+			Reason:       &reason,
+		})
+		if err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+			return
+		}
+		reqLogger.Warn("Trust level too low",
+			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
+			slog.String("min_trust_level", s.minTrustLevel.String()),
+			slog.String("reason", reason),
+			slog.String("envelope_id", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
+		)
+		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+		return
+	}
+
+	// Step 8. Check the sender is the current possessor of the eBL (failures return 422)
+	// this is to prevent a platform copying a transfer chain entry from another eBL and submitting it as a new action
+	currentPossessor, err := s.queries.GetTransportDocumentPossessor(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
+	if err != nil {
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check current possessor"))
+		return
+	}
+
+	if currentPossessor.PossessorPlatformCode != verifiedEnvelope.LastTransferChainEntry.EblPlatform {
+		reason := fmt.Sprintf("sender is not the current possessor of the eBL, current possessor is %s (recieved as a %s action on %s)",
+			currentPossessor.PossessorPlatformCode, currentPossessor.ActionCode, currentPossessor.AcceptedAt.Time.Format(time.RFC3339))
+		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+			ResponseCode: pint.ResponseCodeBENV,
+			Reason:       &reason,
+		})
+		if err != nil {
+			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+			return
+		}
+		reqLogger.Warn("Envelope transfer rejected",
+			slog.String("response_code", string(pint.ResponseCodeBENV)),
+			slog.String("reason", reason),
+			slog.String("last_entry_signed_content_checksum", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
+		)
+		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+		return
+	}
+
+	// Step 9: Validate the receiving party exists and is active on the recipient platform.
+	lastTransferEntry := verifiedEnvelope.LastTransferChainEntry
+	lastTransaction := lastTransferEntry.Transactions[len(lastTransferEntry.Transactions)-1]
+
+	recipient := lastTransaction.Recipient
+
+	if reason, err := s.verifyRecipientParty(ctx, recipient); err != nil {
+		// if internal error use RespondWithErrorResponse()
+		if errors.Is(err, services.ErrPartyNotFound) {
+			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+				ResponseCode: pint.ResponseCodeBENV,
+				Reason:       &reason,
+			})
+			if err != nil {
+				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+				return
+			}
+			reqLogger.Warn("Envelope transfer rejected",
+				slog.String("response_code", string(pint.ResponseCodeBENV)),
+				slog.String("reason", reason),
+				slog.String("last_entry_signed_content_checksum", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
+			)
+			pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+			return
+		}
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to validate party"))
+		return
+	}
+
+	// Step 10. Check for transfer chain conflicts (DISE detection)
 	// This runtime check detects when the same eBL is sent with conflicting transfer chains to the same platform.
 	// Note: This cannot detect double-spends across different platforms (requires CTR).
 	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
@@ -371,93 +486,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		}
 	}
 
-	// Step 7. Validate recipient platform matches this server (failures return 422)
-	// This prevents a platform from accidentally sending to the wrong platform.
-	if verifiedEnvelope.RecipientPlatform != s.platformCode {
-		reqLogger.Warn("Transfer intended for different platform",
-			slog.String("intended_for", verifiedEnvelope.RecipientPlatform),
-			slog.String("this_platform", s.platformCode))
-
-		reason = fmt.Sprintf("envelope does not list the receiving platform as the intended recipient (intended for %s but this server is %s)",
-			verifiedEnvelope.RecipientPlatform, s.platformCode)
-
-		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-			ResponseCode: pint.ResponseCodeBENV,
-			Reason:       &reason,
-		})
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-			return
-		}
-
-		reqLogger.Info("Envelope transfer rejected",
-			slog.String("response_code", string(pint.ResponseCodeBENV)),
-			slog.String("reason", reason),
-			slog.String("last_entry_signed_content_checksum", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
-		)
-
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-		return
-	}
-
-	// Step 8. Check trust level meets platform minimum (failures return 422 )
-	if verifiedEnvelope.TrustLevel < s.minTrustLevel {
-
-		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
-			verifiedEnvelope.TrustLevel.String(), s.minTrustLevel.String())
-
-		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-			ResponseCode: pint.ResponseCodeBSIG,
-			Reason:       &reason,
-		})
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-			return
-		}
-		reqLogger.Warn("Trust level too low",
-			slog.String("trust_level", verifiedEnvelope.TrustLevel.String()),
-			slog.String("min_trust_level", s.minTrustLevel.String()),
-			slog.String("reason", reason),
-			slog.String("envelope_id", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
-		)
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-		return
-	}
-
-	// Step 9: Validate the receiving party exists and is active on the recipient platform.
-
-	lastTransferEntry := verifiedEnvelope.LastTransferChainEntry
-	lastTransaction := lastTransferEntry.Transactions[len(lastTransferEntry.Transactions)-1]
-
-	recipient := lastTransaction.Recipient
-
-	if reason, err := s.verifyRecipientParty(ctx, recipient); err != nil {
-		// if internal error use RespondWithErrorResponse()
-		if errors.Is(err, services.ErrPartyNotFound) {
-			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-				ResponseCode: pint.ResponseCodeBENV,
-				Reason:       &reason,
-			})
-			if err != nil {
-				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-				return
-			}
-			reqLogger.Warn("Envelope transfer rejected",
-				slog.String("response_code", string(pint.ResponseCodeBENV)),
-				slog.String("reason", reason),
-				slog.String("last_entry_signed_content_checksum", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
-			)
-			pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-			return
-		}
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to validate party"))
-		return
-	}
-
-	// Step 10. Start transactional db work
+	// Step 11. Start transactional db work
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		logger.ContextWithLogAttrs(ctx,
@@ -476,7 +505,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		}
 	}()
 
-	// Step 10. Load transport document if it hasn't been received previously
+	// Step 12. Load transport document if it hasn't been received previously
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
 		Checksum: string(verifiedEnvelope.TransportDocumentChecksum),
@@ -495,7 +524,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		}
 	}
 
-	// Step 11. Create a record of the new envelope transfer (not yet accepted - need to check if additional documents are required first)
+	// Step 13. Create a record of the new envelope transfer (not yet accepted - need to check if additional documents are required first)
 	lastTransferEntrySignedContent := envelope.EnvelopeTransferChain[len(envelope.EnvelopeTransferChain)-1]
 
 	newEnvelopeRecord, err := txQueries.CreateEnvelope(ctx, database.CreateEnvelopeParams{
@@ -514,7 +543,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 12. Create transfer chain entries
+	// Step 14. Create transfer chain entries
 
 	// the transfer chain is a linked list that can grow (e.g. we first receive
 	// entries 0-3, now we receive entries 0-5) - use this map so we only append the new items.

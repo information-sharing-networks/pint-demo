@@ -23,7 +23,11 @@ CREATE VIEW transport_document_state AS
 -- transport_document_possession - view showing the latest accepted possessor for each eBL document
 
 
--- transport_document_latest - view showing the platform that most recently accepted the transfer for each eBL document
+-- transport_document_latest - view showing the platform that, according to the stored transfer chain, is the current possessor of each eBL document
+-- to possess the document, the platform was either:
+-- issued it by the carrier 
+-- transfered it from the previous possessor
+-- received during a surrender action
 CREATE VIEW transport_document_possessor AS
     SELECT id envelope_id,
         transport_document_checksum,
@@ -40,7 +44,7 @@ CREATE VIEW transport_document_possessor AS
             WHERE transport_document_checksum = e.transport_document_checksum
         )
         AND accepted_at IS NOT NULL
-        AND action_code = 'TRANSFER'
+        AND action_code in ('ISSUE', 'TRANSFER', 'SACC')
     );
 
 -- +goose Down
