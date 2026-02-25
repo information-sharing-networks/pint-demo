@@ -206,7 +206,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		return result, WrapEnvelopeError(err, "envelope validation failed")
 	}
 
-	// Step 3: Verify JWS signature and validate x5c certificate chain (if present)
+	// Step 3: Verify the manifest JWS
 	manifestPayload, _, certChain, err := crypto.VerifyJWSWithKeyProvider(
 		string(input.Envelope.EnvelopeManifestSignedContent),
 		input.KeyProvider,
@@ -452,7 +452,7 @@ func verifyIssuanceManifest(
 	}
 
 	// Step 1: Verify carrier's JWS signature on issuanceManifestSignedContent
-	// The carrier is treated as just another business entity in the PINT network and verified the same way as a platform.
+	// The carrier is treated as just another platform in the PINT network and verified the same way as other eBL platforms.
 	// The KeyProvider will extract the carrier's KID from the JWS header and fetch the appropriate key.
 
 	// Extract kid for logging
@@ -496,10 +496,7 @@ func verifyIssuanceManifest(
 // The issuanceManifestSignedContent (inside the first entry) is signed by the carrier
 // and is verified separately in verifyIssuanceManifest().
 //
-// **Note** this function cannot detect double spends (where the same eBL is sent twice with different transfer chains)
-// this will need a CTR lookup to detect or for the platforms to share a common database.
-//
-// Returns all verified and decoded transfer chain entries in order (first to last)
+// Returns the decoded transfer chain entries in order (first to last) - nil if verification fails with an error.
 func verifyEnvelopeTransferChain(
 	ctx context.Context,
 	envelopeTransferChain []TransferChainEntrySignedContent,
