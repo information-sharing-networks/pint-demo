@@ -33,17 +33,23 @@ type requestedAction struct {
 }
 
 // CanAccept determines if the platform can accept the requested action for an eBL
+// this function is called by the handler to determine if the requested action is valid given the current state of the eBL on the platform
+//
+// # This function be called after the evelope has been verified (VerifyEnevelope()) and before the new envelope is added to the database
 //
 // return values:
-// A reason is returned in either case for logging/error reporting
-// if an error is returned it indicates a bug in the code as an unexpected combination of current and next state was received
+// when accept = false, return a BENV error response and do not add the envelope to the database.
+//
+// The reason is safe to use in the BENV error response.
+//
+// if an error is returned it indicates bug in the code as an unexpected combination of current and next state was received
 func (lastReceivedAction *lastReceivedAction) CanAccept(requestedAction requestedAction, currentPlatformCode string) (accept bool, reason string, error error) {
 
 	// todo - call ebl state transition to make sure we are not creating an invalid chain
 	// some checks are repeated below as 'belt and braces' and for clarity
 	// this function just needs to do the platform specific checks
 
-	// handle in progress actions
+	// do not accept new actions until the previously received action is accepted
 	// TODO: Where a transfer is pending because the sending platform sent one or more impossible additional document checksums,
 	// the sender can never complete the transfer and the BL is stuck permanently at "started but not accepted".
 	// Do we need a VOID state to cancel these actions?

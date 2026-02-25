@@ -8,7 +8,9 @@ import (
 // action_codes.go defines the DCSA action codes and the valid transitions that can occur in a
 // chain of transactions.
 
-// ActionCode is the action code of a transaction in the transfer chain.
+// ActionCode specifies the type of action performed on a BL when a new transaction is added to the transfer chain.
+// The ActionCodes received in the transfer chain in an envelope show the history of the eBL and
+// the final transaction in the last transfer chain entry indicates the action the sender wants the platform to accept.
 type ActionCode string
 
 const (

@@ -74,14 +74,12 @@ type TransportDocument struct {
 	Content   json.RawMessage    `json:"content"`
 }
 
-type TransportDocumentHistory struct {
+type TransportDocumentPossessor struct {
 	EnvelopeID                uuid.UUID          `json:"envelope_id"`
 	TransportDocumentChecksum string             `json:"transport_document_checksum"`
 	ActionCode                string             `json:"action_code"`
-	SentByPlatformCode        string             `json:"sent_by_platform_code"`
-	ReceivedByPlatformCode    string             `json:"received_by_platform_code"`
+	PossessorPlatformCode     string             `json:"possessor_platform_code"`
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
-	Accepted                  interface{}        `json:"accepted"`
 	AcceptedAt                pgtype.Timestamptz `json:"accepted_at"`
 }
 
