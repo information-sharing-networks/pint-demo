@@ -115,7 +115,7 @@ type ActionCodeTransiton struct {
 //
 // Returns true if the transition is allowed, false otherwise.
 // The reason for the failure is returned in the reason string.
-// An error is returned if an uexpected condition is encountered (suggests a bug in the code)
+// An error is returned if an uexpected condition is encountered (indicates a bug in the code)
 func isValidActionCodeTransition(transition *ActionCodeTransiton) (isValid bool, reason string, error error) {
 
 	// lookup allowed state transitions for the previous action
@@ -124,7 +124,7 @@ func isValidActionCodeTransition(transition *ActionCodeTransiton) (isValid bool,
 		return false, "", fmt.Errorf("bug - unknown current action code: %s", transition.previousActionCode)
 	}
 
-	// Step 2: Transfer and endorsements are not allowed for straight BLs
+	// Step 1: Transfer and endorsements are not allowed for straight BLs
 	if transition.transportDocumentType == TransportDocumentTypeStraightBL {
 		if transition.nextActionCode == ActionCodeEndorse ||
 			transition.nextActionCode == ActionCodeEndorseToOrder ||
@@ -134,7 +134,7 @@ func isValidActionCodeTransition(transition *ActionCodeTransiton) (isValid bool,
 		}
 	}
 
-	// Step 3: Transactions must follow valid state transitions
+	// Step 2: Transactions must follow valid state transitions
 	return slices.Contains(validTransitions, transition.nextActionCode), "", nil
 }
 

@@ -46,7 +46,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -280,11 +279,6 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		result.TransportDocumentType,
 	)
 	if err != nil {
-		// Don't wrap DISE errors - they should be returned as-is with their own error code
-		var eblErr *EblError
-		if errors.As(err, &eblErr) && eblErr.Code() == ErrCodeDispute {
-			return result, err
-		}
 		return result, WrapEnvelopeError(err, "transfer chain verification failed")
 	}
 	result.TransferChain = transferChain
@@ -558,9 +552,8 @@ func verifyEnvelopeTransferChain(
 		return nil, NewEnvelopeError("first entry should contain an issuanceManifestSignedContent field")
 	}
 
-	// Step 5: verify the chain and collect all entries
-	// We allocate the slice with the exact size needed
-	allEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
+	// Step 5: verify the chain signatures and hash links
+	allTransferChainEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
 
 	// Start from the last entry and walk backwards to the first entry
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
@@ -621,7 +614,7 @@ func verifyEnvelopeTransferChain(
 		}
 
 		// Store the entry in the result slice
-		allEntries[i] = &currentEntry
+		allTransferChainEntries[i] = &currentEntry
 
 		// Step 5c: verify the chain link from this entry to the previous entry (if not the first entry)
 		// this prevents an attacker from replacing a valid entry with a valid one from a different transfer.
@@ -649,17 +642,17 @@ func verifyEnvelopeTransferChain(
 
 	// Step 6: Verify transport document checksum matches the manifest and is consistent across all entries
 	// All entries must reference the same transport document - it cannot change during transfers
-	firstChecksum := allEntries[0].TransportDocumentChecksum
+	firstChecksum := allTransferChainEntries[0].TransportDocumentChecksum
 
 	if firstChecksum != manifest.TransportDocumentChecksum {
 		return nil, NewEnvelopeError(fmt.Sprintf("transport doc checksum in first transfer chain entry does not match manifest: expected %s, got %s",
 			manifest.TransportDocumentChecksum, firstChecksum))
 	}
 
-	for i := 1; i < len(allEntries); i++ {
-		if allEntries[i].TransportDocumentChecksum != firstChecksum {
+	for i := 1; i < len(allTransferChainEntries); i++ {
+		if allTransferChainEntries[i].TransportDocumentChecksum != firstChecksum {
 			return nil, NewEnvelopeError(fmt.Sprintf("transport document checksum changed in entry %d: expected %s, got %s",
-				i, firstChecksum, allEntries[i].TransportDocumentChecksum))
+				i, firstChecksum, allTransferChainEntries[i].TransportDocumentChecksum))
 		}
 	}
 
@@ -667,7 +660,7 @@ func verifyEnvelopeTransferChain(
 	currentActionCode := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
 
-	for i, entry := range allEntries {
+	for i, entry := range allTransferChainEntries {
 		for j, transaction := range entry.Transactions {
 			nextActionCode := ActionCode(transaction.ActionCode)
 
@@ -714,5 +707,5 @@ func verifyEnvelopeTransferChain(
 			currentActionCode = nextActionCode
 		}
 	}
-	return allEntries, nil
+	return allTransferChainEntries, nil
 }
