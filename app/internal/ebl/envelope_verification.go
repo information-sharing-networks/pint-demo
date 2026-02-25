@@ -1,6 +1,9 @@
 package ebl
 
 // envelope_verification.go provides high-level functions for verifying DCSA EBL_PINT API envelope transfers.
+// All the integrity checks are done on the received envelope content -
+// some additional checks are done when the envelope is processed (checking for duplicate transfers for instance
+// - see pint/handlers/StartTransferHandler)
 //
 // # Signature Verification Process
 //
