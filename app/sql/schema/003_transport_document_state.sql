@@ -8,7 +8,7 @@ CREATE VIEW transport_document_state AS
         sent_by_platform_code,
         received_by_platform_code,
         created_at,
-        accepted_at IS NOT NULL AS accepted,
+        (accepted_at IS NOT NULL)::bool AS accepted,
         accepted_at 
     FROM envelopes
     WHERE id IN (

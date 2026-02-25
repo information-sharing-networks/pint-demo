@@ -244,45 +244,11 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		slog.String("transport_document_checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
 	)
 
-	// Step 3. Check for transfer chain conflicts (DISE detection)
-	// This runtime check detects when the same eBL is sent with conflicting transfer chains to the same platform.
-	// Note: This cannot detect double-spends across different platforms (requires CTR).
-	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for existing transfer chain"))
-		return
-	}
+	// the envelope is structuraly valid and properly signed at this point - now check if we have processed this envelope before
+	// 	- Notify the sender if we have already accepted the envelope
+	//  - Notify the sender if we already have a pending transfer for this eBL but there are outstanding supporting docs
 
-	if len(existingEntries) > 0 {
-		// Build map of existing checksums by sequence for comparison
-		existingChecksums := make(map[int]string)
-		for _, entry := range existingEntries {
-			existingChecksums[int(entry.Sequence)] = entry.SignedContentPayloadChecksum
-		}
-
-		// Check if new chain is consistent with existing entries
-		if err := checkTransferChainConsistency(existingChecksums, verifiedEnvelope.TransferChain); err != nil {
-			reason = fmt.Sprintf("transfer chain fork detected: %s", err.Error())
-			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-				ResponseCode: pint.ResponseCodeDISE,
-				Reason:       &reason,
-			})
-			if err != nil {
-				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create DISE response"))
-				return
-			}
-			reqLogger.Warn("Transfer chain fork detected",
-				slog.String("response_code", string(pint.ResponseCodeDISE)),
-				slog.String("reason", reason),
-				slog.String("transport_document_checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
-			)
-			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
-			return
-		}
-	}
-
-	// Step 4. See if this transfer was already initiated
+	// Step 4. See if this envelope was already received (DUPE case)
 	envelopeAlreadyReceived := false
 
 	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx, string(verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum))
@@ -295,19 +261,17 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		envelopeAlreadyReceived = true
 	}
 
-	// Step 5. Establish the list of missing documents
+	// Step 5. Establish the list of missing documents (if any)
 	// since the handler allows for retries of transfers, some docments may already be received
 	additionalDocuments := getAdditionalDocumentList(verifiedEnvelope.Manifest)
 	receivedDocumentChecksums := []string{}
 	missingDocuments := []additionalDocument{}
 	missingDocumentChecksums := []string{}
 
-	if envelopeAlreadyReceived {
-		receivedDocumentChecksums, err = s.queries.GetReceivedAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to get received documents"))
-			return
-		}
+	receivedDocumentChecksums, err = s.queries.GetReceivedAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
+	if err != nil {
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to get received documents"))
+		return
 	}
 
 	for _, doc := range additionalDocuments {
@@ -315,6 +279,12 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			missingDocuments = append(missingDocuments, doc)
 			missingDocumentChecksums = append(missingDocumentChecksums, doc.checksum)
 		}
+	}
+
+	// sanity check - if we get here this is a critical error, since the database is in an inconsistent state
+	if len(missingDocuments) > 0 && existingEnvelope.Accepted {
+		pint.RespondWithErrorResponse(w, r, pint.NewInternalError(fmt.Sprintf("critical internal error: missing documents found but envelope is marked as accepted %s", existingEnvelope.ID.String())))
+		return
 	}
 
 	// Step 6. Handle retries
@@ -356,11 +326,50 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// the new envelope is structuraly valid and properly signed at this point - now do run-time checks:
-	// - is the envelope addressed to this platform?
-	// - does the signature comply with this server's minimum trust level policy?
-	// - do the parties referenced in the last transfer chain entry exist on this platform?
-	// - is the transfer chain consistent with existing entries for this eBL?
+	// From this point we are handing new envelopes - check we can accept the envelope:
+	//	- is the envelope addressed to this platform?
+	//	- does the signature comply with this server's minimum trust level policy?
+	//  - Check if the sender is allowed to perform the action (current possessor)?
+	//	- do the parties referenced in the last transfer chain entry exist on this platform?
+	//	- dispute detection (have we seen a transfer for this eBL from a different platform with a conflicting history?)
+
+	// Step 3. Check for transfer chain conflicts (DISE detection)
+	// This runtime check detects when the same eBL is sent with conflicting transfer chains to the same platform.
+	// Note: This cannot detect double-spends across different platforms (requires CTR).
+	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for existing transfer chain"))
+		return
+	}
+
+	if len(existingEntries) > 0 {
+		// Build map of existing checksums by sequence for comparison
+		existingChecksums := make(map[int]string)
+		for _, entry := range existingEntries {
+			existingChecksums[int(entry.Sequence)] = entry.SignedContentPayloadChecksum
+		}
+
+		// Check if new chain is consistent with existing entries
+		if err := checkTransferChainConsistency(existingChecksums, verifiedEnvelope.TransferChain); err != nil {
+			reason = fmt.Sprintf("transfer chain fork detected: %s", err.Error())
+			signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
+				LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
+				ResponseCode: pint.ResponseCodeDISE,
+				Reason:       &reason,
+			})
+			if err != nil {
+				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create DISE response"))
+				return
+			}
+			reqLogger.Warn("Transfer chain fork detected",
+				slog.String("response_code", string(pint.ResponseCodeDISE)),
+				slog.String("reason", reason),
+				slog.String("transport_document_checksum", string(verifiedEnvelope.TransportDocumentChecksum)),
+			)
+			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+			return
+		}
+	}
 
 	// Step 7. Validate recipient platform matches this server (failures return 422)
 	// This prevents a platform from accidentally sending to the wrong platform.

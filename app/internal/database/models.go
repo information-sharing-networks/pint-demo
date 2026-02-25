@@ -90,6 +90,6 @@ type TransportDocumentState struct {
 	SentByPlatformCode        string             `json:"sent_by_platform_code"`
 	ReceivedByPlatformCode    string             `json:"received_by_platform_code"`
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
-	Accepted                  interface{}        `json:"accepted"`
+	Accepted                  bool               `json:"accepted"`
 	AcceptedAt                pgtype.Timestamptz `json:"accepted_at"`
 }

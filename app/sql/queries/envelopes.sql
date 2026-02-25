@@ -14,7 +14,9 @@ SELECT EXISTS(
 -- name: GetEnvelopeByLastChainEntrySignedContentPayloadChecksum :one
 -- last_transfer_chain_entry_signed_content_payload_checksum is the checksum of the payload of the last transfer chain entry JWS token
 -- and is unique for each transfer attempt
-SELECT * FROM envelopes 
+SELECT *,
+    (accepted_at IS NOT NULL)::bool AS accepted 
+FROM envelopes 
 WHERE last_transfer_chain_entry_signed_content_payload_checksum = $1;
 
 -- name: CreateEnvelope :one
