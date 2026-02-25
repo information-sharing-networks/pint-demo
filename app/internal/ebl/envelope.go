@@ -16,8 +16,8 @@ type Envelope struct {
 	// TransportDocument: The transport document (Bill of Lading) as a JSON object.
 	TransportDocument json.RawMessage `json:"transportDocument" swaggertype:"object"`
 
-	// Signed manifest covering the transport document, transfer chain and supporting documents
-	// Use the EnvelopeManifestBuilder to create the manifest and sign it.
+	// Signed manifest covering the transport document, transfer chain and supporting documents.
+	// See EnvelopeManifest for details of the payload.
 	EnvelopeManifestSignedContent EnvelopeManifestSignedContent `json:"envelopeManifestSignedContent"`
 
 	// EnvelopeTransferChain: Ordered list of JWS tokens representing the complete

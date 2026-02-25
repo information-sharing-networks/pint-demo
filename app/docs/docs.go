@@ -719,7 +719,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "envelopeManifestSignedContent": {
-                    "description": "Signed manifest covering the transport document, transfer chain and supporting documents\nUse the EnvelopeManifestBuilder to create the manifest and sign it.",
+                    "description": "Signed manifest covering the transport document, transfer chain and supporting documents.\nSee EnvelopeManifest for details of the payload.",
                     "type": "string"
                 },
                 "envelopeTransferChain": {
@@ -747,7 +747,7 @@ const docTemplate = `{
                     ]
                 },
                 "lastEnvelopeTransferChainEntrySignedContentChecksum": {
-                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry\nin the transfer chain.\n\nThe transfer chain contains a history of transactions that have happened to the eBL.\nEach group of transactions is signed by the platform that created it, and the next group in the chain includes\nthe checksum of the previous group as an anti-tampering measure.\n\nIncluding the checksum of the latest transfer chain entry in the manifest binds the manifest to the\nspecific transfer chain it was created for.",
+                    "description": "LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the most recent entry\nin the transfer chain.\n\nThe transfer chain contains a history of transactions that have happened to the eBL.\nEach group of transactions is signed by the platform that created it, and the next group in the chain includes\nthe checksum of the previous group as an anti-tampering measure.\n\nIncluding the checksum of the latest transfer chain entry in the manifest binds the manifest to the\nspecific transfer chain it was created for.",
                     "type": "string"
                 },
                 "supportingDocuments": {
@@ -758,7 +758,7 @@ const docTemplate = `{
                     }
                 },
                 "transportDocumentChecksum": {
-                    "description": "TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized eBL document (aka transport document).\n\nThis should not change during the lifetime of the BL.",
+                    "description": "TransportDocumentChecksum is the SHA-256 hash of the canonicalized eBL document (aka transport document).\n\nThis should not change during the lifetime of the BL.",
                     "type": "string"
                 }
             }
@@ -771,7 +771,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "eblPlatform": {
-                    "description": "EblPlatform: The eBL platform code (e.g., \"WAVE\", \"BOLE\", \"CARX\") responsible for this entry",
+                    "description": "EblPlatform: The eBL platform code (e.g., \"WAVE\", \"BOLE\", \"CARX\") that created this entry.",
                     "type": "string"
                 },
                 "issuanceManifestSignedContent": {

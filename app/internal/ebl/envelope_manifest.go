@@ -22,12 +22,12 @@ import (
 //     the manifest includes metadata which is used by the receiver to confirm the documents have been transferred correctly.
 type EnvelopeManifest struct {
 
-	// TransportDocumentChecksum is the SHA-256 crypto.Hash of the canonicalized eBL document (aka transport document).
+	// TransportDocumentChecksum is the SHA-256 hash of the canonicalized eBL document (aka transport document).
 	//
 	// This should not change during the lifetime of the BL.
 	TransportDocumentChecksum TransportDocumentChecksum `json:"transportDocumentChecksum"`
 
-	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 crypto.Hash of the most recent entry
+	// LastEnvelopeTransferChainEntrySignedContentChecksum is the SHA-256 hash of the most recent entry
 	// in the transfer chain.
 	//
 	// The transfer chain contains a history of transactions that have happened to the eBL.

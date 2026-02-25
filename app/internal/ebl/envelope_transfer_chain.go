@@ -19,7 +19,7 @@ import (
 // the transfer chain list in the envelope.
 type EnvelopeTransferChainEntry struct {
 
-	// EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX") responsible for this entry
+	// EblPlatform: The eBL platform code (e.g., "WAVE", "BOLE", "CARX") that created this entry.
 	EblPlatform string `json:"eblPlatform"`
 
 	// TransportDocumentChecksum - this should not change for the lifetime of the eBL.

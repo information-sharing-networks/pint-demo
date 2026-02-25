@@ -83,7 +83,7 @@ func NewStartTransferHandler(
 	}
 }
 
-// HandleStartTransfer godoc
+// HandleStartEnvelopeTransfer godoc
 //
 //	@Summary		Start envelope transfer
 //	@Description	Initiates an eBL envelope transfer. The sender provides the transport document (eBL),
@@ -174,7 +174,7 @@ func NewStartTransferHandler(
 //	@Success		default	{object}	pint.EnvelopeTransferFinishedResponse		"documentation only (not returned directly) - decoded payload of the signed response"
 //
 //	@Router			/v3/envelopes [post]
-func (s *StartTransferHandler) HandleStartTransfer(w http.ResponseWriter, r *http.Request) {
+func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	reqLogger := logger.ContextRequestLogger(ctx)
 
