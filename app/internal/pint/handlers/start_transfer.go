@@ -418,7 +418,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 9: Validate the receiving party exists and is active on the recipient platform.
+	// Step 9: Validate the receiving party exists and is active on the recipient platform (422)
 	lastTransferEntry := verifiedEnvelope.LastTransferChainEntry
 	lastTransaction := lastTransferEntry.Transactions[len(lastTransferEntry.Transactions)-1]
 
@@ -448,7 +448,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 10. Check for transfer chain conflicts (DISE detection)
+	// Step 10. Check for transfer chain conflicts (DISE detection - 409 error)
 	// This runtime check detects when the same eBL is sent with conflicting transfer chains to the same platform.
 	// Note: This cannot detect double-spends across different platforms (requires CTR).
 	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
