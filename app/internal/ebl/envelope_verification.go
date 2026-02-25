@@ -29,18 +29,18 @@ package ebl
 // Platform identification is done by looking up the platform in the DCSA registry
 // using the JWS key ID.
 //
-// In production the keystore is populated with public keys retrieved either from the
-// platform's JWKS endpoint or from a local key store, depending on how the platform was
-// configured in the platform registry.
-//
-// # Key ID (kid) Usage
 // This app uses the JWK thumbprint of the signing public key as the key ID.
+//
+// The keystore is populated with public keys retrieved either from the
+// platform's JWKS endpoint or from a local store of manually configured keys, depending on how the platform was
+// configured in the platform registry.
 //
 // # Trust Hierarchy
 // This app implements a trust hierarchy based on the type of certificate in the
 // x5c header (if present) - see crypto/trust_level.go
 //
-// The caller (typically the HTTP handler) is responsible for enforcing the minimum acceptable trust level.
+// The verification process determines the trust level for the envelope - the caller (typically the HTTP handler)
+// is responsible for enforcing the minimum acceptable trust level.
 
 import (
 	"context"
