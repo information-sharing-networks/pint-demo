@@ -243,7 +243,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	)
 
 	// Step 3. Check for transfer chain conflicts (DISE detection)
-	// This detects when the same eBL is sent with conflicting transfer chains to the same platform.
+	// This runtime check detects when the same eBL is sent with conflicting transfer chains to the same platform.
 	// Note: This cannot detect double-spends across different platforms (requires CTR).
 	existingEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
