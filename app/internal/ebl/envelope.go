@@ -32,7 +32,8 @@ type Envelope struct {
 	EnvelopeTransferChain []TransferChainEntrySignedContent `json:"envelopeTransferChain"`
 }
 
-// ValidateStructure checks that all required fields are present per DCSA EBL_PINT specification.
+// ValidateStructure checks that all required fields are present.
+// Note this does not validate the structure of the transport document itself (only that it is present and is valid JSON)
 func (e *Envelope) ValidateStructure() error {
 	if len(e.TransportDocument) == 0 {
 		return NewEnvelopeError("transportDocument is required")

@@ -37,92 +37,10 @@ type JWSHeader struct {
 	KeyID string `json:"kid"`
 }
 
-// VerifyJWS performs verification for JWS signatures received over PINT.
-//
-// If you have not already established which public key to use for verification,
-// use VerifyJWSWithKeyProvider instead.
-//
-// The function verifies the JWS signature and, if the JWS contains an x5c
-// header, it also verifies the x5c certificate chain.
-//
-// To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
-// separately after verification.
-//
-// Parameters:
-//   - JwsToken: JWS compact serialization (header.payload.signature)
-//   - publicKey: Public key for signature verification (ed25519.PublicKey or *rsa.PublicKey)
-//   - rootCAs: Root CA pool for certificate validation (nil = use system roots)
-//
-// Returns:
-//   - payload: Verified payload bytes
-//   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
-//   - error: Any validation errors
-func VerifyJWS(
-	JwsToken string,
-	publicKey any,
-	rootCAs *x509.CertPool,
-) (payload []byte, certChain []*x509.Certificate, err error) {
-
-	if publicKey == nil {
-		return nil, nil, NewInternalError("public key is required")
-	}
-
-	if JwsToken == "" {
-		return nil, nil, NewInternalError("JwsToken is required")
-	}
-
-	// Step 1: Verify the JWS signature
-	// This proves the signer owns the private key corresponding to publicKey
-	switch key := publicKey.(type) {
-	case ed25519.PublicKey:
-		payload, err = VerifyJWSEd25519(JwsToken, key)
-	case *rsa.PublicKey:
-		payload, err = VerifyJWSRSA(JwsToken, key)
-	default:
-		return nil, nil, NewValidationError("unsupported public key type")
-	}
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Step 2: Extract x5c certificate chain (if present)
-	certChain, err = ParseX5CFromJWS(JwsToken)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// no x5c present (x5c is optional, so this is not an error)
-	if certChain == nil {
-		return payload, nil, nil
-	}
-
-	// Step 3: Validate x5c public key matches the signing key
-	// this prevents an attacker including a valid certificate for someone other than the org that signed the JWS
-	if err = ValidateX5CMatchesKey(certChain, publicKey); err != nil {
-		return nil, nil, err
-	}
-
-	// Step 4: Validate certificate chain (CA trust, expiry, domain)
-	// This checks:
-	// - Certificate chain is valid and trusted by root CAs
-	// - Certificates are not expired
-	if err := ValidateCertificateChain(certChain, rootCAs); err != nil {
-		return nil, nil, err
-	}
-
-	// TODO: Certificate revocation status (OCSP/CRL)
-
-	return payload, certChain, nil
-}
-
-// VerifyJWSWithKeyProvider performs verification for JWS signatures using a KeyProvider.
+// VerifyJWS performs verification for JWS signatures using a KeyProvider.
 //
 // The function verifies the JWS signature and - if the JWS contains an x5c header -
 // the x5c certificate chain.
-//
-// Use this function, rather than VerifyJWS, when you need to verify a JWS and
-// have not already established which of the keymanager keys to use for verification.
 //
 // To determine the trust level based on the certificate type, call DetermineTrustLevel(certChain)
 // separately after verification.
@@ -138,7 +56,7 @@ func VerifyJWS(
 //   - publicKey: The public key that was used for verification (extracted from keyProvider)
 //   - certChain: Certificate chain if x5c was present and valid (nil otherwise)
 //   - error: Any validation errors
-func VerifyJWSWithKeyProvider(
+func VerifyJWS(
 	JwsToken string,
 	keyProvider jws.KeyProvider,
 	rootCAs *x509.CertPool,
@@ -152,9 +70,9 @@ func VerifyJWSWithKeyProvider(
 		return nil, nil, nil, NewInternalError("JwsToken is required")
 	}
 
-	// Step 1: Verify the JWS signature using the KeyProvider
+	// Step 1: Reject JWS where the signature can't be verified against the keyProvider
 	//
-	// Note this eliminates manual KID extraction by automatically
+	// Note using WithKeyProvider eliminates manual KID extraction by automatically
 	// selecting the right key during verification:
 	//
 	// By passing the KeyProvider to jws.Verify, the function will call
@@ -187,7 +105,7 @@ func VerifyJWSWithKeyProvider(
 
 	// If x5c is present, validate the certificate chain and key match
 	if certChain != nil {
-		// Step 4: Validate x5c public key matches the key used for signing
+		// Step 4: Reject JWS if the x5c cert public key does not match the key used for signing
 		// This prevents an attacker signing with key A but including a valid x5c
 		// certificate chain for organization B, which would cause the verification
 		// result to report the wrong organization.
@@ -195,7 +113,7 @@ func VerifyJWSWithKeyProvider(
 			return nil, nil, nil, err
 		}
 
-		// Step 5: Validate certificate chain (CA trust, expiry, domain)
+		// Step 5: Reject JWS if the x5c cert chain is invalid or not trusted
 		// This checks:
 		// - Certificate chain is valid and trusted by root CAs
 		// - Certificates are not expired

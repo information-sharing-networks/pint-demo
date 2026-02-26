@@ -26,12 +26,12 @@ The ebl envelope requires that 2 supporting docs (`HHL71800000-invoice.pdf` nd `
 See enelope-manifest.json for the expected checksums and metadata. 
 
 The transfer chain includes 2 entries:
-- the first (created from `HHL71800000-transfer-chain-entry-ISSU-ed25519.json`) is the issuance entry (signed by the carrier and sent to EBL1) 
-- the second (`HHL71800000-transfer-chain-entry-TRNS-ed25519.json`) is a transfer entry (signed by EBL1 and sent to EBL2).
+- the first (created from `HHL71800000-transfer-chain-entry-ISSU-ed25519.json`) is the issuance entry (signed by the CAR1 carrier and issued to EBL1) 
+- the second (`HHL71800000-transfer-chain-entry-TRNS-ed25519.json`) is a transfer entry (signed by EBL1 and transfered to EBL2).
 
-the `HHL71800000-envelope-manifest-no-docs-ed25519.json` file is the same transport document but with no supporting documents and no ebl visualization.  
+the `HHL71800000-envelope-manifest-nodocs-ed25519.json` file is the same transport document but with no supporting documents and no ebl visualization.  
 
-`HHL71800000-envelope-manifest-rsa.json` is the same transport document but issued to EBL2 and then transfered to EBL1 
+`HHL71800000-envelope-manifest-rsa.json` is the same transport document but issued by CAR2 > EBL2 and then transfered to EBL1 
 
 ## Test Certificates and Keys
 

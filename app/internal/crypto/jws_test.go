@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
@@ -439,152 +438,6 @@ func TestGenerateKeyIDFromRSAKey(t *testing.T) {
 	}
 }
 
-// test the wrapper function that handles all the JWS checks
-func TestVerifyJWS(t *testing.T) {
-	// Use testdata certificates and keys
-	validPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
-	if err != nil {
-		t.Fatalf("failed to load test private key: %v", err)
-	}
-
-	validPublicKey := validPrivateKey.Public().(ed25519.PublicKey)
-
-	validKeyID, err := GenerateKeyIDFromEd25519Key(validPublicKey)
-	if err != nil {
-		t.Fatalf("failed to generate key ID: %v", err)
-	}
-
-	validCertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
-	if err != nil {
-		t.Fatalf("failed to load test certificates: %v", err)
-	}
-
-	// Load root CA for validation
-	rootCAs := x509.NewCertPool()
-	rootCABytes, err := os.ReadFile("../../test/testdata/certs/root-ca.crt")
-	if err != nil {
-		t.Fatalf("failed to load root CA: %v", err)
-	}
-	if !rootCAs.AppendCertsFromPEM(rootCABytes) {
-		t.Fatalf("failed to parse root CA")
-	}
-
-	tests := []struct {
-		name            string
-		setupJWS        func() string
-		publicKey       any
-		rootCAs         *x509.CertPool
-		expectCertX5C   bool // true if we expect x5c cert chain to be returned
-		expectError     bool
-		expectedErrCode ErrorCode
-	}{
-		{
-			name: "Valid JWS with x5c",
-			setupJWS: func() string {
-				payload := []byte(`{"test":"data"}`)
-				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
-				return jws
-			},
-			publicKey:     validPublicKey,
-			rootCAs:       rootCAs,
-			expectCertX5C: true,
-			expectError:   false,
-		},
-		{
-			name: "Valid JWS without x5c",
-			setupJWS: func() string {
-				payload := []byte(`{"test":"data"}`)
-				jws, _ := SignJSONWithEd25519(payload, validPrivateKey, validKeyID)
-				return jws
-			},
-			publicKey:     validPublicKey,
-			rootCAs:       nil,
-			expectCertX5C: false,
-			expectError:   false,
-		},
-		{
-			name: "Invalid signature",
-			setupJWS: func() string {
-				payload := []byte(`{"test":"data"}`)
-				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
-				// Tamper with the signature
-				parts := strings.Split(jws, ".")
-				parts[2] = "invalid-signature"
-				return strings.Join(parts, ".")
-			},
-			publicKey:       validPublicKey,
-			rootCAs:         rootCAs,
-			expectError:     true,
-			expectedErrCode: ErrCodeInvalidSignature,
-		},
-		{
-			name: "Wrong public key - x5c mismatch",
-			setupJWS: func() string {
-				payload := []byte(`{"test":"data"}`)
-				jws, _ := SignJSONWithEd25519AndX5C(payload, validPrivateKey, validKeyID, validCertChain)
-				return jws
-			},
-			publicKey: func() ed25519.PublicKey {
-				_, wrongKey, _ := ed25519.GenerateKey(rand.Reader)
-				return wrongKey.Public().(ed25519.PublicKey)
-			}(),
-			rootCAs:         rootCAs,
-			expectError:     true,
-			expectedErrCode: ErrCodeInvalidSignature,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			jws := tt.setupJWS()
-
-			payload, certChain, err := VerifyJWS(
-				jws,
-				tt.publicKey,
-				tt.rootCAs,
-			)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-					return
-				}
-
-				// Check error code if specified
-				if tt.expectedErrCode != "" {
-					var cryptoErr Error
-					if errors.As(err, &cryptoErr) {
-						if cryptoErr.Code() != tt.expectedErrCode {
-							t.Errorf("expected error code %q, got %q (error: %v)", tt.expectedErrCode, cryptoErr.Code(), err)
-						}
-					} else {
-						t.Errorf("expected CryptoError with code %q, got non-crypto error: %v", tt.expectedErrCode, err)
-					}
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if payload == nil {
-				t.Errorf("expected payload but got nil")
-			}
-
-			// Check cert chain presence matches expectation
-			if tt.expectCertX5C && certChain == nil {
-				t.Errorf("expected cert chain but got nil")
-			}
-
-			if !tt.expectCertX5C && certChain != nil {
-				t.Errorf("expected nil cert chain, got %d certs", len(certChain))
-			}
-		})
-	}
-}
-
 // TestSignJSON tests the convenience SignJSON function with both Ed25519 and RSA keys
 func TestSignJSON(t *testing.T) {
 	// Load test keys and certificates
@@ -717,7 +570,7 @@ func TestSignJSON(t *testing.T) {
 	}
 }
 
-// testKeyProvider is a minimal jws.KeyProvider for unit testing VerifyJWSWithKeyProvider.
+// testKeyProvider is a minimal jws.KeyProvider for unit testing VerifyJWS.
 type testKeyProvider struct {
 	keys map[string]any // kid -> raw public key
 }
@@ -739,7 +592,7 @@ func (p *testKeyProvider) FetchKeys(_ context.Context, sink jws.KeySink, sig *jw
 	return nil
 }
 
-func TestVerifyJWSWithKeyProvider(t *testing.T) {
+func TestVerifyJWS(t *testing.T) {
 	// Load platform key + certs (key A)
 	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
@@ -837,7 +690,7 @@ func TestVerifyJWSWithKeyProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			payload, _, certChain, err := VerifyJWSWithKeyProvider(tt.setupJWS(), provider, tt.rootCAs)
+			payload, _, certChain, err := VerifyJWS(tt.setupJWS(), provider, tt.rootCAs)
 
 			if tt.expectError {
 				if err == nil {

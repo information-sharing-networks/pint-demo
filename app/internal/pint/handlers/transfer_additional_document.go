@@ -189,8 +189,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	// Step 4: Verify envelope is still pending (all documents not yet received)
-	// Check if all documents have already been received
+	// Step 4: Reject documents if the envelope transfer is already complete (422 BENV)
 	missingDocs, err := h.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
 	if err != nil {
 		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for missing documents"))
@@ -236,7 +235,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	// Step 6: Check if document has already been received
+	// Step 6: Respond with 204 if document has already been received
 	if expectedDoc.ReceivedAt.Valid {
 		reqLogger.Warn("Document already received",
 			slog.String("received_at", expectedDoc.ReceivedAt.Time.String()),
@@ -253,9 +252,9 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	// Step 8: Verify checksum matches URL parameter
+	// Step 8: Reject documents if the computed checksum does not match the checksum declared in the envelope manifest (409 INCD)
 	if actualChecksum != documentChecksum {
-		reason := fmt.Sprintf("document checksum mismatch: expected %s, got %s", documentChecksum, actualChecksum)
+		reason := fmt.Sprintf("document checksum does not match the envelope manfifest checksum: expected %s, got %s", documentChecksum, actualChecksum)
 		signedResponse, err := h.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: ebl.TransferChainEntrySignedContentChecksum(envelope.LastTransferChainEntrySignedContentChecksum),
 			ResponseCode: pint.ResponseCodeINCD,
@@ -269,7 +268,8 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	// Step 9: Verify document size matches expected size
+	// Step 9: Reject documents if the actual size does not match the size declared in the envelope manifest (409 INCD)
+	// this implies a problem with the original manifest metadata, since the checksum matches the computed checksum above.
 	actualSize := int64(len(documentContent))
 	if actualSize != expectedDoc.ExpectedSize {
 		reason := fmt.Sprintf("document size mismatch: expected %d bytes, got %d bytes", expectedDoc.ExpectedSize, actualSize)
