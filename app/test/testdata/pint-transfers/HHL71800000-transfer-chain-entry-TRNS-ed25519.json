@@ -1,32 +1,32 @@
 {
   "eblPlatform": "EBL1",
   "transportDocumentChecksum": "8f765417773a026d4f9ead6187d961d28dffbb7d0a11dda9ba6fee16423bc05a",
-  "previousEnvelopeTransferChainEntrySignedContentChecksum": "a9f1c4c865b316630ef69bf4e540cbe4e9c1c6fa49921b8b562184d106b18bf3",
+  "previousEnvelopeTransferChainEntrySignedContentChecksum": "1553c114cebdbeec7bef355366d762131461a50f2a36cd028c23b3dbccf629ab",
   "transactions": [
     {
       "actionCode": "TRANSFER",
       "actor": {
-        "partyName": "First Recipient",
+        "partyName": "ebl1 Party",
         "eblPlatform": "EBL1",
         "identifyingCodes": [
           {
             "codeListProvider": "EBL1",
-            "partyCode": "first-recipient@ed25519-eblplatform.example.com"
+            "partyCode": "ebl1-party@ebl1.example.com"
           }
         ]
       },
       "recipient": {
-        "partyName": "Next Recipient",
+        "partyName": "ebl2 Party",
         "eblPlatform": "EBL2",
         "identifyingCodes": [
           {
             "codeListProvider": "EBL2",
-            "partyCode": "next-recipient@EBL2_party_code"
+            "partyCode": "ebl2-party@ebl2.example.com"
           },
           {
             "codeListProvider": "GLEIF",
             "codeListName": "LEI",
-            "partyCode": "next-recipient@GLEIF_party_code"
+            "partyCode": "GLEIF12345"
           }
         ]
       },

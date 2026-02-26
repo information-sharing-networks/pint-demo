@@ -208,7 +208,7 @@ function stage1() {
     # Update envelope manifests with transport document checksum
     for manifest in "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-ed25519.json" \
                     "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-rsa.json" \
-                    "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-no-docs-ed25519.json"; do
+                    "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-nodocs-ed25519.json"; do
         jq --arg checksum "$transport_doc_checksum" \
            '.transportDocumentChecksum = $checksum' \
            "$manifest" > "$manifest.tmp" && mv "$manifest.tmp" "$manifest"
@@ -289,7 +289,7 @@ function stage3() {
 
     # Checksum of ISSU entry (for use in TRNS entry's previousEnvelopeTransferChainEntrySignedContentChecksum)
     json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
-    issu_checksum_ed25519=$(sign_and_hash_json_ed25519 eblplatform < "$json_file")
+    issu_checksum_ed25519=$(sign_and_hash_json_ed25519 carrier < "$json_file")
     echo "✓ ISSU-ed25519 checksum: $issu_checksum_ed25519"
 
     # Update TRNS entry with previous checksum
@@ -301,7 +301,7 @@ function stage3() {
     echo
 
     json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-rsa.json"
-    issu_checksum_rsa=$(sign_and_hash_json_rsa eblplatform < "$json_file")
+    issu_checksum_rsa=$(sign_and_hash_json_rsa carrier < "$json_file")
     echo "✓ ISSU-rsa checksum: $issu_checksum_rsa"
 
     # Update TRNS entry with previous checksum
@@ -319,7 +319,7 @@ function stage3() {
 
     # Update envelope manifests with last chain entry checksum
     for manifest in "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-ed25519.json" \
-                    "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-no-docs-ed25519.json"; do
+                    "$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-nodocs-ed25519.json"; do
         jq --arg checksum "$trns_checksum_ed25519" \
            '.lastEnvelopeTransferChainEntrySignedContentChecksum = $checksum' \
            "$manifest" > "$manifest.tmp" && mv "$manifest.tmp" "$manifest"
@@ -352,9 +352,9 @@ function stage4() {
     # Ed25519 envelope
     echo "Processing ebl-envelope-ed25519.json..."
 
-    # ISSU entry (signed by eblplatform)
+    # ISSU entry (signed by carrier)
     json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
-    issu_jws=$(sign_json_ed25519 eblplatform < "$json_file")
+    issu_jws=$(sign_json_ed25519 carrier < "$json_file")
     echo "  ✓ Signed ISSU entry"
 
     # TRNS entry (signed by eblplatform)
@@ -367,8 +367,35 @@ function stage4() {
     manifest_jws=$(sign_json_ed25519 eblplatform < "$json_file")
     echo "  ✓ Signed envelope manifest"
 
-    # Update envelope file
+    # Update envelope file with signed components
     envelope_file="$PINT_TRANSFERS_DIR/HHL71800000-ebl-envelope-ed25519.json"
+    jq --arg issu "$issu_jws" --arg trns "$trns_jws" --arg manifest "$manifest_jws" \
+       '.envelopeTransferChain[0] = $issu | .envelopeTransferChain[1] = $trns | .envelopeManifestSignedContent = $manifest' \
+       "$envelope_file" > "$envelope_file.tmp" && mv "$envelope_file.tmp" "$envelope_file"
+    echo "  Updated: $(basename $envelope_file)"
+    echo
+
+
+    # Ed25519 envelope no-docs
+    echo "Processing ebl-envelope-nodocs-ed25519.json..."
+
+    # ISSU entry (signed by carrier)
+    json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
+    issu_jws=$(sign_json_ed25519 carrier < "$json_file")
+    echo "  ✓ Signed ISSU entry"
+
+    # TRNS entry (signed by eblplatform)
+    json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
+    trns_jws=$(sign_json_ed25519 eblplatform < "$json_file")
+    echo "  ✓ Signed TRNS entry"
+
+    # Envelope manifest
+    json_file="$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-nodocs-ed25519.json"
+    manifest_jws=$(sign_json_ed25519 eblplatform < "$json_file")
+    echo "  ✓ Signed envelope manifest"
+
+    # Update envelope file with signed components
+    envelope_file="$PINT_TRANSFERS_DIR/HHL71800000-ebl-envelope-nodocs-ed25519.json"
     jq --arg issu "$issu_jws" --arg trns "$trns_jws" --arg manifest "$manifest_jws" \
        '.envelopeTransferChain[0] = $issu | .envelopeTransferChain[1] = $trns | .envelopeManifestSignedContent = $manifest' \
        "$envelope_file" > "$envelope_file.tmp" && mv "$envelope_file.tmp" "$envelope_file"
@@ -379,7 +406,7 @@ function stage4() {
     echo "Processing ebl-envelope-rsa.json..."
 
     json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-rsa.json"
-    issu_jws=$(sign_json_rsa eblplatform < "$json_file")
+    issu_jws=$(sign_json_rsa carrier < "$json_file")
     echo "  ✓ Signed ISSU entry"
 
     json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-TRNS-rsa.json"
@@ -392,31 +419,6 @@ function stage4() {
 
     # Update envelope file
     envelope_file="$PINT_TRANSFERS_DIR/HHL71800000-ebl-envelope-rsa.json"
-    jq --arg issu "$issu_jws" --arg trns "$trns_jws" --arg manifest "$manifest_jws" \
-       '.envelopeTransferChain[0] = $issu | .envelopeTransferChain[1] = $trns | .envelopeManifestSignedContent = $manifest' \
-       "$envelope_file" > "$envelope_file.tmp" && mv "$envelope_file.tmp" "$envelope_file"
-    echo "  Updated: $(basename $envelope_file)"
-    echo
-
-    # Ed25519 no-docs envelope
-    echo "Processing ebl-envelope-nodocs-ed25519.json..."
-
-    # Reuse the same ISSU and TRNS signatures from ed25519 envelope
-    json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
-    issu_jws=$(sign_json_ed25519 eblplatform < "$json_file")
-    echo "  ✓ Signed ISSU entry"
-
-    json_file="$PINT_TRANSFERS_DIR/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
-    trns_jws=$(sign_json_ed25519 eblplatform < "$json_file")
-    echo "  ✓ Signed TRNS entry"
-
-    # Sign the no-docs manifest
-    json_file="$PINT_TRANSFERS_DIR/HHL71800000-envelope-manifest-no-docs-ed25519.json"
-    manifest_jws=$(sign_json_ed25519 eblplatform < "$json_file")
-    echo "  ✓ Signed no-docs envelope manifest"
-
-    # Update envelope file
-    envelope_file="$PINT_TRANSFERS_DIR/HHL71800000-ebl-envelope-nodocs-ed25519.json"
     jq --arg issu "$issu_jws" --arg trns "$trns_jws" --arg manifest "$manifest_jws" \
        '.envelopeTransferChain[0] = $issu | .envelopeTransferChain[1] = $trns | .envelopeManifestSignedContent = $manifest' \
        "$envelope_file" > "$envelope_file.tmp" && mv "$envelope_file.tmp" "$envelope_file"

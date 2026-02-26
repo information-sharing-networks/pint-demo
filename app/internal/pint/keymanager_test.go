@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -61,8 +62,18 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 		t.Fatalf("failed to read csv file %s: %v", url, err)
 	}
 	lines := strings.Split(string(data), "\n")
+	re := regexp.MustCompile(`^[A-Z]`)
+	headerRe := regexp.MustCompile(`^Code`)
+	expectedProviderCount := 0
+	for _, line := range lines {
+		if headerRe.MatchString(line) {
+			continue
+		}
+		if re.MatchString(line) {
+			expectedProviderCount++
+		}
+	}
 
-	expectedProviderCount := len(lines) - 1
 	if len(km.eblSolutionProviders) != expectedProviderCount {
 		t.Fatalf("expected %d eBL solution providers, got %d", expectedProviderCount, len(km.eblSolutionProviders))
 	}
