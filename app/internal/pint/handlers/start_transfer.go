@@ -180,7 +180,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	ctx := r.Context()
 	reqLogger := logger.ContextRequestLogger(ctx)
 
-	// Step 1. Reject malformed envelopes (400, unsigned response)
+	// Step 1. Reject requests with malformed envelopes (400, unsigned response)
 	var envelope ebl.Envelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
 		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode envelope JSON"))
@@ -190,7 +190,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 
 	var reason string
 
-	// Step 2. Reject invalid envelopes (422 BENV/BSIG)
+	// Step 2. Reject requests with invalid envelopes (422 BENV/BSIG)
 	verifiedEnvelope, err := ebl.VerifyEnvelope(ctx, ebl.EnvelopeVerificationInput{
 		Envelope:              &envelope,
 		RootCAs:               s.x5cCustomRoots,
@@ -253,8 +253,8 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	//	- do the parties referenced in the last transfer chain entry exist on this platform?
 	//	- dispute detection (have we seen a transfer for this eBL from a different platform with a conflicting history?)
 
-	// Step 3. Reject envelopes if the BL was already surendered (422 BENV)
-	if verifiedEnvelope.PossessionTransaction.ActionCode == ebl.ActionCodeSACC {
+	// Step 3. Reject requests if the BL was already surendered (422 BENV)
+	if verifiedEnvelope.IsSurrendered {
 		reason = fmt.Sprintf("eBL is in has already been surrendered on %s", verifiedEnvelope.PossessionTransaction.ActionDateTime)
 		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
 			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
@@ -272,7 +272,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 4. Reject envelopes not addressed to this platform (422 BENV)
+	// Step 4. Reject requests that are not addressed to this platform (422 BENV)
 	// This prevents a platform from accidentally sending to the wrong platform.
 	if verifiedEnvelope.RecipientPlatform != s.platformCode {
 		reqLogger.Warn("Transfer intended for different platform",
@@ -302,7 +302,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 5. Reject envelopes with insufficient trust level (422 BSIG)
+	// Step 5. Reject requests with insufficient trust level (422 BSIG)
 	if verifiedEnvelope.TrustLevel < s.minTrustLevel {
 
 		reason = fmt.Sprintf("Trust level %s does not meet minimum required level (%s)",
@@ -327,7 +327,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 6: Reject envelopes where the recipient party is not known on the platform (422 BENV)
+	// Step 6: Reject requests where the recipient party is not known on the platform (422 BENV)
 	lastTransferEntry := verifiedEnvelope.LastTransferChainEntry
 	lastTransaction := lastTransferEntry.Transactions[len(lastTransferEntry.Transactions)-1]
 
@@ -358,7 +358,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		return
 	}
 
-	// Step 7. Reject envelopes with transfer chain conflicts (409 DISE)
+	// Step 7. Reject requests with transfer chain conflicts (409 DISE)
 	// This runtime check detects when the same eBL is sent with conflicting transfer chains to the same platform.
 	// Note: This cannot detect double-spends across different platforms (requires CTR).
 	existingTransferChainEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))

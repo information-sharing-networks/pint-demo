@@ -59,7 +59,7 @@ func (t TrustLevel) String() string {
 // The leaf certificate in the chain must be signed by an approved CA in order
 // to prove the identity of the org running the platform.
 //
-// Note: you should call VerifyJWS() or VerifyJWSWithKeyProvider() first to verify the signature and certificate chain
+// Note: you should call VerifyJWS() first to verify the signature and certificate chain
 // before using this function.
 //
 // The certificate type is used to determine the trust level as follows:

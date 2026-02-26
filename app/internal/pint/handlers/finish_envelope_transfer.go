@@ -179,7 +179,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		return
 	}
 
-	// Step 5: All documents received - get received documents list
+	// Step 5: get received documents list
 	receivedDocs, err := h.queries.GetReceivedAdditionalDocumentChecksums(ctx, envelope.ID)
 	if err != nil {
 		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to get received documents"))
