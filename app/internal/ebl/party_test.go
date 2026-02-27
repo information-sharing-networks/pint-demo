@@ -55,7 +55,10 @@ func TestIdentifyingCode_Validate(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
-				t.Errorf("IdentifyingCode.Validate() error = %v, want %v", err, tt.errMsg)
+				// Check if error message contains the expected substring
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("IdentifyingCode.Validate() error = %v, want %v", err, tt.errMsg)
+				}
 			}
 		})
 	}

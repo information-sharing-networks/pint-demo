@@ -51,28 +51,23 @@ func TestCreateEnvelopeForDelivery(t *testing.T) {
 				t.Fatalf("failed to load certificate chain: %v", err)
 			}
 
+			// creat a new actor party
+			actorParty, err := NewActorPartyBuilder("Test Platform B", "TEST").
+				WithIdentifyingCode("TEST", "PLATFORM_B", nil).
+				Build()
+			if err != nil {
+				t.Fatalf("failed to create actor party: %v", err)
+			}
+			recipientParty, err := NewRecipientPartyBuilder("Test Platform C", "TEST").
+				WithIdentifyingCode("TEST", "PLATFORM_C", nil).
+				Build()
+			if err != nil {
+				t.Fatalf("failed to create recipient party: %v", err)
+			}
 			// Create a new transaction
 			newTransaction := CreateTransferTransaction(
-				ActorParty{
-					PartyName:   "Test Platform B",
-					EblPlatform: "TEST",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "TEST",
-							PartyCode:        "PLATFORM_B",
-						},
-					},
-				},
-				RecipientParty{
-					PartyName:   "Test Platform C",
-					EblPlatform: "TEST",
-					IdentifyingCodes: []IdentifyingCode{
-						{
-							CodeListProvider: "TEST",
-							PartyCode:        "PLATFORM_C",
-						},
-					},
-				},
+				actorParty,
+				recipientParty,
 			)
 
 			// Create envelope with the new entry

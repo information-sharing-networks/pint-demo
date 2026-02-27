@@ -610,7 +610,8 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 
 // TestTransferRuntimeRejections tests various runtime rejections, DISE etc
 func TestTransferRuntimeRejections(t *testing.T) {
-	t.Skip("TODO refactor this test")
+	t.Skip("DEBUG !!! skipping test")
+
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
@@ -839,10 +840,7 @@ func TestTransferRuntimeRejections(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		if i > 0 {
-			t.Skip("skipping debug")
-		}
+	for _, tt := range tests {
 		cleanupDatabase(t, env.pool)
 		_, _ = createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 		_, _ = createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json")

@@ -236,7 +236,8 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	}
 
 	// Step 4: Extract the domain/organisation name of the sending platform from Certificate chain
-	// where the sending platform has supplied x5c certificates in the manifest signature
+	//
+	// Where the sending platform has supplied an x5c certificate in the manifest signature
 	// we can extract the domain/organisation name from the certificate for tracking/logging.
 	// Use of x5c certs for non-repudiation platform are optional, but recommended for production
 	if len(certChain) > 0 {
@@ -279,7 +280,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	// This proves the actual document hasn't been altered since the sending platform signed the manifest
 	// Also extracts the required transportDocumentReference field
 	transportDocumentResult, err := verifyTransportDocumentChecksum(
-		input.Envelope.TransportDocument,
+		TransportDocument(input.Envelope.TransportDocument),
 		manifest.TransportDocumentChecksum,
 	)
 	if err != nil {
@@ -444,7 +445,7 @@ type TransportDocumentResult struct {
 // Returns an error if the calculated checksum does not match the expected value
 // or if the transportDocumentReference is missing.
 func verifyTransportDocumentChecksum(
-	transportDocument json.RawMessage,
+	transportDocument TransportDocument,
 	expectedChecksum TransportDocumentChecksum,
 ) (*TransportDocumentResult, error) {
 
@@ -481,7 +482,7 @@ func verifyTransportDocumentChecksum(
 // verifyIssuanceManifest verifies the carrier's signature on the issuance manifest and validates
 // the transport document checksum.
 //
-//   - Carrier signature verification ensures the carrier is the one who issued the eBL (non-repudiation)
+//   - Carrier signature verification ensures the carrier is the one who issued the eBL
 //   - Document checksum verification ensures the transport document hasn't been tampered with since issuance
 //
 // TODO: confirm this is correct:
@@ -749,7 +750,7 @@ func verifyEnvelopeTransferChain(
 
 			// Step 8d: Reject chains where surrender requests are not addressed to the carrier that issued the eBL
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
-				if transaction.Recipient == nil || !identifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes) {
+				if transaction.Recipient == nil || !IdentifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes, MatchAny) {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
 						i, j))

@@ -48,6 +48,14 @@ type EblError struct {
 
 func (e *EblError) Error() string {
 	if e.wrapped != nil {
+		// When wrapping another EblError with the same code, omit the repeated
+		// code prefix so the chain reads as a single BENV path, e.g.
+		//   BENV: actor: eBLPlatform is required
+		// instead of
+		//   BENV: actor: BENV: eBLPlatform is required
+		if inner, ok := e.wrapped.(*EblError); ok && inner.code == e.code {
+			return fmt.Sprintf("%s: %s: %s", e.code, e.message, inner.Error()[len(e.code)+2:])
+		}
 		return fmt.Sprintf("%s: %s: %v", e.code, e.message, e.wrapped)
 	}
 	return fmt.Sprintf("%s: %s", e.code, e.message)

@@ -143,7 +143,7 @@ func CreateEnvelopeForDelivery(
 
 	// Step 5: Build the envelope manifest
 	lastTransferChainEntry := receivedTransferEntryChain[len(receivedTransferEntryChain)-1]
-	transportDocument := input.ReceivedEnvelope.TransportDocument
+	transportDocument := TransportDocument(input.ReceivedEnvelope.TransportDocument)
 
 	manifestBuilder := NewEnvelopeManifestBuilder().
 		WithTransportDocument(transportDocument).

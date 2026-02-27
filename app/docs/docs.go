@@ -663,22 +663,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "eblPlatform": {
-                    "description": "EblPlatform: The eBL platform code (required) - BOLE, WAVE etc (c.f https://github.com/dcsaorg/DCSA-OpenAPI/tree/master/reference-data)",
+                    "description": "EblPlatform is the eBL platform code of the party (e.g. \"WAVE\", \"CARX\", \"EBL1\").",
                     "type": "string"
                 },
                 "identifyingCodes": {
-                    "description": "IdentifyingCodes: List of identifying codes (at least one required)",
+                    "description": "IdentifyingCodes are the codes that uniquely identify the party.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.IdentifyingCode"
                     }
                 },
                 "partyName": {
-                    "description": "PartyName: Name of the party (required)",
+                    "description": "PartyName is the name of the party (e.g. \"Maersk\").",
                     "type": "string"
                 },
                 "representedParty": {
-                    "description": "RepresentedParty: An identifier issued by the eBL Solution Provider, used for auditing purposes to verify that the endorsement chain action has been securely recorded.",
+                    "description": "RepresentedParty is the party on whose behalf the actor performed the action (optional)",
                     "allOf": [
                         {
                             "$ref": "#/definitions/ebl.RepresentedActorParty"
@@ -686,7 +686,7 @@ const docTemplate = `{
                     ]
                 },
                 "taxLegalReferences": {
-                    "description": "TaxLegalReferences: List of tax/legal references (optional)",
+                    "description": "TaxLegalReferences are the tax and legal references for the party.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.TaxLegalReference"
@@ -799,15 +799,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "codeListName": {
-                    "description": "codeListName: The name of the code list, code generation mechanism or code authority for the partyCode.\nExample values could be: DID (codeListProvider W3C), LEI (codeListProvider GLEIF), DUNS (codeListProvider Dunn and Bradstreet) etc.",
+                    "description": "CodeListName is the name of the code list (e.g. \"DID\", \"LEI\", \"DUNS\") - optional",
                     "type": "string"
                 },
                 "codeListProvider": {
-                    "description": "CodeListProvider: The provider of the code list (this can be a platform code like \"WAVE\", or a code list provider like \"DCSA\", \"GLEIF\", \"W3C\", \"DNB\")",
+                    "description": "CodeListProvider is the provider of the code list (e.g. \"WAVE\", \"DCSA\", \"GLEIF\", \"W3C\", \"DNB\").",
                     "type": "string"
                 },
                 "partyCode": {
-                    "description": "PartyCode: Code to identify the party as provided by the code list provider",
+                    "description": "PartyCode is the code identifying the party as provided by the code list provider.",
                     "type": "string"
                 }
             }
@@ -816,21 +816,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "eblPlatform": {
-                    "description": "EblPlatform: The eBL platform code (required)",
+                    "description": "EblPlatform is the eBL platform code of the party (e.g. \"WAVE\", \"CARX\", \"EBL1\").",
                     "type": "string"
                 },
                 "identifyingCodes": {
+                    "description": "IdentifyingCodes are the codes that uniquely identify the party.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.IdentifyingCode"
                     }
                 },
                 "partyName": {
-                    "description": "PartyName: Name of the party (required)",
+                    "description": "PartyName is the name of the party (e.g. \"Maersk\").",
                     "type": "string"
                 },
                 "representedParty": {
-                    "description": "RepresentedParty: Party on whose behalf the action was directed (optional)",
+                    "description": "RepresentedParty is the party on whose behalf the actor performed the action (optional)",
                     "allOf": [
                         {
                             "$ref": "#/definitions/ebl.RepresentedRecipientParty"
@@ -838,7 +839,7 @@ const docTemplate = `{
                     ]
                 },
                 "taxLegalReferences": {
-                    "description": "TaxLegalReferences: List of tax/legal references (optional)",
+                    "description": "TaxLegalReferences are the tax and legal references for the party.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.TaxLegalReference"
@@ -850,14 +851,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "identifyingCodes": {
-                    "description": "IdentifyingCodes: List of identifying codes (optional)",
+                    "description": "IdentifyingCodes are the codes that uniquely identify the party (optional)",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.IdentifyingCode"
                     }
                 },
                 "partyName": {
-                    "description": "PartyName: Name of the party (required)",
+                    "description": "PartyName is the name of the party e.g. \"Maersk\".",
                     "type": "string"
                 }
             }
@@ -866,14 +867,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "identifyingCodes": {
-                    "description": "IdentifyingCodes: List of identifying codes (optional)",
+                    "description": "IdentifyingCodes are the codes that uniquely identify the party (optional)",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/ebl.IdentifyingCode"
                     }
                 },
                 "partyName": {
-                    "description": "PartyName: Name of the party (required)",
+                    "description": "PartyName is the name of the party e.g. \"Maersk\".",
                     "type": "string"
                 }
             }
@@ -895,15 +896,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "countryCode": {
-                    "description": "CountryCode: ISO 3166-1 alpha-2 country code",
+                    "description": "CountryCode is the ISO 3166-1 alpha-2 country code.",
                     "type": "string"
                 },
                 "type": {
-                    "description": "Type: The reference type code (e.g., \"PAN\", \"EORI\", \"GSTIN\", \"CVR\")",
+                    "description": "Type is the reference type code (e.g. \"PAN\", \"EORI\", \"GSTIN\", \"CVR\").",
                     "type": "string"
                 },
                 "value": {
-                    "description": "Value: The actual reference value",
+                    "description": "Value is the actual reference value.",
                     "type": "string"
                 }
             }

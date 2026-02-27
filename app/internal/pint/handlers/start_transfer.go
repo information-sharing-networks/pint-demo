@@ -476,7 +476,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	// Step 10. Store new envelopes - Start transactional db works
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		logger.ContextWithLogAttrs(ctx,
+		reqLogger.Error("Failed to start databse transaction",
 			slog.String("error", err.Error()),
 		)
 
@@ -496,7 +496,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	txQueries := s.queries.WithTx(tx)
 	_, err = txQueries.CreateTransportDocumentIfNew(ctx, database.CreateTransportDocumentIfNewParams{
 		Checksum: string(verifiedEnvelope.TransportDocumentChecksum),
-		Content:  envelope.TransportDocument,
+		Content:  json.RawMessage(envelope.TransportDocument),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -631,7 +631,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 
 	// Commit db changes
 	if err := tx.Commit(ctx); err != nil {
-		logger.ContextWithLogAttrs(ctx,
+		reqLogger.Error("failed to commit dabase transaction",
 			slog.String("error", err.Error()),
 		)
 

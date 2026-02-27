@@ -23,7 +23,6 @@ var (
 	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
 	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
 	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
-	validDomain               = "ed25519-eblplatform.example.com"
 	validISSUChainEntryPath   = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
 	validTRSNSChainEntryPath  = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
@@ -233,16 +232,14 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 		name            string
 		tamperEnvelope  func(*Envelope) error
 		publicKeyPath   string
-		domain          string
 		useWrongCAPath  bool
 		wantErrCode     string
 		wantErrContains string
 	}{
 		// signature errors
 		{
-			name:            "returns BSIG when incorrect public key",
+			name:            "returns BSIG when manifest is signed by the incorrect public key",
 			publicKeyPath:   wrongPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BSIG",
 			wantErrContains: "JWS verification failed", // Signature fails before x5c check
@@ -260,15 +257,13 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BSIG",
 			wantErrContains: "JWS verification failed",
 		},
 		{
-			name:            "returns BSIG when wrong root CA",
+			name:            "returns BSIG when wrong root CA specified",
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  true,
 			wantErrCode:     "BSIG",
 			wantErrContains: "certificate chain validation failed",
@@ -289,7 +284,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BENV",
 			wantErrContains: "last transfer chain entry checksum does not match the manifest",
@@ -301,7 +295,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BENV",
 			wantErrContains: "transport document checksum mismatch",
@@ -322,11 +315,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return err
 				}
 
-				newChecksum, err := TransportDocument(modifiedDoc).Checksum()
-				if err != nil {
-					return err
-				}
-
 				// Update the transport document
 				env.TransportDocument = modifiedDoc
 
@@ -340,11 +328,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 					return err
 				}
 
-				// Verify the checksum matches what we expect
-				if newManifest.TransportDocumentChecksum != TransportDocumentChecksum(newChecksum) {
-					return fmt.Errorf("checksum mismatch in test setup: expected %s, got %s", newChecksum, newManifest.TransportDocumentChecksum)
-				}
-
 				newManifestJWS, err := newManifest.Sign(privateKey, certChain)
 				if err != nil {
 					return err
@@ -354,7 +337,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BENV",
 			wantErrContains: "transportDocumentReference is required",
@@ -366,7 +348,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     "BENV",
 			wantErrContains: "envelope transfer chain is empty",
@@ -453,7 +434,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     string(ErrCodeEnvelope),
 			wantErrContains: "invalid state transition from SURRENDER_FOR_DELIVERY to TRANSFER",
@@ -526,7 +506,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				return nil
 			},
 			publicKeyPath:   validPublicKeyPath,
-			domain:          validDomain,
 			useWrongCAPath:  false,
 			wantErrCode:     string(ErrCodeEnvelope),
 			wantErrContains: "surrender request must be addressed to the issuing carrier",
@@ -549,9 +528,6 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 			// Apply tampering if specified
 			if tt.tamperEnvelope != nil {
 				if err := tt.tamperEnvelope(&envelope); err != nil {
-					if strings.Contains(err.Error(), "skip") {
-						t.Skip(err.Error())
-					}
 					t.Fatalf("Failed to tamper envelope: %v", err)
 				}
 			}

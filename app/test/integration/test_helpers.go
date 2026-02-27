@@ -51,7 +51,7 @@ type testIdentifyingCode struct {
 	codeListName     *string
 }
 
-// Helper to create a party with codes - reusable but not automatic
+// Helper to store a party in the database with the given identifying codes
 func createTestParty(t *testing.T, queries *database.Queries, partyName string, active bool, codes []testIdentifyingCode) database.Party {
 	t.Helper()
 	ctx := context.Background()
