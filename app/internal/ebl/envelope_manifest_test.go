@@ -31,6 +31,7 @@ var (
 	}
 )
 
+// TestEnvelopeManifestBuilder covers building an envelope manifest with required and optional fields, and validation of document metadata.
 func TestEnvelopeManifestBuilder(t *testing.T) {
 	tests := []struct {
 		name                string

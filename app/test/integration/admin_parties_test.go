@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"testing"
+
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
 // PartyRequest represents the request body for creating/updating a party
@@ -28,7 +30,7 @@ type PartyResponse struct {
 
 // TestAdminPartiesCreateAndUpdate tests creating and updating a party
 func TestAdminParties_CreateAndUpdate(t *testing.T) {
-	testEnv := startInProcessServer(t, "EBL2")
+	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 	defer testEnv.shutdown()
 
 	adminURL := testEnv.baseURL + "/admin"

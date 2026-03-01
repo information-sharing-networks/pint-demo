@@ -253,25 +253,6 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	//	- do the parties referenced in the last transfer chain entry exist on this platform?
 	//	- dispute detection (have we seen a transfer for this eBL from a different platform with a conflicting history?)
 
-	// Step 3. Reject requests if the BL was already surendered (422 BENV)
-	if verifiedEnvelope.IsSurrendered {
-		reason = fmt.Sprintf("eBL is in has already been surrendered on %s", verifiedEnvelope.PossessionTransaction.ActionDateTime)
-		signedResponse, err := s.signEnvelopeTransferFinishedResponse(pint.EnvelopeTransferFinishedResponse{
-			LastEnvelopeTransferChainEntrySignedContentChecksum: verifiedEnvelope.LastTransferChainEntrySignedContentChecksum,
-			ResponseCode: pint.ResponseCodeBENV,
-			Reason:       &reason,
-		})
-		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
-			return
-		}
-		reqLogger.Warn("eBL is in terminal state (SACC)",
-			slog.String("envelope_id", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
-		)
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
-		return
-	}
-
 	// Step 4. Reject requests that are not addressed to this platform (422 BENV)
 	// This prevents a platform from accidentally sending to the wrong platform.
 	if verifiedEnvelope.RecipientPlatform != s.platformCode {
@@ -742,8 +723,7 @@ func checkTransferChainConsistency(
 
 		// If payload checksums don't match, we have a fork
 		if newPayloadChecksum != existingPayloadChecksum {
-			return fmt.Errorf("fork at position %d: existing entry has payload checksum %s, new entry has payload checksum %s",
-				seq, existingPayloadChecksum, newPayloadChecksum)
+			return fmt.Errorf("fork at transfer chain entry position %d: payload checksum of incoming chain is different to the stored chain", seq)
 		}
 	}
 	// TODO where there has been one or more transfers, we should also check the endorsement chain is consistent

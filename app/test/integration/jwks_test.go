@@ -11,12 +11,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
+// TestJWKSEndpoint covers that the JWKS endpoint returns the server's public key in JWK set format.
 func TestJWKSEndpoint(t *testing.T) {
 
-	testEnv := startInProcessServer(t, "EBL1")
+	testEnv := startInProcessServer(t, "EBL1", crypto.TrustLevelDV)
 	testDomain := "ed25519-eblplatform.example.com"
 
 	// the jwk returned by the endpoint should match with the manually configured key for the testDomain

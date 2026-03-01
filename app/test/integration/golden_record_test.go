@@ -24,7 +24,7 @@ import (
 //
 //  1. VerifyEnvelope accepts the result (confirms structure, signatures etc)
 //
-//  2. The recreated JWS tokens match the stored golden envelope byte-for-byte
+//  2. Tests the recreated JWS tokens match the stored golden envelope
 //     Note this test relies on using a deterministc signing algorithm (Ed25519 in this case)
 //
 // The testdata pins all variable inputs: transaction data, actionDateTime, and transport document.
@@ -109,7 +109,7 @@ func TestGoldenRecord(t *testing.T) {
 	issueToChecksum := ebl.IssueToChecksum(origIssuanceManifest.IssueToChecksum)
 	eblVisualisationChecksum := origIssuanceManifest.EBLVisualisationByCarrierChecksum
 
-	// Step 5: recreate the issuance manifest and sign it with the carrier key
+	// Step 6: recreate the issuance manifest and sign it with the carrier key
 	iBuilder := ebl.NewIssuanceManifestBuilder().
 		WithDocumentChecksum(transportDocumentChecksum).
 		WitheBLVisualisationByCarrierChecksum(*eblVisualisationChecksum).
@@ -125,7 +125,7 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatal("could not sign issuance manifest")
 	}
 
-	// Step 5: recreate the ISSUE transaction
+	// Step 7: recreate the ISSUE transaction
 	// using the builder functions rather than copying the raw structs, as this exercises the same code path as production.
 	actor := origIssuanceTransaction.Actor
 	recipient := *origIssuanceTransaction.Recipient
@@ -157,7 +157,7 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatalf("could not compute issuance entry checksum %v", err)
 	}
 
-	// Step 6: recreate the TRANSFER transaction
+	// Step 8: recreate the TRANSFER transaction
 	actor = origTransferTransaction.Actor
 	recipient = *origTransferTransaction.Recipient
 
@@ -181,7 +181,7 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatal("could not sign transfer chain entry")
 	}
 
-	// Step 7: build and sign the envelope manifest, then assemble the full envelope
+	// Step 9: build and sign the envelope manifest, then assemble the full envelope
 	mBuilder := ebl.NewEnvelopeManifestBuilder().
 		WithTransportDocument(transportDocument).
 		WithLastTransferChainEntry(issuanceEntryJWS).
@@ -208,7 +208,7 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatalf("could not build envelope %v", err)
 	}
 
-	// Step 8: VerifyEnvelope checks structural correctness, certificate trust, and every signature in the chain
+	// Step 10: VerifyEnvelope checks structural correctness, certificate trust, and every signature in the chain
 	recipientPlatformCode := "EBL2"
 	result, err := ebl.VerifyEnvelope(context.Background(), ebl.EnvelopeVerificationInput{
 		Envelope:              envelope,
@@ -244,7 +244,7 @@ func TestGoldenRecord(t *testing.T) {
 		t.Errorf("TrustLevel: got %v, want %v", result.TrustLevel, crypto.TrustLevelEVOV)
 	}
 
-	// Step 9: compare recreated JWS tokens  against the golden envelope.
+	// Step 11: compare recreated JWS tokens  against the golden envelope.
 	goldenEnvelopeData, err := os.ReadFile("../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json")
 	if err != nil {
 		t.Fatalf("Failed to read golden envelope: %v", err)
@@ -264,7 +264,6 @@ func TestGoldenRecord(t *testing.T) {
 		t.Errorf("TRNS transfer chain entry JWS does not match golden record")
 	}
 
-	t.Log("Golden record test passed - sucessfully recreated HHL71800000-ebl-envelope-ed25519.json")
 }
 
 // reconstructTransactionFromEntryFile reads a fixture file containing a single-transaction transfer

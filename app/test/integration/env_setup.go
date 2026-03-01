@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/config"
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 	"github.com/information-sharing-networks/pint-demo/app/internal/server"
@@ -47,7 +48,7 @@ type testEnv struct {
 
 // startInProcessServer starts the pint-server in-process for testing - returns the base URL for the API and a shutdown function
 // the signing key used is determined by the platformCode parameter (EBL1, EBL2 or CAR1 are supported)
-func startInProcessServer(t *testing.T, platformCode string) *testEnv {
+func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypto.TrustLevel) *testEnv {
 	t.Helper()
 
 	testEnv := &testEnv{}
@@ -73,11 +74,6 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 		partyServiceBaseURL = "http://localhost" + fmt.Sprintf(":%d", port) + "/admin/parties"
 	)
 
-	enableServerLogs := false
-	if os.Getenv("ENABLE_SERVER_LOGS") == "true" {
-		enableServerLogs = true
-		logLevel = logger.ParseLogLevel("debug")
-	}
 	switch platformCode {
 	case "EBL1":
 		signingKeyPath = "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
@@ -115,6 +111,7 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 		"PLATFORM_CODE":          platformCode,
 		"PARTY_SERVICE_NAME":     partyServiceName,
 		"PARTY_SERVICE_BASE_URL": partyServiceBaseURL,
+		"MIN_TRUST_LEVEL":        fmt.Sprintf("%d", minTrustLevel),
 	}
 
 	// Save original env vars and set test values
@@ -143,9 +140,10 @@ func startInProcessServer(t *testing.T, platformCode string) *testEnv {
 	testEnv.queries = database.New(testEnv.pool)
 
 	logLevel = logger.ParseLogLevel("none")
-	if enableServerLogs {
-		logLevel = logger.ParseLogLevel("debug")
+	if os.Getenv("ENABLE_SERVER_LOGS") == "true" {
+		logLevel = logger.ParseLogLevel("Info")
 	}
+
 	appLogger := logger.InitLogger(logLevel, "test")
 
 	serverInstance, err := server.NewServer(
@@ -253,125 +251,106 @@ func waitForServer(t *testing.T, url string, timeout time.Duration) bool {
 // Test database configuration
 
 type databaseConfig struct {
-	userAndPassword string
-	dbname          string
-	host            string
-	port            int
+	user   string // user[:password]
+	dbname string
+	host   string
+	port   int
 }
 
 func (d *databaseConfig) connectionURL() string {
 	return fmt.Sprintf("postgres://%s@%s:%d/%s?sslmode=disable",
-		d.userAndPassword, d.host, d.port, d.dbname)
+		d.user, d.host, d.port, d.dbname)
 }
 
-func (d *databaseConfig) WithDatabase(dbname string) *databaseConfig {
+func (d *databaseConfig) WithDbname(dbname string) *databaseConfig {
 	return &databaseConfig{
-		userAndPassword: d.userAndPassword,
-		host:            d.host,
-		port:            d.port,
-		dbname:          dbname,
+		user:   d.user,
+		host:   d.host,
+		port:   d.port,
+		dbname: dbname,
 	}
 }
 
-func localDatabaseConfig() *databaseConfig {
+func (d *databaseConfig) WithPort(port int) *databaseConfig {
 	return &databaseConfig{
-		userAndPassword: "pint-dev",
-		dbname:          "tmp_pint_integration_test",
-		host:            "localhost",
-		port:            15433,
+		user:   d.user,
+		host:   d.host,
+		port:   port,
+		dbname: d.dbname,
 	}
 }
 
-func ciDatabaseConfig() *databaseConfig {
+func (d *databaseConfig) WithUser(user string) *databaseConfig {
 	return &databaseConfig{
-		userAndPassword: "postgres:postgres",
-		dbname:          "tmp_pint_integration_test",
-		host:            "localhost",
-		port:            5432,
+		user:   user,
+		host:   d.host,
+		port:   d.port,
+		dbname: d.dbname,
 	}
 }
 
 // setupTestDatabase creates an empty test db, applies migrations and returns a connection pool
 // the function auto-detetcs if it is running in CI (github actions) and uses the appropriate database config
 func setupTestDatabase(t *testing.T) *pgxpool.Pool {
-
 	ctx := context.Background()
-	config := databaseConfig{}
-
+	config := &databaseConfig{
+		host: "localhost",
+	}
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		config = *ciDatabaseConfig()
+		config = config.WithUser("postgres:postgres").
+			WithPort(5432)
 	} else {
-		config = *localDatabaseConfig()
+		config = config.WithUser("pint-dev").
+			WithPort(15433)
 	}
 
-	postgresConfig := config.WithDatabase("postgres")
+	// Generate a unique test database name
+	testDbName := fmt.Sprintf("test_%d", time.Now().UnixMilli())
 
-	// connect to the postgres database to create the test database
+	// Connect to the postgres database to create the test database
+	postgresConfig := config.WithDbname("postgres")
 	postgresConnectionURL := postgresConfig.connectionURL()
 
-	// Check PostgreSQL server connectivity
-	// Note: We manually manage this pool's lifecycle (not using setupDatabaseConn)
-	// because we need it to stay open until after we drop the test database in cleanup
 	postgresPoolConfig, err := pgxpool.ParseConfig(postgresConnectionURL)
 	if err != nil {
 		t.Fatalf("Failed to parse postgres database URL: %v", err)
 	}
-
 	postgresPool, err := pgxpool.NewWithConfig(ctx, postgresPoolConfig)
 	if err != nil {
 		t.Fatalf("Unable to create postgres connection pool: %v", err)
 	}
-
 	if err := postgresPool.Ping(ctx); err != nil {
 		t.Fatalf("Can't ping PostgreSQL server %s", postgresConnectionURL)
 	}
 
-	_, err = postgresPool.Exec(ctx, "DROP DATABASE IF EXISTS "+config.dbname)
+	_, err = postgresPool.Exec(ctx, "CREATE DATABASE "+testDbName)
 	if err != nil {
-		t.Fatalf("DROP DATABASE IF EXISTS Failed : %v", err)
+		t.Fatalf("CREATE DATABASE failed: %v", err)
 	}
+	t.Logf("Created database: %s", testDbName)
 
-	_, err = postgresPool.Exec(ctx, "CREATE DATABASE "+config.dbname)
-	if err != nil {
-		t.Fatalf("CREATE DATABASE Failed : %v", err)
-	}
-
-	// Close the postgres pool
 	t.Cleanup(func() {
 		postgresPool.Close()
 	})
 
-	// drop the test database when the test is complete
 	t.Cleanup(func() {
-		_, err := postgresPool.Exec(ctx, "DROP DATABASE "+config.dbname)
+		_, err := postgresPool.Exec(ctx, "DROP DATABASE "+testDbName+" WITH (FORCE)")
 		if err != nil {
 			t.Fatalf("Failed to drop test database: %v", err)
 		}
+		t.Logf("Dropped database: %s", testDbName)
 	})
 
-	// connect to the new database
-	testDatabaseURL := config.connectionURL()
+	// Connect to the new test database
+	testDbConfig := config.WithDbname(testDbName)
+	testDatabaseURL := testDbConfig.connectionURL()
 	testDatabasePool := setupDatabaseConn(t, testDatabaseURL)
 
 	// Apply database migrations
 	if err := runDatabaseMigrations(t, testDatabasePool); err != nil {
 		t.Fatalf("Failed to apply database migrations: %v", err)
 	}
-	// Convert pgx pool to database/sql interface that Goose expects
-	var db *sql.DB = stdlib.OpenDBFromPool(testDatabasePool)
-	defer db.Close()
-
-	if err := goose.SetDialect("postgres"); err != nil {
-		t.Fatalf("failed to set goose dialect: %v", err)
-	}
-
-	// Apply migrations from the sql/schema directory
-	migrationDir := "../../sql/schema"
-	if err := goose.Up(db, migrationDir); err != nil {
-		t.Fatalf("failed to apply migrations: %v", err)
-	}
-
-	t.Logf("Database ready: %s", config.dbname)
+	t.Logf("Database ready: %s", testDbName)
 
 	return testDatabasePool
 }

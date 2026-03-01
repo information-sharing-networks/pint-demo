@@ -31,7 +31,7 @@ definitions:
     properties:
       eblPlatform:
         description: EblPlatform is the eBL platform code of the party (e.g. "WAVE",
-          "CARX", "EBL1").
+          "CARX").
         type: string
       identifyingCodes:
         description: IdentifyingCodes are the codes that uniquely identify the party.
@@ -183,7 +183,7 @@ definitions:
     properties:
       eblPlatform:
         description: EblPlatform is the eBL platform code of the party (e.g. "WAVE",
-          "CARX", "EBL1").
+          "CARX").
         type: string
       identifyingCodes:
         description: IdentifyingCodes are the codes that uniquely identify the party.

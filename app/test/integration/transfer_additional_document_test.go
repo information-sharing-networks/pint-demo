@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/database"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
@@ -97,7 +98,7 @@ func getAdditionalDocumentsState(t *testing.T, baseURL string, envelopePath stri
 // note don't run the subtests individually since they rely on the previous state
 func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	ctx := context.Background()
-	testEnv := startInProcessServer(t, "EBL2")
+	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	defer testEnv.shutdown()
@@ -369,7 +370,7 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 // TestTransferAdditionalDocument_ErrorCases tests various error scenarios
 // These tests are independent and don't rely on sequential state
 func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
-	testEnv := startInProcessServer(t, "EBL2")
+	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
 	defer testEnv.shutdown()

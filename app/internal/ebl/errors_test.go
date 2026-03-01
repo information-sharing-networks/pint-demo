@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// check to ensure error code handling has not been broken
+// TestEblError_Code covers that each error constructor produces the correct error code.
 func TestEblError_Code(t *testing.T) {
 	tests := []struct {
 		name     string

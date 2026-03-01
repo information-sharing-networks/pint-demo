@@ -37,7 +37,8 @@ var (
 	testPreviousEntryJWS    = TransferChainEntrySignedContent("eyJhbGci...entry")
 )
 
-// TestEnvelopeTransferChainEntry_Sign* test the core signing functionality of transfer chain entries.
+// TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C covers signing with Ed25519 and a full
+// certificate chain
 func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
@@ -96,7 +97,8 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C tests signing without x5c
+// TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C covers signing with Ed25519 when no certificate
+// chain is provided: the JWS must be valid and the x5c header must be absent.
 func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
@@ -143,7 +145,8 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C tests signing with RSA and x5c
+// TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C covers signing with an RSA key and a full
+// certificate chain
 func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
@@ -202,7 +205,8 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 	}
 }
 
-// TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C tests signing without x5c
+// TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C covers signing with an RSA key when no certificate
+// chain is provided: the JWS must be valid and the x5c header must be absent.
 func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/rsa-carrier.example.com.private.jwk")
 	if err != nil {
@@ -249,6 +253,9 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
 	}
 }
 
+// TestEnvelopeTransferChainEntry_Validate covers structural validation of a chain entry: required
+// fields, mutual-exclusion rules between issuanceManifestSignedContent and previousEntryChecksum,
+// and the constraint that controlTrackingRegistry is only allowed on the first entry.
 func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	validTransaction := Transaction{
 		ActionCode:     ActionCodeIssue,
@@ -394,6 +401,8 @@ func TestEnvelopeTransferChainEntry_Validate(t *testing.T) {
 	}
 }
 
+// TestEnvelopeTransferChainEntryBuilder_FirstEntry covers the builder for the first chain entry:
+// issuanceManifestSignedContent must be set and previousEntryChecksum must be absent.
 func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
 
 	entry, err := NewEnvelopeTransferChainEntryBuilder(true).
@@ -420,6 +429,8 @@ func TestEnvelopeTransferChainEntryBuilder_FirstEntry(t *testing.T) {
 	}
 }
 
+// TestEnvelopeTransferChainEntryBuilder_SubsequentEntry covers the builder for a non-first entry:
+// previousEntryChecksum must be computed from the prior JWS token and issuanceManifest must be absent.
 func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
 	previousEntryChecksum := checksumFromToken(testPreviousEntryJWS, t)
 
@@ -457,6 +468,8 @@ func TestEnvelopeTransferChainEntryBuilder_SubsequentEntry(t *testing.T) {
 	}
 }
 
+// TestEnvelopeTransferChainEntryBuilder_ValidationErrors covers builder validation: missing required
+// fields (checksum, platform, transaction) and missing previous-entry checksum for non-first entries.
 func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -517,6 +530,8 @@ func TestEnvelopeTransferChainEntryBuilder_ValidationErrors(t *testing.T) {
 	}
 }
 
+// TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry covers CTR handling: valid URL on
+// first entry is accepted; CTR on a subsequent entry or a malformed URL must both be rejected.
 func TestEnvelopeTransferChainEntryBuilder_ControlTrackingRegistry(t *testing.T) {
 	ctrURI := "https://ctr.example.com/v1"
 

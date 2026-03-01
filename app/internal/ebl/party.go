@@ -8,7 +8,7 @@ type ActorParty struct {
 	// PartyName is the name of the party (e.g. "Maersk").
 	PartyName string `json:"partyName"`
 
-	// EblPlatform is the eBL platform code of the party (e.g. "WAVE", "CARX", "EBL1").
+	// EblPlatform is the eBL platform code of the party (e.g. "WAVE", "CARX").
 	EblPlatform string `json:"eblPlatform"`
 
 	// IdentifyingCodes are the codes that uniquely identify the party.
@@ -79,7 +79,7 @@ type RecipientParty struct {
 	// PartyName is the name of the party (e.g. "Maersk").
 	PartyName string `json:"partyName"`
 
-	// EblPlatform is the eBL platform code of the party (e.g. "WAVE", "CARX", "EBL1").
+	// EblPlatform is the eBL platform code of the party (e.g. "WAVE", "CARX").
 	EblPlatform string `json:"eblPlatform"`
 
 	// IdentifyingCodes are the codes that uniquely identify the party.

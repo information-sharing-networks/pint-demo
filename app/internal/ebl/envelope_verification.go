@@ -159,7 +159,7 @@ type EnvelopeVerificationResult struct {
 	VerifiedOrganisation string
 
 	// RecipientPlatform is the intended recipient platform code extracted from the last transaction.
-	// This is the DCSA platform code (e.g., "WAVE", "CARX", "EBL1") that identifies
+	// This is the DCSA platform code (e.g., "WAVE", "CARX") that identifies
 	// which platform should receive this transfer.
 	//
 	// The handler should verify this matches the server's configured platform code.
@@ -179,10 +179,6 @@ type EnvelopeVerificationResult struct {
 	// ActionCode is the action code of the last transaction in the last transfer chain entry
 	// When processing a newly recieved envelope, this is the action the sender wants the platform to accept
 	ActionCode ActionCode
-
-	// IsSurrendered is true if the eBL is in a surrendered state (SACC)
-	// no further actions can be performed on surrendered envelopes.
-	IsSurrendered bool
 }
 
 // VerifyEnvelope performs technical verification (signatures, certificates, checksums, chain integrity etc
@@ -353,6 +349,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	}
 
 	lastTransaction := lastEntry.Transactions[len(lastEntry.Transactions)-1]
+	// recipient can be nil for SIGN and SACC transactions
 	if lastTransaction.Recipient == nil {
 		return result, NewEnvelopeError("recipient is required in last transaction")
 	}
@@ -387,7 +384,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	}
 
 	// Step 14: Get the transaction that establishes the latest possession of the eBL
-	// This is done by walking through the chain backwards and finding the most recent ISSUE, TRANSFER, or SACC action
+	// This is done by walking through the chain backwards and finding the most recent ISSUE or TRANSFER
 	for i := len(transferChain) - 1; i >= 0; i-- {
 		entry := transferChain[i]
 		for j := len(entry.Transactions) - 1; j >= 0; j-- {
@@ -396,9 +393,6 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 				result.PossessionTransaction = &transaction
 			}
 
-			if transaction.ActionCode == ActionCodeSACC {
-				result.IsSurrendered = true
-			}
 		}
 	}
 
@@ -578,14 +572,14 @@ func verifyEnvelopeTransferChain(
 			manifest.LastEnvelopeTransferChainEntrySignedContentChecksum, lastEntryJWSChecksum))
 	}
 
-	// Step 5: Reject chains that contain invalid entries
+	// Step 2: Reject chains that contain invalid entries
 	allTransferChainEntries := make([]*EnvelopeTransferChainEntry, len(envelopeTransferChain))
 
 	// Start from the last entry and walk backwards to the first entry
 	for i := len(envelopeTransferChain) - 1; i >= 0; i-- {
 		currentEntryJWS := envelopeTransferChain[i]
 
-		// Step 5a: Reject chains if the entry signature can't be verified against the keymanager
+		// Step 2a: Reject chains if the entry signature can't be verified against the keymanager
 		// Each entry in the chain is signed by the platform that created it.
 		// This prevents a platform from tampering with an entry created by another platform (since they don't have the private key)
 		currentPayloadBytes, _, _, err := crypto.VerifyJWS(
@@ -605,12 +599,12 @@ func verifyEnvelopeTransferChain(
 
 		isFirstEntry := i == 0
 
-		// Step 5b: Reject chains that are missing required fields
+		// Step 2b: Reject chains that are missing required fields
 		if err := currentEntry.ValidateStructure(isFirstEntry); err != nil {
 			return nil, WrapEnvelopeError(err, fmt.Sprintf("entry %d validation failed", i))
 		}
 
-		// Step 5c: Reject chains where the entry was signed by a different platform than the one claimed in the entry payload
+		// Step 2c: Reject chains where the entry was signed by a different platform than the one claimed in the entry payload
 		// This blocks transfers if any of the chain entries were signed by a different platform than
 		// the platform claimed in the transfer chain entry (envelopeTransferChainEntry.eblPlatform)
 		// If previous receiving platforms are functioning correctly they will not accept incorrectly addresssed envelopes
@@ -637,7 +631,7 @@ func verifyEnvelopeTransferChain(
 		// Store the entry in the result slice
 		allTransferChainEntries[i] = &currentEntry
 
-		// Step 5d: Reject chains where the chain link is broken
+		// Step 2d: Reject chains where the chain link is broken
 		// this prevents an attacker from replacing an entry with a valid one from a different transfer.
 		if i > 0 {
 			previousEntryJWS := envelopeTransferChain[i-1]
@@ -661,7 +655,7 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 6: Reject chains where an entry's transport document checksum doesn't match the manifest
+	// Step 3: Reject chains where an entry's transport document checksum doesn't match the manifest
 	// All entries must reference the same transport document - it cannot change during transfers
 	firstChecksum := allTransferChainEntries[0].TransportDocumentChecksum
 
@@ -677,7 +671,7 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 7: Reject chains where an entry was created by a platform that is not the intended recipient
+	// Step 4: Reject chains where an entry was created by a platform that is not the intended recipient
 	// Each envelope transfer delivers the eBL to the recipient of the last transaction in the previous entry.
 	// The platform creating the next entry must be that recipient — otherwise a non-possessing platform
 	// could append entries to the chain and redirect the eBL.
@@ -700,7 +694,7 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 8: Reject chains with invalid sequences of entries
+	// Step 5: Reject chains with invalid sequences of entries
 	// These checks depend on the relative position of each transaction in the chain.
 	currentActionCode := ActionCodeUnset
 	var issueActorCodes []IdentifyingCode
@@ -712,11 +706,11 @@ func verifyEnvelopeTransferChain(
 			// first entry
 			if currentActionCode == ActionCodeUnset {
 
-				// Step 8a: Reject chains if the first entry does not contain an issuanceManifestSignedContent field
+				// Step 5a: Reject chains if the first entry does not contain an issuanceManifestSignedContent field
 				if entry.IssuanceManifestSignedContent == nil {
 					return nil, NewEnvelopeError("first entry should contain an issuanceManifestSignedContent field")
 				}
-				// Step 8b: Reject chains if the first transaction is not an ISSUE
+				// Step 5b: Reject chains if the first transaction is not an ISSUE
 				if nextActionCode != ActionCodeIssue {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"first transaction must be ISSUE, got %s (entry %d, transaction %d)",
@@ -729,14 +723,12 @@ func verifyEnvelopeTransferChain(
 				continue
 			}
 
-			// Step 8c: Reject chains with impossible transaction sequences
+			// Step 5c: Reject chains with impossible transaction sequences
 			// The action codes in the transfer chain must follow the rules defined in action_codes.go
 			// e.g you can't have two endorsements in a row, or an endorsement after a surrender request etc.
 			isValid, reason, err := isValidActionCodeTransition(&ActionCodeTransiton{
 				previousActionCode:    currentActionCode,
 				nextActionCode:        nextActionCode,
-				previousPlatformCode:  transaction.Actor.EblPlatform,
-				nextPlatformCode:      transaction.Recipient.EblPlatform,
 				transportDocumentType: docType,
 			})
 			if err != nil {
@@ -748,7 +740,7 @@ func verifyEnvelopeTransferChain(
 					currentActionCode, nextActionCode, i, j, reason))
 			}
 
-			// Step 8d: Reject chains where surrender requests are not addressed to the carrier that issued the eBL
+			// Step 5d: Reject chains where surrender requests are not addressed to the carrier that issued the eBL
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
 				if transaction.Recipient == nil || !IdentifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes, MatchAny) {
 					return nil, NewEnvelopeError(fmt.Sprintf(

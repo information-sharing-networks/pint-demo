@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// TestDocumentMetadataFromFile covers extracting file metadata
+// (name, size, media type, checksum) from a file path, including missing file rejection.
 func TestDocumentMetadataFromFile(t *testing.T) {
 	tests := []struct {
 		name        string

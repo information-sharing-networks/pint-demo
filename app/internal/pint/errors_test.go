@@ -2,8 +2,7 @@ package pint
 
 import "testing"
 
-// sanity check that the error codes are in the correct range
-
+// TestErrorCodes covers that each error code constant has the expected numeric value.
 func TestErrorCodes(t *testing.T) {
 	tests := []struct {
 		name     string

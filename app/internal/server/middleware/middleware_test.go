@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// TestRequestSizeLimits covers that requests exceeding the configured body size limit are rejected with 413.
 func TestRequestSizeLimits(t *testing.T) {
 	router := chi.NewRouter()
 
@@ -62,6 +63,7 @@ func TestRequestSizeLimits(t *testing.T) {
 	}
 }
 
+// TestRateLimitIsEnabled covers that requests beyond the burst limit are rejected with 429 when rate limiting is active.
 func TestRateLimitIsEnabled(t *testing.T) {
 	// Create router with rate limiting
 	router := chi.NewRouter()
@@ -91,6 +93,7 @@ func TestRateLimitIsEnabled(t *testing.T) {
 	}
 }
 
+// TestRateLimitIsDisabled covers that setting rps to zero or negative disables rate limiting and all requests succeed.
 func TestRateLimitIsDisabled(t *testing.T) {
 
 	tests := []struct {

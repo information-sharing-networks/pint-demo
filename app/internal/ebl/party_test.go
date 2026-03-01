@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestIdentifyingCode_Validate covers validation of identifying codes, including missing codeListProvider and partyCode.
 func TestIdentifyingCode_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -64,6 +65,7 @@ func TestIdentifyingCode_Validate(t *testing.T) {
 	}
 }
 
+// TestActorParty_Validate covers validation of actor parties, including missing name, platform, identifying codes, and invalid nested codes.
 func TestActorParty_Validate(t *testing.T) {
 	tests := []struct {
 		name    string

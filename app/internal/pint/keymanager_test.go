@@ -39,6 +39,7 @@ func getKeyIDFromJWKFile(t *testing.T, path string) string {
 	return kid
 }
 
+// TestKeyManager_LoadRegistry covers loading platform keys from a CSV registry, including key lookup and unknown platform rejection.
 func TestKeyManager_LoadRegistry(t *testing.T) {
 	ctx := context.Background()
 	url := "../../test/testdata/platform-registry/eblsolutionproviders.csv"
@@ -119,6 +120,7 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 	}
 }
 
+// TestKeyManager_LoadManualKeys covers loading manually specified JWK files, including key lookup by platform domain.
 func TestKeyManager_LoadManualKeys(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -187,6 +189,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 
 }
 
+// TestKeyManager_LoadManualKeys_RejectsMultipleKeys covers that a JWK file containing more than one key is rejected.
 func TestKeyManager_LoadManualKeys_RejectsMultipleKeys(t *testing.T) {
 	tempDir := t.TempDir()
 

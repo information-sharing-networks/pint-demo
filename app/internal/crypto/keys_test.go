@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// test that only valid RSA key sizes are accepted
+// TestGenerateRSAKeyPair covers that only valid RSA key sizes (2048, 4096) are accepted.
 func TestGenerateRSAKeyPair(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -53,7 +53,7 @@ func TestGenerateRSAKeyPair(t *testing.T) {
 	}
 }
 
-// generate a Ed25519 key pair, save the private and public keys to JWK files, read them back and compare
+// TestSaveAndReadEd25519JWK covers saving and loading Ed25519 keys to and from JWK files, including file permission checks.
 func TestSaveAndReadEd25519JWK(t *testing.T) {
 	// JWK private key
 	privateKey, err := GenerateEd25519KeyPair()
@@ -105,7 +105,7 @@ func TestSaveAndReadEd25519JWK(t *testing.T) {
 
 }
 
-// generate a key pair, save the private and public keys to PEM files, read them back and compare
+// TestSaveAndReadEd25519PEM covers saving and loading Ed25519 keys to and from PEM files, including file permission checks.
 func TestSaveAndReadEd25519PEM(t *testing.T) {
 	// Generate a key pair
 	privateKey, err := GenerateEd25519KeyPair()
@@ -265,7 +265,7 @@ func TestSaveAndReadRSAPEM(t *testing.T) {
 	}
 }
 
-// This test verifies that a key saved in both PEM and JWK formats is the same
+// TestPEMAndJWKKeyPairMatch covers that a key saved in PEM and JWK formats round-trips to the same key for both Ed25519 and RSA.
 func TestPEMAndJWKKeyPairMatch(t *testing.T) {
 
 	t.Run("Ed25519", func(t *testing.T) {

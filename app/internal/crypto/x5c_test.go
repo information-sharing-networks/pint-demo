@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// TestParseX5CFromJWS covers extraction of x5c certificate chains from JWS headers, including missing, empty, and malformed x5c cases.
 func TestParseX5CFromJWS(t *testing.T) {
 
 	certs, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")

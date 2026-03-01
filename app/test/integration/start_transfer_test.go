@@ -21,7 +21,7 @@ import (
 
 // TestStartTransfer does an end-2-end test of the POST /v3/envelopes endpointd
 func TestStartTransfer(t *testing.T) {
-	testEnv := startInProcessServer(t, "EBL2")
+	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 	defer testEnv.shutdown()
 	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 
@@ -456,7 +456,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Start server as the specified platform
-			env := startInProcessServer(t, tt.serverPlatform)
+			env := startInProcessServer(t, tt.serverPlatform, crypto.TrustLevelDV)
 			defer env.shutdown()
 			createPartiesFromFile(t, env, testTransferChainEntryPath)
 
@@ -510,6 +510,7 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 	}
 }
 
+// TestStartTransfer_RecipientPartyValidation covers that the start-transfer endpoint rejects envelopes addressed to unknown or untrusted recipient platforms.
 func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 	// The test envelope (Ed25519) is addressed to EBL2 (sender=EBL1, recipient=EBL2)
 	testEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
@@ -553,7 +554,7 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 		// clean db
 		t.Run(tt.name, func(t *testing.T) {
 			// Start server as EBL2
-			env := startInProcessServer(t, "EBL2")
+			env := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 			defer env.shutdown()
 
 			// setup parties
@@ -608,300 +609,269 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 	}
 }
 
-// TestTransferRuntimeRejections tests various runtime rejections, DISE etc
-func TestTransferRuntimeRejections(t *testing.T) {
-	t.Skip("DEBUG !!! skipping test")
+// test for DISE handling
+func TestTransferDISE(t *testing.T) {
 
-	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	// signing keys
+	car1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
 	}
-	certChain, err := crypto.ReadCertChainFromPEMFile("../testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
+	ebl1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
-		t.Fatalf("Failed to read cert chain: %v", err)
+		t.Fatalf("Failed to read private key: %v", err)
 	}
 
-	// test data - base envelope with two entries (ISSU and TRNS)
-	// The ISSUE entry is from the carrier to EBL1
-	// the TRANSFER entry is from EBL1 to EBL2
-	testPlatform := "EBL1"
-	baseEnvelopePath := "../testdata/pint-transfers/HHL71800000-ebl-envelope-nodocs-ed25519.json"
-	baseEnvelopeData, err := os.ReadFile(baseEnvelopePath)
+	ebl2PrivateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../testdata/keys/rsa-eblplatform.example.com.private.jwk")
 	if err != nil {
-		t.Fatalf("Failed to read test envelope: %v", err)
+		t.Fatalf("Failed to read private key: %v", err)
 	}
 
-	var baseEnvelope ebl.Envelope
-	if err := json.Unmarshal(baseEnvelopeData, &baseEnvelope); err != nil {
-		t.Fatalf("Failed to parse envelope: %v", err)
+	// create party structures
+	car1Actor, err := ebl.NewActorPartyBuilder("car1 party", "CAR1").
+		WithIdentifyingCode("CAR1", "carrier1party@carrier1.example.com", nil).
+		Build()
+	if err != nil {
+		t.Fatalf("could not build actor party %v", err)
 	}
 
-	var setupEnvelope1Data []byte
-	var setupEnvelope2Data []byte
-	var setupEnvelope3Data []byte
+	ebl1Actor, err := ebl.NewActorPartyBuilder("ebl1 party", "EBL1").
+		WithIdentifyingCode("EBL1", "ebl1-party@ebl1.example.com", nil).
+		Build()
+	if err != nil {
+		t.Fatalf("could not build actor party %v", err)
+	}
 
-	//var setupEnvelope1 ebl.Envelope
-	//var setupEnvelope2 ebl.Envelope
-	var setupEnvelope3 ebl.Envelope
+	ebl1Recipient, err := ebl.NewRecipientPartyBuilder("ebl1 party", "EBL1").
+		WithIdentifyingCode("EBL1", "ebl1-party@ebl1.example.com", nil).
+		Build()
+	if err != nil {
+		t.Fatalf("could not build recipient party %v", err)
+	}
 
-	env := startInProcessServer(t, "EBL2")
-	defer env.shutdown()
+	ebl2Actor, err := ebl.NewActorPartyBuilder("ebl2 party", "EBL2").
+		WithIdentifyingCode("EBL2", "ebl2-party@ebl2.example.com", nil).
+		Build()
+	if err != nil {
+		t.Fatalf("could not build actor party %v", err)
+	}
 
-	trns_actor, trns_recipient := createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
-	carrier_actor, _ := createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json")
+	ebl2Recipient, err := ebl.NewRecipientPartyBuilder("ebl2 party", "EBL2").
+		WithIdentifyingCode("EBL2", "ebl2-party@ebl2.example.com", nil).
+		Build()
+	if err != nil {
+		t.Fatalf("could not build recipient party %v", err)
+	}
 
-	// copy the carrier_actor to a recipient, but use the server's platform code (EBL2)
-	// since the surrender envelope is being sent to this server
-	carrier_recipient := ebl.RecipientParty{
-		PartyName:   carrier_actor.PartyName,
-		EblPlatform: "EBL2",
-		IdentifyingCodes: []ebl.IdentifyingCode{
-			{CodeListProvider: carrier_actor.IdentifyingCodes[0].CodeListProvider, PartyCode: carrier_actor.IdentifyingCodes[0].PartyCode},
+	// start serveors
+	ebl1env := startInProcessServer(t, "EBL1", crypto.TrustLevelNoX5C)
+	ebl2env := startInProcessServer(t, "EBL2", crypto.TrustLevelNoX5C)
+
+	// set up parties data
+	for _, env := range []*testEnv{ebl1env, ebl2env} {
+		defer env.shutdown()
+		createTestParty(t, env.queries, car1Actor.PartyName, true, car1Actor.IdentifyingCodes)
+		createTestParty(t, env.queries, ebl1Actor.PartyName, true, ebl1Actor.IdentifyingCodes)
+		createTestParty(t, env.queries, ebl2Actor.PartyName, true, ebl2Actor.IdentifyingCodes)
+	}
+
+	// transport document
+	transportDocument := ebl.TransportDocument([]byte(`{"transportDocumentReference":"test_tansport_doc","isToOrder":true}`))
+
+	transportDocumentChecksum, err := transportDocument.Checksum()
+	if err != nil {
+		t.Fatalf("Failed to compute transport document checksum: %v", err)
+	}
+
+	// issuance manifest
+	issueToChecksum := ebl.IssueToChecksum("583c29ab3e47f2d80899993200d3fbadb9f8a367f3a39f715935c46d7a283006")
+
+	iBuilder := ebl.NewIssuanceManifestBuilder().
+		WithDocumentChecksum(transportDocumentChecksum).
+		WithIssueTo(issueToChecksum)
+
+	issuanceManifest, err := iBuilder.Build()
+	if err != nil {
+		t.Fatalf("could not create issuance manifest %v", err)
+	}
+
+	issuanceManifestJWS, err := issuanceManifest.Sign(car1PrivateKey, nil)
+	if err != nil {
+		t.Fatal("could not sign issuance manifest")
+	}
+
+	issuanceTransaction := ebl.CreateIssueTransaction(car1Actor, ebl1Recipient)
+
+	issuanceEntryBuilder := ebl.NewEnvelopeTransferChainEntryBuilder(true).
+		WithTransportDocumentChecksum(transportDocumentChecksum).
+		WithEBLPlatform("CAR1").
+		WithIssuanceManifestSignedContent(issuanceManifestJWS).
+		WithTransaction(issuanceTransaction)
+
+	issuanceEntry, err := issuanceEntryBuilder.Build()
+	if err != nil {
+		t.Fatalf("could not build issuance entry %v", err)
+	}
+
+	issuanceEntryJWS, err := issuanceEntry.Sign(car1PrivateKey, nil)
+	if err != nil {
+		t.Fatal("could not sign issuance entry")
+	}
+
+	//  build and sign the envelope manifest, then assemble the full envelope
+	mBuilder := ebl.NewEnvelopeManifestBuilder().
+		WithTransportDocument(transportDocument).
+		WithLastTransferChainEntry(issuanceEntryJWS)
+	envelopeManifest, err := mBuilder.Build()
+	if err != nil {
+		t.Fatal("could not build envelope manifest")
+	}
+
+	envelopeManifestJWS, err := envelopeManifest.Sign(car1PrivateKey, nil)
+	if err != nil {
+		t.Fatal("could not sign envelope manifest")
+	}
+
+	eBuilder := ebl.NewEnvelopeBuilder()
+
+	eBuilder.WithTransportDocument(transportDocument).
+		WithEnvelopeManifestSignedContent(envelopeManifestJWS).
+		AddTransferChainEntry(issuanceEntryJWS)
+	envelope, err := eBuilder.Build()
+	if err != nil {
+		t.Fatalf("could not build envelope %v", err)
+	}
+
+	// post issuance envelope to ebl1
+	envelopesURL := ebl1env.baseURL + "/v3/envelopes"
+	envelopeData, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("Failed to marshal envelope: %v", err)
+	}
+
+	resp, err := http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+	if err != nil {
+		t.Fatalf("Failed to POST envelope: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// create a transfer transaction from ebl1 to ebl2
+	transferTransaction := ebl.CreateTransferTransaction(ebl1Actor, ebl2Recipient)
+
+	transferToEbl2Envelope, err := ebl.CreateEnvelopeForDelivery(
+		ebl.CreateEnvelopeInput{
+			ReceivedEnvelope: envelope,
+			NewTransactions:  []ebl.Transaction{transferTransaction},
 		},
+		ebl1PrivateKey,
+		nil,
+		"EBL1",
+	)
+
+	// post the transfer to ebl2
+	envelopesURL = ebl2env.baseURL + "/v3/envelopes"
+	envelopeData, err = json.Marshal(transferToEbl2Envelope)
+	if err != nil {
+		t.Fatalf("Failed to marshal envelope: %v", err)
 	}
-
-	tests := []struct {
-		name string
-		// setupEnvelope1/2/3 are optional and can be used to post envelopes before the testEnvelope is posted
-		setupEnvelope1 func(t *testing.T, env *testEnv) []byte
-		setupEnvelope2 func(t *testing.T, env *testEnv) []byte
-		setupEnvelope3 func(t *testing.T, env *testEnv) []byte
-		testEnvelope   func(t *testing.T, env *testEnv) []byte
-		expectedStatus int
-		expectedCode   pint.ResponseCode
-		description    string
-	}{
-		{
-			name: "shorter chain after longer chain accepted",
-			setupEnvelope1: func(t *testing.T, env *testEnv) []byte {
-				setupEnvelope1Data = baseEnvelopeData
-				return setupEnvelope1Data
-			},
-			setupEnvelope2: func(t *testing.T, env *testEnv) []byte {
-				// post the envelope again with an valid extra transfer chain entry
-				// the chain is now 3 entries long
-				transaction := ebl.CreateTransferTransaction(trns_actor, trns_recipient)
-				newEnvelope, err := ebl.CreateEnvelopeForDelivery(
-					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope: &baseEnvelope,
-						NewTransactions:  []ebl.Transaction{transaction},
-					},
-					privateKey,
-					certChain,
-					testPlatform,
-				)
-				if err != nil {
-					t.Fatalf("Failed to create extended envelope: %v", err)
-				}
-				setupEnvelope2Data, err = json.Marshal(newEnvelope)
-				if err != nil {
-					t.Fatalf("Failed to marshal extended envelope: %v", err)
-				}
-				return setupEnvelope2Data
-			},
-
-			testEnvelope: func(t *testing.T, env *testEnv) []byte {
-				return baseEnvelopeData
-			},
-			expectedStatus: http.StatusConflict,
-			expectedCode:   pint.ResponseCodeDISE,
-			description:    "shorter chain after longer chain accepted",
-		},
-		{
-			name: "returns BENV when already surrenderd",
-			setupEnvelope1: func(t *testing.T, env *testEnv) []byte {
-				return baseEnvelopeData
-			},
-
-			setupEnvelope2: func(t *testing.T, env *testEnv) []byte {
-				// Add a surender for delivery transaction
-				transaction := ebl.CreateSurrenderForDeliveryTransaction(trns_actor, carrier_recipient)
-
-				envelope, err := ebl.CreateEnvelopeForDelivery(
-					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope: &baseEnvelope,
-						NewTransactions:  []ebl.Transaction{transaction},
-					},
-					privateKey,
-					certChain,
-					testPlatform,
-				)
-				if err != nil {
-					t.Fatalf("Failed to create envelope: %v", err)
-				}
-
-				setupEnvelope2Data, err = json.Marshal(envelope)
-
-				return setupEnvelope2Data
-			},
-
-			setupEnvelope3: func(t *testing.T, env *testEnv) []byte {
-				// Add a new transfer chain entry to the orginal envelope
-				transaction := ebl.CreateSACCTransaction(trns_actor, trns_recipient)
-
-				envelope, err := ebl.CreateEnvelopeForDelivery(
-					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope: &baseEnvelope,
-						NewTransactions:  []ebl.Transaction{transaction},
-					},
-					privateKey,
-					certChain,
-					testPlatform,
-				)
-				if err != nil {
-					t.Fatalf("Failed to create envelope: %v", err)
-				}
-
-				setupEnvelope3Data, err = json.Marshal(envelope)
-				setupEnvelope3 = *envelope
-
-				return setupEnvelope3Data
-			},
-
-			testEnvelope: func(t *testing.T, env *testEnv) []byte {
-
-				// Add a new transfer chain entry to the orginal envelope again (will conflict with the chain currently stored for this ebl)
-				transaction := ebl.CreateTransferTransaction(trns_actor, trns_recipient)
-
-				testEnvelope, err := ebl.CreateEnvelopeForDelivery(
-					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope: &setupEnvelope3,
-						NewTransactions:  []ebl.Transaction{transaction},
-					},
-					privateKey,
-					certChain,
-					testPlatform,
-				)
-				if err != nil {
-					t.Fatalf("Failed to create envelope: %v", err)
-				}
-
-				testEnvelopeData, err := json.Marshal(testEnvelope)
-
-				return testEnvelopeData
-			},
-			expectedStatus: http.StatusUnprocessableEntity,
-			expectedCode:   pint.ResponseCodeBENV,
-			description:    "already surrendered document should be rejected with BENV",
-		},
-		{
-			name: "returns DISE when conflicting transfer chain entry is submitted",
-			setupEnvelope1: func(t *testing.T, env *testEnv) []byte {
-				return baseEnvelopeData
-			},
-
-			setupEnvelope2: func(t *testing.T, env *testEnv) []byte {
-				// Add a new transfer chain entry to the orginal envelope
-				transaction := ebl.CreateTransferTransaction(trns_actor, trns_recipient)
-
-				conflictEnvelope, err := ebl.CreateEnvelopeForDelivery(
-					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope: &baseEnvelope,
-						NewTransactions:  []ebl.Transaction{transaction},
-					},
-					privateKey,
-					certChain,
-					testPlatform,
-				)
-				if err != nil {
-					t.Fatalf("Failed to create accepted envelope: %v", err)
-				}
-
-				conflictEnvelopeData, err := json.Marshal(conflictEnvelope)
-
-				return conflictEnvelopeData
-			},
-
-			testEnvelope: func(t *testing.T, env *testEnv) []byte {
-
-				// Add a new transfer chain entry to the orginal envelope again (will conflict with the chain currently stored for this ebl)
-				transaction := ebl.CreateTransferTransaction(trns_actor, trns_recipient)
-
-				conflictEnvelope, err := ebl.CreateEnvelopeForDelivery(
-					ebl.CreateEnvelopeInput{
-						ReceivedEnvelope: &baseEnvelope,
-						NewTransactions:  []ebl.Transaction{transaction},
-					},
-					privateKey,
-					certChain,
-					testPlatform,
-				)
-				if err != nil {
-					t.Fatalf("Failed to create accepted envelope: %v", err)
-				}
-
-				conflictEnvelopeData, err := json.Marshal(conflictEnvelope)
-
-				return conflictEnvelopeData
-			},
-			expectedStatus: http.StatusConflict,
-			expectedCode:   pint.ResponseCodeDISE,
-			description:    "conflicting transaction type at same chain position",
-		},
+	resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+	if err != nil {
+		t.Fatalf("Failed to POST envelope: %v", err)
 	}
+	defer resp.Body.Close()
 
-	for _, tt := range tests {
-		cleanupDatabase(t, env.pool)
-		_, _ = createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
-		_, _ = createPartiesFromFile(t, env, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json")
-		t.Run(tt.name, func(t *testing.T) {
-
-			// set up the intial envelopes
-			if tt.setupEnvelope1 != nil {
-				envelopeToPost := tt.setupEnvelope1(t, env)
-				resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(envelopeToPost))
-				if err != nil {
-					t.Fatalf("Failed to POST envelope: %v", err)
-				}
-				defer resp.Body.Close()
-			}
-			if tt.setupEnvelope2 != nil {
-				envelopeToPost := tt.setupEnvelope2(t, env)
-				resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(envelopeToPost))
-				if err != nil {
-					t.Fatalf("Failed to POST envelope: %v", err)
-				}
-				defer resp.Body.Close()
-			}
-			if tt.setupEnvelope3 != nil {
-				envelopeToPost := tt.setupEnvelope3(t, env)
-				resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(envelopeToPost))
-				if err != nil {
-					t.Fatalf("Failed to POST envelope: %v", err)
-				}
-				defer resp.Body.Close()
-			}
-			envelopeToPost := tt.testEnvelope(t, env)
-			resp, err := http.Post(env.baseURL+"/v3/envelopes", "application/json", bytes.NewReader(envelopeToPost))
-			if err != nil {
-				t.Fatalf("Failed to POST envelope: %v", err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != tt.expectedStatus {
-				t.Fatalf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)
-			}
-
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("Failed to read response body: %v", err)
-			}
-
-			signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
-			payload := decodeSignedFinishedResponse(t, signedResponse)
-
-			if payload.ResponseCode != tt.expectedCode {
-				t.Errorf("Expected responseCode %q, got %q", tt.expectedCode, payload.ResponseCode)
-			}
-
-			if payload.Reason == nil || *payload.Reason == "" {
-				t.Error("Expected reason to be populated for DISE response")
-			}
-
-			if payload.LastEnvelopeTransferChainEntrySignedContentChecksum == "" {
-				t.Error("Expected lastEnvelopeTransferChainEntrySignedContentChecksum to be set")
-			}
-
-		})
+	// create a new transfer transaction from ebl2 to ebl1
+	transferTransaction = ebl.CreateTransferTransaction(ebl2Actor, ebl1Recipient)
+	transferToEbl1Envelope, err := ebl.CreateEnvelopeForDelivery(
+		ebl.CreateEnvelopeInput{
+			ReceivedEnvelope: transferToEbl2Envelope,
+			NewTransactions:  []ebl.Transaction{transferTransaction},
+		},
+		ebl2PrivateKey,
+		nil,
+		"EBL2",
+	)
+	if err != nil {
+		t.Fatalf("Failed to create envelope: %v", err)
 	}
+	// send from ebl2 back to ebl1
+	envelopesURL = ebl1env.baseURL + "/v3/envelopes"
+	envelopeData, err = json.Marshal(transferToEbl1Envelope)
+	if err != nil {
+		t.Fatalf("Failed to marshal envelope: %v", err)
+	}
+	resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+	if err != nil {
+		t.Fatalf("Failed to POST envelope: %v", err)
+	}
+	defer resp.Body.Close()
+
+	t.Run("DISE - resending a shorter, but legit, chain to a server should fail with DISE", func(t *testing.T) {
+		// resend the original envelope to ebl1 - this should trigger DISE since the chain is shorter
+		envelopesURL = ebl1env.baseURL + "/v3/envelopes"
+		envelopeData, err = json.Marshal(envelope)
+		if err != nil {
+			t.Fatalf("Failed to marshal envelope: %v", err)
+		}
+		resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+		if err != nil {
+			t.Fatalf("Failed to POST envelope: %v", err)
+		}
+		if resp.StatusCode != 409 {
+			t.Fatalf("Expected status code 409, got %d", resp.StatusCode)
+		}
+		// check reason contains "new chain is shorter"
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
+		}
+		signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
+		payload := decodeSignedFinishedResponse(t, signedResponse)
+		if !strings.Contains(*payload.Reason, "new chain is shorter") {
+			t.Errorf("Expected reason to contain 'new chain is shorter', got %q", *payload.Reason)
+		}
+		defer resp.Body.Close()
+	})
+
+	t.Run("DISE - resending a chain with a forked chain should fail with DISE", func(t *testing.T) {
+		// send the original envelope again to ebl2 but with a new transfer transaction (DISE error)
+		transferTransaction = ebl.CreateTransferTransaction(ebl1Actor, ebl2Recipient)
+		transferToEbl2EnvelopeDISE, err := ebl.CreateEnvelopeForDelivery(
+			ebl.CreateEnvelopeInput{
+				ReceivedEnvelope: envelope,
+				NewTransactions:  []ebl.Transaction{transferTransaction},
+			},
+			ebl1PrivateKey,
+			nil,
+			"EBL1",
+		)
+		if err != nil {
+			t.Fatalf("Failed to create envelope: %v", err)
+		}
+		envelopesURL = ebl2env.baseURL + "/v3/envelopes"
+		envelopeData, err = json.Marshal(transferToEbl2EnvelopeDISE)
+		if err != nil {
+			t.Fatalf("Failed to marshal envelope: %v", err)
+		}
+		resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+		if err != nil {
+			t.Fatalf("Failed to POST envelope: %v", err)
+		}
+		if resp.StatusCode != 409 {
+			t.Fatalf("Expected status code 409, got %d", resp.StatusCode)
+		}
+		// check reason contains "new chain is shorter"
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
+		}
+		signedResponse := pint.SignedEnvelopeTransferFinishedResponse(bodyBytes)
+		payload := decodeSignedFinishedResponse(t, signedResponse)
+		if !strings.Contains(*payload.Reason, "payload checksum of incoming chain is different to the stored chain") {
+			t.Errorf("Expected reason to contain 'payload checksum of incoming chain is different to the stored chain', got %q", *payload.Reason)
+		}
+		defer resp.Body.Close()
+	})
+
+	// TODO SACC handling - need to confirm if SACC transactions have both Actor and Recipient...
 }

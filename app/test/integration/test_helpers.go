@@ -1,7 +1,5 @@
 //go:build integration
 
-// functions that are useful in integration tests
-
 package integration
 
 import (
@@ -45,14 +43,8 @@ func decodeSignedFinishedResponse(t *testing.T, SignedResponse pint.SignedEnvelo
 	return payload
 }
 
-type testIdentifyingCode struct {
-	codeListProvider string
-	partyCode        string
-	codeListName     *string
-}
-
 // Helper to store a party in the database with the given identifying codes
-func createTestParty(t *testing.T, queries *database.Queries, partyName string, active bool, codes []testIdentifyingCode) database.Party {
+func createTestParty(t *testing.T, queries *database.Queries, partyName string, active bool, codes []ebl.IdentifyingCode) database.Party {
 	t.Helper()
 	ctx := context.Background()
 
@@ -75,9 +67,9 @@ func createTestParty(t *testing.T, queries *database.Queries, partyName string, 
 	for _, code := range codes {
 		_, err = queries.CreatePartyIdentifyingCode(ctx, database.CreatePartyIdentifyingCodeParams{
 			PartyID:          party.ID,
-			CodeListProvider: code.codeListProvider,
-			PartyCode:        code.partyCode,
-			CodeListName:     code.codeListName,
+			CodeListProvider: code.CodeListProvider,
+			PartyCode:        code.PartyCode,
+			CodeListName:     code.CodeListName,
 		})
 		if err != nil {
 			t.Fatalf("failed to create party code: %v", err)
@@ -120,32 +112,10 @@ func createPartiesFromFile(t *testing.T, testEnv *testEnv, transferChainEntryPat
 	}
 
 	recipientPartyName := lastTransferChainEntry.Transactions[0].Recipient.PartyName
-	recipientIdentifyingCodes := lastTransferChainEntry.Transactions[0].Recipient.IdentifyingCodes
-
-	// create the test party with the identifying codes listed in the sample data
-	testIdentifyingCodes := make([]testIdentifyingCode, 0, len(recipientIdentifyingCodes))
-
-	for _, identifyingcode := range recipientIdentifyingCodes {
-
-		testIdentifyingCodes = append(testIdentifyingCodes, testIdentifyingCode{
-			codeListProvider: identifyingcode.CodeListProvider,
-			partyCode:        identifyingcode.PartyCode,
-			codeListName:     identifyingcode.CodeListName,
-		})
-	}
-	createTestParty(t, testEnv.queries, recipientPartyName, true, testIdentifyingCodes)
+	createTestParty(t, testEnv.queries, recipientPartyName, true, lastTransferChainEntry.Transactions[0].Recipient.IdentifyingCodes)
 
 	actorPartyName := lastTransferChainEntry.Transactions[0].Actor.PartyName
-	actorIdentifyingCodes := lastTransferChainEntry.Transactions[0].Actor.IdentifyingCodes
-	testIdentifyingCodes = make([]testIdentifyingCode, 0, len(actorIdentifyingCodes))
-	for _, identifyingcode := range actorIdentifyingCodes {
-		testIdentifyingCodes = append(testIdentifyingCodes, testIdentifyingCode{
-			codeListProvider: identifyingcode.CodeListProvider,
-			partyCode:        identifyingcode.PartyCode,
-			codeListName:     identifyingcode.CodeListName,
-		})
-	}
-	createTestParty(t, testEnv.queries, actorPartyName, true, testIdentifyingCodes)
+	createTestParty(t, testEnv.queries, actorPartyName, true, lastTransferChainEntry.Transactions[0].Actor.IdentifyingCodes)
 
 	return lastTransferChainEntry.Transactions[0].Actor, *lastTransferChainEntry.Transactions[0].Recipient
 }
@@ -167,24 +137,24 @@ func createInvalidParties(t *testing.T, testEnv *testEnv) {
 	recipientIdentifyingCodes := lastTransferChainEntry.Transactions[0].Recipient.IdentifyingCodes
 
 	// create the test party with the identifying codes listed in the sample data
-	testIdentifyingCodes := make([]testIdentifyingCode, 0, len(recipientIdentifyingCodes))
+	testIdentifyingCodes := make([]ebl.IdentifyingCode, 0, len(recipientIdentifyingCodes))
 
 	identityCode := recipientIdentifyingCodes[0]
 
-	testIdentifyingCodes = append(testIdentifyingCodes, testIdentifyingCode{
-		codeListProvider: identityCode.CodeListProvider,
-		partyCode:        identityCode.PartyCode,
-		codeListName:     identityCode.CodeListName,
+	testIdentifyingCodes = append(testIdentifyingCodes, ebl.IdentifyingCode{
+		CodeListProvider: identityCode.CodeListProvider,
+		PartyCode:        identityCode.PartyCode,
+		CodeListName:     identityCode.CodeListName,
 	})
 	createTestParty(t, testEnv.queries, recipientPartyName, true, testIdentifyingCodes)
 
 	// create a second party using the second identifying code
 	identityCode = recipientIdentifyingCodes[1]
 
-	testIdentifyingCodes[0] = testIdentifyingCode{
-		codeListProvider: identityCode.CodeListProvider,
-		partyCode:        identityCode.PartyCode,
-		codeListName:     identityCode.CodeListName,
+	testIdentifyingCodes[0] = ebl.IdentifyingCode{
+		CodeListProvider: identityCode.CodeListProvider,
+		PartyCode:        identityCode.PartyCode,
+		CodeListName:     identityCode.CodeListName,
 	}
 
 	createTestParty(t, testEnv.queries, "Different Party", true, testIdentifyingCodes)

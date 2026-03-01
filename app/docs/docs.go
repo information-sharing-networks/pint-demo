@@ -663,7 +663,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "eblPlatform": {
-                    "description": "EblPlatform is the eBL platform code of the party (e.g. \"WAVE\", \"CARX\", \"EBL1\").",
+                    "description": "EblPlatform is the eBL platform code of the party (e.g. \"WAVE\", \"CARX\").",
                     "type": "string"
                 },
                 "identifyingCodes": {
@@ -816,7 +816,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "eblPlatform": {
-                    "description": "EblPlatform is the eBL platform code of the party (e.g. \"WAVE\", \"CARX\", \"EBL1\").",
+                    "description": "EblPlatform is the eBL platform code of the party (e.g. \"WAVE\", \"CARX\").",
                     "type": "string"
                 },
                 "identifyingCodes": {

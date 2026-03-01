@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestTransaction_Validate covers validation of transactions, including missing action code, datetime, and invalid actor fields.
 func TestTransaction_Validate(t *testing.T) {
 	tests := []struct {
 		name    string

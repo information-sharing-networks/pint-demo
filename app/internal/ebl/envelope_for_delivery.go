@@ -45,14 +45,24 @@ type CreateEnvelopeInput struct {
 // Parameters:
 //   - input: The data for the envelope transfer (received envelope, new transfer chain entry, optional document metadata)
 //   - privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
-//   - certChain: Optional X.509 certificate chain. Pass nil if not needed.
+//   - certChain: Optional X.509 certificate chain used in this platforms JWS signatures. Pass nil if not needed.
+//   - eblPlatform is the platform code for the current platform (e.g., "WAVE", "CARX")
 //
 // Returns the complete Envelope ready to be JSON-marshaled and sent to POST /v3/envelopes.
 func CreateEnvelopeForDelivery(
+
+	// input: The data for the envelope transfer (received envelope, new transfer chain entry, optional document metadata)
 	input CreateEnvelopeInput,
+
+	// privateKey: The platform's private key (ed25519.PrivateKey or *rsa.PrivateKey)
 	privateKey any,
+
+	//  certChain: Optional X.509 certificate chain used in this platforms JWS signatures. Pass nil if not needed.
 	certChain []*x509.Certificate,
-	eBLPlatform string,
+
+	// eblPlatform is the platform code for the current platform (e.g., "WAVE", "CARX")
+	eblPlatform string,
+
 ) (*Envelope, error) {
 
 	// Step 1: Validate input
@@ -65,7 +75,7 @@ func CreateEnvelopeForDelivery(
 		return nil, WrapEnvelopeError(err, "received envelope is invalid")
 	}
 
-	if eBLPlatform == "" {
+	if eblPlatform == "" {
 		return nil, NewEnvelopeError("eblPlatform is required")
 	}
 
@@ -86,7 +96,7 @@ func CreateEnvelopeForDelivery(
 		// use the tranfer chain entry builder to create the new entry linked to the previous entry
 		newEntry, err := NewEnvelopeTransferChainEntryBuilder(false).
 			WithTransportDocumentChecksum(receivedEnvelopeManifest.TransportDocumentChecksum).
-			WithEBLPlatform(eBLPlatform).
+			WithEBLPlatform(eblPlatform).
 			WithPreviousEnvelopeTransferChainEntrySignedContentChecksum(receivedEnvelopeManifest.LastEnvelopeTransferChainEntrySignedContentChecksum).
 			WithTransactions(input.NewTransactions).
 			Build()
