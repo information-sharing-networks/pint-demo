@@ -15,6 +15,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
+// TestParseHeader covers that ParseJWSHeader rejects tokens with unexpected header fields such as typ.
 func TestParseHeader(t *testing.T) {
 	// { "alg": "HS256", "typ": "JWT" } (unexpected header: typ)
 	invalidJwsToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
@@ -25,19 +26,26 @@ func TestParseHeader(t *testing.T) {
 	}
 }
 
-func TestSignAndVerifSignatureEdSCA(t *testing.T) {
-
-	validEd25519PrivateKey, err := GenerateEd25519KeyPair()
+// TestSignAndVerifySignature covers Ed25519 and RSA JWS sign and verify,
+// including mismatched key and missing keyID cases for both algorithms.
+func TestSignAndVerifySignature(t *testing.T) {
+	ed25519Key, err := GenerateEd25519KeyPair()
 	if err != nil {
-		t.Fatalf("could not create ed25519 key: %v", err)
+		t.Fatalf("could not create Ed25519 key: %v", err)
 	}
-	validEd25519publicKey := validEd25519PrivateKey.Public().(ed25519.PublicKey)
-
-	invalidEd25519PrivateKey, err := GenerateEd25519KeyPair()
+	wrongEd25519Key, err := GenerateEd25519KeyPair()
 	if err != nil {
-		t.Fatalf("could not create ed25519 key: %v", err)
+		t.Fatalf("could not create Ed25519 key: %v", err)
 	}
-	invalidEd25519publicKey := invalidEd25519PrivateKey.Public().(ed25519.PublicKey)
+
+	rsaKey, err := GenerateRSAKeyPair(2048)
+	if err != nil {
+		t.Fatalf("could not create RSA key: %v", err)
+	}
+	wrongRSAKey, err := GenerateRSAKeyPair(2048)
+	if err != nil {
+		t.Fatalf("could not create RSA key: %v", err)
+	}
 
 	payload, err := CanonicalizeJSON([]byte(`{ "message": "Hello, World!" }`))
 	if err != nil {
@@ -48,56 +56,86 @@ func TestSignAndVerifSignatureEdSCA(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		privateKey    ed25519.PrivateKey
-		publicKey     ed25519.PublicKey
+		sign          func(payload []byte, keyID string) (string, error)
+		verify        func(token string) ([]byte, error)
 		keyID         string
 		payload       []byte
 		wantSignErr   bool
 		wantVerifyErr bool
 	}{
 		{
-			name:          "valid signature (Ed25519)",
-			privateKey:    validEd25519PrivateKey,
-			publicKey:     validEd25519publicKey,
-			keyID:         keyID,
-			payload:       payload,
-			wantSignErr:   false,
-			wantVerifyErr: false,
+			name: "valid (Ed25519)",
+			sign: func(p []byte, kid string) (string, error) { return SignJSONWithEd25519(p, ed25519Key, kid) },
+			verify: func(tok string) ([]byte, error) {
+				return VerifyJWSEd25519(tok, ed25519Key.Public().(ed25519.PublicKey))
+			},
+			keyID:   keyID,
+			payload: payload,
 		},
 		{
-			name:          "invalid publicKey (Ed25519)",
-			privateKey:    validEd25519PrivateKey,
-			publicKey:     invalidEd25519publicKey,
+			name: "wrong public key (Ed25519)",
+			sign: func(p []byte, kid string) (string, error) { return SignJSONWithEd25519(p, ed25519Key, kid) },
+			verify: func(tok string) ([]byte, error) {
+				return VerifyJWSEd25519(tok, wrongEd25519Key.Public().(ed25519.PublicKey))
+			},
 			keyID:         keyID,
 			payload:       payload,
-			wantSignErr:   false,
 			wantVerifyErr: true,
 		},
 		{
-			name:          "null keyId (Ed25519)",
-			privateKey:    validEd25519PrivateKey,
-			publicKey:     validEd25519publicKey,
-			keyID:         "",
-			payload:       payload,
-			wantSignErr:   true,
-			wantVerifyErr: false,
+			name: "empty keyID (Ed25519)",
+			sign: func(p []byte, kid string) (string, error) { return SignJSONWithEd25519(p, ed25519Key, kid) },
+			verify: func(tok string) ([]byte, error) {
+				return VerifyJWSEd25519(tok, ed25519Key.Public().(ed25519.PublicKey))
+			},
+			keyID:       "",
+			payload:     payload,
+			wantSignErr: true,
 		},
 		{
-			name:          "large payload (Ed25519)",
-			privateKey:    validEd25519PrivateKey,
-			publicKey:     validEd25519publicKey,
+			name: "large payload (Ed25519)",
+			sign: func(p []byte, kid string) (string, error) { return SignJSONWithEd25519(p, ed25519Key, kid) },
+			verify: func(tok string) ([]byte, error) {
+				return VerifyJWSEd25519(tok, ed25519Key.Public().(ed25519.PublicKey))
+			},
+			keyID:   keyID,
+			payload: []byte(`{"data":"` + strings.Repeat("x", 1024*1024) + `"}`),
+		},
+		{
+			name:    "valid (RSA)",
+			sign:    func(p []byte, kid string) (string, error) { return SignJSONWithRSA(p, rsaKey, kid) },
+			verify:  func(tok string) ([]byte, error) { return VerifyJWSRSA(tok, &rsaKey.PublicKey) },
+			keyID:   keyID,
+			payload: payload,
+		},
+		{
+			name:          "wrong public key (RSA)",
+			sign:          func(p []byte, kid string) (string, error) { return SignJSONWithRSA(p, rsaKey, kid) },
+			verify:        func(tok string) ([]byte, error) { return VerifyJWSRSA(tok, &wrongRSAKey.PublicKey) },
 			keyID:         keyID,
-			payload:       []byte(`{"data":"` + strings.Repeat("x", 1024*1024) + `"}`),
-			wantSignErr:   false,
-			wantVerifyErr: false,
+			payload:       payload,
+			wantVerifyErr: true,
+		},
+		{
+			name:        "empty keyID (RSA)",
+			sign:        func(p []byte, kid string) (string, error) { return SignJSONWithRSA(p, rsaKey, kid) },
+			verify:      func(tok string) ([]byte, error) { return VerifyJWSRSA(tok, &rsaKey.PublicKey) },
+			keyID:       "",
+			payload:     payload,
+			wantSignErr: true,
+		},
+		{
+			name:    "large payload (RSA)",
+			sign:    func(p []byte, kid string) (string, error) { return SignJSONWithRSA(p, rsaKey, kid) },
+			verify:  func(tok string) ([]byte, error) { return VerifyJWSRSA(tok, &rsaKey.PublicKey) },
+			keyID:   keyID,
+			payload: []byte(`{"data":"` + strings.Repeat("x", 1024*1024) + `"}`),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			// sign
-			JwsToken, err := SignJSONWithEd25519(tt.payload, tt.privateKey, tt.keyID)
+			token, err := tt.sign(tt.payload, tt.keyID)
 			if err != nil {
 				if tt.wantSignErr {
 					return
@@ -105,336 +143,164 @@ func TestSignAndVerifSignatureEdSCA(t *testing.T) {
 				t.Fatalf("could not sign payload: %v", err)
 			}
 			if tt.wantSignErr {
-				t.Errorf("this test passed when it was expected to fail")
+				t.Errorf("expected sign error but got none")
 			}
 
-			// verify
-			p, err := VerifyJWSEd25519(JwsToken, tt.publicKey)
+			verified, err := tt.verify(token)
 			if err != nil {
 				if tt.wantVerifyErr {
 					return
 				}
-				t.Fatalf("could not verify jws: %v", err)
+				t.Fatalf("could not verify JWS: %v", err)
 			}
 			if tt.wantVerifyErr {
-				t.Errorf("this test passed when it was expected to fail")
+				t.Errorf("expected verify error but got none")
 			}
 
-			if !bytes.Equal(p, tt.payload) {
-				t.Errorf("verified payload is not the same as canonical input payload.\nGot: %s\nWant: %s", string(p), string(tt.payload))
+			if !bytes.Equal(verified, tt.payload) {
+				t.Errorf("verified payload does not match input.\nGot: %s\nWant: %s", verified, tt.payload)
 			}
 		})
 	}
-
 }
 
-func TestSignAndVerifSignatureRSA(t *testing.T) {
-
-	validRSAPrivateKey, err := GenerateRSAKeyPair(2048)
+// TestSignWithX5C covers Ed25519 and RSA JWS signing with x5c certificate chains:
+// verifies signature, payload integrity, and cert extraction; rejects empty keyID or empty cert chain.
+func TestSignWithX5C(t *testing.T) {
+	ed25519Key, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
-		t.Fatalf("could not create RSA key: %v", err)
+		t.Fatalf("failed to load Ed25519 private key: %v", err)
 	}
-	validRSApublicKey := validRSAPrivateKey.Public().(*rsa.PublicKey)
-
-	invalidRSAPrivateKey, err := GenerateRSAKeyPair(2048)
+	ed25519CertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
 	if err != nil {
-		t.Fatalf("could not create RSA key: %v", err)
-	}
-	invalidRSApublicKey := invalidRSAPrivateKey.Public().(*rsa.PublicKey)
-
-	payload, err := CanonicalizeJSON([]byte(`{ "message": "Hello, World!" }`))
-	if err != nil {
-		t.Fatalf("could not canonicalize test payload: %v", err)
+		t.Fatalf("failed to load Ed25519 cert chain: %v", err)
 	}
 
-	keyID := "12345"
+	rsaKey, err := ReadRSAPrivateKeyFromPEMFile("../../test/testdata/keys/rsa-eblplatform.example.com.private.pem")
+	if err != nil {
+		t.Fatalf("failed to load RSA private key: %v", err)
+	}
+	rsaCertChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	if err != nil {
+		t.Fatalf("failed to load RSA cert chain: %v", err)
+	}
+
+	payload, err := CanonicalizeJSON([]byte(`{"documentChecksum":"abc123","issueToChecksum":"def456","eBLVisualisationByCarrierChecksum":"ghi789"}`))
+	if err != nil {
+		t.Fatalf("failed to canonicalize test payload: %v", err)
+	}
 
 	tests := []struct {
-		name          string
-		privateKey    *rsa.PrivateKey
-		publicKey     *rsa.PublicKey
-		keyID         string
-		payload       []byte
-		wantSignErr   bool
-		wantVerifyErr bool
+		name      string
+		keyID     string
+		certChain []*x509.Certificate
+		sign      func(payload []byte, keyID string, certChain []*x509.Certificate) (string, error)
+		verify    func(token string) ([]byte, error)
 	}{
 		{
-			name:          "valid signature (RSA)",
-			privateKey:    validRSAPrivateKey,
-			publicKey:     validRSApublicKey,
-			keyID:         keyID,
-			payload:       payload,
-			wantSignErr:   false,
-			wantVerifyErr: false,
+			name:      "Ed25519",
+			keyID:     "test-ed25519-key",
+			certChain: ed25519CertChain,
+			sign: func(p []byte, kid string, chain []*x509.Certificate) (string, error) {
+				return SignJSONWithEd25519AndX5C(p, ed25519Key, kid, chain)
+			},
+			verify: func(tok string) ([]byte, error) {
+				return VerifyJWSEd25519(tok, ed25519Key.Public().(ed25519.PublicKey))
+			},
 		},
 		{
-			name:          "invalid publicKey (RSA)",
-			privateKey:    validRSAPrivateKey,
-			publicKey:     invalidRSApublicKey,
-			keyID:         keyID,
-			payload:       payload,
-			wantSignErr:   false,
-			wantVerifyErr: true,
-		},
-		{
-			name:          "null keyId (RSA)",
-			privateKey:    validRSAPrivateKey,
-			publicKey:     validRSApublicKey,
-			keyID:         "",
-			payload:       payload,
-			wantSignErr:   true,
-			wantVerifyErr: false,
-		},
-		{
-			name:          "large payload (RSA)",
-			privateKey:    validRSAPrivateKey,
-			publicKey:     validRSApublicKey,
-			keyID:         keyID,
-			payload:       []byte(`{"data":"` + strings.Repeat("x", 1024*1024) + `"}`),
-			wantSignErr:   false,
-			wantVerifyErr: false,
+			name:      "RSA",
+			keyID:     "test-rsa-key",
+			certChain: rsaCertChain,
+			sign: func(p []byte, kid string, chain []*x509.Certificate) (string, error) {
+				return SignJSONWithRSAAndX5C(p, rsaKey, kid, chain)
+			},
+			verify: func(tok string) ([]byte, error) { return VerifyJWSRSA(tok, &rsaKey.PublicKey) },
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			// sign
-			JwsToken, err := SignJSONWithRSA(tt.payload, tt.privateKey, tt.keyID)
+			token, err := tt.sign(payload, tt.keyID, tt.certChain)
 			if err != nil {
-				if tt.wantSignErr {
-					return
-				}
-				t.Fatalf("could not sign payload: %v", err)
-			}
-			if tt.wantSignErr {
-				t.Errorf("this test passed when it was expected to fail")
+				t.Fatalf("sign failed: %v", err)
 			}
 
-			// verify
-			p, err := VerifyJWSRSA(JwsToken, tt.publicKey)
+			parts := strings.Split(token, ".")
+			if len(parts) != 3 {
+				t.Fatalf("JWS format invalid: got %d parts, want 3", len(parts))
+			}
+
+			verifiedPayload, err := tt.verify(token)
 			if err != nil {
-				if tt.wantVerifyErr {
-					return
-				}
-				t.Fatalf("could not verify jws: %v", err)
+				t.Fatalf("verify failed: %v", err)
 			}
-			if tt.wantVerifyErr {
-				t.Errorf("this test passed when it was expected to fail")
+			if !bytes.Equal(verifiedPayload, payload) {
+				t.Errorf("payload mismatch: got %s, want %s", verifiedPayload, payload)
 			}
 
-			if !bytes.Equal(p, tt.payload) {
-				t.Errorf("verified payload is not the same as canonical input payload.\nGot: %s\nWant: %s", string(p), string(tt.payload))
+			extractedCerts, err := ParseX5CFromJWS(token)
+			if err != nil {
+				t.Fatalf("ParseX5CFromJWS() failed: %v", err)
+			}
+			if len(extractedCerts) != len(tt.certChain) {
+				t.Errorf("x5c certificate count = %d, want %d", len(extractedCerts), len(tt.certChain))
+			}
+			for i := range tt.certChain {
+				if !extractedCerts[i].Equal(tt.certChain[i]) {
+					t.Errorf("certificate %d mismatch", i)
+				}
+			}
+
+			_, err = tt.sign(payload, "", tt.certChain)
+			if err == nil {
+				t.Fatal("expected error for empty keyID, got none")
+			}
+			if !strings.Contains(err.Error(), "keyID is required") {
+				t.Errorf("unexpected error for empty keyID: %v", err)
+			}
+
+			_, err = tt.sign(payload, tt.keyID, []*x509.Certificate{})
+			if err == nil {
+				t.Fatal("expected error for empty cert chain, got none")
+			}
+			if !strings.Contains(err.Error(), "certificate chain is required") {
+				t.Errorf("unexpected error for empty cert chain: %v", err)
 			}
 		})
 	}
-
 }
 
-// TestSignRSAWithX5C tests RSA signing with x5c certificate chain
-func TestSignRSAWithX5C(t *testing.T) {
-	// Use existing RSA test data
-	privateKey, err := ReadRSAPrivateKeyFromPEMFile("../../test/testdata/keys/rsa-eblplatform.example.com.private.pem")
+// TestGenerateKeyIDFromKey covers key ID generation for Ed25519 and RSA public keys;
+// verifies the 16-character output length for both algorithms.
+func TestGenerateKeyIDFromKey(t *testing.T) {
+	ed25519Key, err := GenerateEd25519KeyPair()
 	if err != nil {
-		t.Fatalf("failed to load test private key: %v", err)
+		t.Fatalf("failed to generate Ed25519 key pair: %v", err)
 	}
-	certChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/rsa-eblplatform.example.com-fullchain.crt")
+	rsaKey, err := GenerateRSAKeyPair(2048)
 	if err != nil {
-		t.Fatalf("failed to load test certificates: %v", err)
+		t.Fatalf("failed to generate RSA key pair: %v", err)
 	}
 
-	// cannoicalized test payload
-	payload, err := CanonicalizeJSON([]byte(`{"documentChecksum":"abc123","issueToChecksum":"def456", "eBLVisualisationByCarrierChecksum":"ghi789"}`))
-	if err != nil {
-		t.Fatalf("failed to canonicalize test payload: %v", err)
-	}
-	keyID := "test-rsa-key"
-
-	// Sign with x5c
-	JwsToken, err := SignJSONWithRSAAndX5C(payload, privateKey, keyID, certChain)
-	if err != nil {
-		t.Fatalf("SignRSAWithX5C() failed: %v", err)
+	tests := []struct {
+		name     string
+		generate func() (string, error)
+	}{
+		{name: "Ed25519", generate: func() (string, error) { return GenerateKeyIDFromEd25519Key(ed25519Key.Public().(ed25519.PublicKey)) }},
+		{name: "RSA", generate: func() (string, error) { return GenerateKeyIDFromRSAKey(&rsaKey.PublicKey) }},
 	}
 
-	// Verify JWS format (header.payload.signature)
-	parts := strings.Split(JwsToken, ".")
-	if len(parts) != 3 {
-		t.Fatalf("JWS format invalid: got %d parts, want 3", len(parts))
-	}
-
-	// Verify the signature is valid
-	publicKey := &privateKey.PublicKey
-	verifiedPayload, err := VerifyJWSRSA(JwsToken, publicKey)
-	if err != nil {
-		t.Fatalf("VerifyRSA() failed: %v", err)
-	}
-
-	if !bytes.Equal(verifiedPayload, payload) {
-		t.Errorf("payload mismatch: got %s, want %s", verifiedPayload, payload)
-	}
-
-	// Verify x5c is present in the JWS header
-	extractedCerts, err := ParseX5CFromJWS(JwsToken)
-	if err != nil {
-		t.Fatalf("ParseX5CFromJWS() failed: %v", err)
-	}
-
-	if len(extractedCerts) != len(certChain) {
-		t.Errorf("x5c certificate count = %d, want %d", len(extractedCerts), len(certChain))
-	}
-
-	// Verify the certificates match
-	for i := range certChain {
-		if !extractedCerts[i].Equal(certChain[i]) {
-			t.Errorf("certificate %d mismatch", i)
-		}
-	}
-
-	t.Logf("Successfully signed and verified RSA JWS with x5c chain (%d certs)", len(certChain))
-
-	// test with missing key id
-	_, err = SignJSONWithRSAAndX5C(payload, privateKey, "", certChain)
-	if err == nil {
-		t.Fatal("SignRSAWithX5C() should fail with empty keyID")
-	}
-
-	if !strings.Contains(err.Error(), "keyID is required") {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	// test with missing certificate chain
-	_, err = SignJSONWithRSAAndX5C(payload, privateKey, keyID, []*x509.Certificate{})
-	if err == nil {
-		t.Fatal("SignRSAWithX5C() should fail with empty certificate chain")
-	}
-
-	if !strings.Contains(err.Error(), "certificate chain is required") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-// TestSignEd25519WithX5C tests Ed25519 signing with x5c certificate chain
-func TestSignEd25519WithX5C(t *testing.T) {
-	// Use existing test data
-	privateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
-	if err != nil {
-		t.Fatalf("failed to load test private key: %v", err)
-	}
-	certChain, err := ReadCertChainFromPEMFile("../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt")
-	if err != nil {
-		t.Fatalf("failed to load test certificates: %v", err)
-	}
-
-	payload, err := CanonicalizeJSON([]byte(`{"documentChecksum":"abc123","issueToChecksum":"def456", "eBLVisualisationByCarrierChecksum":"789ghi"}`))
-	if err != nil {
-		t.Fatalf("failed to canonicalize test payload: %v", err)
-	}
-	keyID := "test-ed25519-key"
-
-	// Sign with x5c
-	JwsToken, err := SignJSONWithEd25519AndX5C(payload, privateKey, keyID, certChain)
-	if err != nil {
-		t.Fatalf("SignEd25519WithX5C() failed: %v", err)
-	}
-
-	// Verify JWS format
-	parts := strings.Split(JwsToken, ".")
-	if len(parts) != 3 {
-		t.Fatalf("JWS format invalid: got %d parts, want 3", len(parts))
-	}
-
-	// Verify the signature is valid
-	publicKey := privateKey.Public().(ed25519.PublicKey)
-	verifiedPayload, err := VerifyJWSEd25519(JwsToken, publicKey)
-	if err != nil {
-		t.Fatalf("VerifyEd25519() failed: %v", err)
-	}
-
-	if !bytes.Equal(verifiedPayload, payload) {
-		t.Errorf("payload mismatch: got %s, want %s", verifiedPayload, payload)
-	}
-
-	// Verify x5c is present in the JWS header
-	extractedCerts, err := ParseX5CFromJWS(JwsToken)
-	if err != nil {
-		t.Fatalf("ParseX5CFromJWS() failed: %v", err)
-	}
-
-	if len(extractedCerts) != len(certChain) {
-		t.Errorf("x5c certificate count = %d, want %d", len(extractedCerts), len(certChain))
-	}
-
-	// Verify the certificates match
-	for i := range certChain {
-		if !extractedCerts[i].Equal(certChain[i]) {
-			t.Errorf("certificate %d mismatch", i)
-		}
-	}
-
-	t.Logf("Successfully signed and verified Ed25519 JWS with x5c chain (%d certs)", len(certChain))
-
-	// test with missing key id
-	_, err = SignJSONWithEd25519AndX5C(payload, privateKey, "", certChain)
-	if err == nil {
-		t.Fatal("SignEd25519WithX5C() should fail with empty keyID")
-	}
-
-	if !strings.Contains(err.Error(), "keyID is required") {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	// test with missing cert chain
-	_, err = SignJSONWithEd25519AndX5C(payload, privateKey, keyID, []*x509.Certificate{})
-	if err == nil {
-		t.Fatal("SignEd25519WithX5C() should fail with empty certificate chain")
-	}
-
-	if !strings.Contains(err.Error(), "certificate chain is required") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-// TestGenerateKeyIDFromEd25519Key tests generating a key ID from an Ed25519 public key
-func TestGenerateKeyIDFromEd25519Key(t *testing.T) {
-	// Generate a key pair
-	privateKey, err := GenerateEd25519KeyPair()
-	if err != nil {
-		t.Fatalf("failed to generate key pair: %v", err)
-	}
-
-	publicKey := privateKey.Public().(ed25519.PublicKey)
-
-	// Generate key ID
-	keyID, err := GenerateKeyIDFromEd25519Key(publicKey)
-	if err != nil {
-		t.Fatalf("failed to generate key ID: %v", err)
-	}
-
-	// Verify key ID is 16 characters
-	if len(keyID) != 16 {
-		t.Errorf("key ID length = %d, want 16", len(keyID))
-	}
-}
-
-// TestGenerateKeyIDFromRSAKey tests generating a key ID from an RSA public key
-func TestGenerateKeyIDFromRSAKey(t *testing.T) {
-	// Generate a key pair
-	privateKey, err := GenerateRSAKeyPair(2048)
-	if err != nil {
-		t.Fatalf("failed to generate key pair: %v", err)
-	}
-
-	publicKey := &privateKey.PublicKey
-
-	// Generate key ID
-	keyID, err := GenerateKeyIDFromRSAKey(publicKey)
-	if err != nil {
-		t.Fatalf("failed to generate key ID: %v", err)
-	}
-
-	// Verify key ID is 16 characters
-	if len(keyID) != 16 {
-		t.Errorf("key ID length = %d, want 16", len(keyID))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keyID, err := tt.generate()
+			if err != nil {
+				t.Fatalf("failed to generate key ID: %v", err)
+			}
+			if len(keyID) != 16 {
+				t.Errorf("key ID length = %d, want 16", len(keyID))
+			}
+		})
 	}
 }
 
@@ -592,6 +458,7 @@ func (p *testKeyProvider) FetchKeys(_ context.Context, sink jws.KeySink, sig *jw
 	return nil
 }
 
+// TestVerifyJWS covers multi-key JWS verification including x5c chain validation, x5c mismatch detection, and unknown key ID rejection.
 func TestVerifyJWS(t *testing.T) {
 	// Load platform key + certs (key A)
 	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")

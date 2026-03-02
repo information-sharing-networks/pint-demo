@@ -147,7 +147,7 @@ func NewEnvelopeManifestBuilder() *EnvelopeManifestBuilder {
 }
 
 // WithTransportDocument sets the transport document (must be valid JSON).
-func (e *EnvelopeManifestBuilder) WithTransportDocument(doc json.RawMessage) *EnvelopeManifestBuilder {
+func (e *EnvelopeManifestBuilder) WithTransportDocument(doc TransportDocument) *EnvelopeManifestBuilder {
 	e.transportDocumentJSON = doc
 	return e
 }

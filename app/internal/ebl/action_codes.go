@@ -104,8 +104,6 @@ var validActionCodeTransitions = map[ActionCode][]ActionCode{
 type ActionCodeTransiton struct {
 	previousActionCode    ActionCode
 	nextActionCode        ActionCode
-	previousPlatformCode  string
-	nextPlatformCode      string
 	transportDocumentType TransportDocumentType
 }
 

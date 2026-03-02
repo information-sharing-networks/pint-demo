@@ -11,6 +11,7 @@ var (
 	validVisualisationByCarrier = EBLVisualisationByCarrierChecksum(`d870e9d766ca0b9087f86d8d05ea6bf48d166717c0bf375efff54cedeb3d00b8`)
 )
 
+// TestIssuanceManifestBuilderNew covers building an issuance manifest with required and optional fields, rejecting missing document or issueTo checksums.
 func TestIssuanceManifestBuilderNew(t *testing.T) {
 	tests := []struct {
 		name                              string

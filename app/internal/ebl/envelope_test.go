@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	// thse are valid test data for building an envelope manifest (not real JWS strings)
 	testTransportDocument = []byte(`{"transportDocumentReference":"MAEU123456","shippingInstructionReference":"SI123456"}`)
 )
 
+// TestEnvelopeBuilder covers building a valid envelope with transport document, manifest, and multiple transfer chain entries.
 func TestEnvelopeBuilder(t *testing.T) {
 	// mock transfer chain entries (in reality these would be signed JWS strings)
 	transferChainEntry1 := TransferChainEntrySignedContent("eyJhbGci...ENTRY_1_JWS")

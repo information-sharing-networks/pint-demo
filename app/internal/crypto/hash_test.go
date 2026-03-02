@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// TestHash covers SHA-256 hashing of byte slices, including empty input rejection and confirming expected
+// output format (lowercase hex, 64 characters)
 func TestHash(t *testing.T) {
 
 	// check that empty input returns an error
@@ -34,6 +36,7 @@ func TestHash(t *testing.T) {
 
 }
 
+// TestHashFromBase64 covers hashing of base64-encoded input, including empty and invalid base64 rejection.
 func TestHashFromBase64(t *testing.T) {
 	// check the function retuns a dcsa-compliant hash (lowercase hex, 64 characters)
 	// check that invalid base64 returns an error

@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// TestDetermineTrustLevel covers trust level assignment based on the presence and content of the x5c header.
 func TestDetermineTrustLevel(t *testing.T) {
 	tests := []struct {
 		name          string

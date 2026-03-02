@@ -233,3 +233,22 @@ func GenerateKeyIDFromEd25519Key(publicKey ed25519.PublicKey) (string, error) {
 
 	return fmt.Sprintf("%x", thumbprint)[:16], nil
 }
+
+func GenerateKeyIDFromRSAPublicKey(publicKey *rsa.PublicKey) (string, error) {
+	if publicKey == nil {
+		return "", NewInternalError("public key is nil")
+	}
+
+	// Import to JWK to calculate thumbprint
+	jwkKey, err := jwk.Import(publicKey)
+	if err != nil {
+		return "", WrapKeyManagementError(err, "failed to import key")
+	}
+
+	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return "", WrapKeyManagementError(err, "failed to generate thumbprint")
+	}
+
+	return fmt.Sprintf("%x", thumbprint)[:16], nil
+}

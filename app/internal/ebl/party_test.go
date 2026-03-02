@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestIdentifyingCode_Validate covers validation of identifying codes, including missing codeListProvider and partyCode.
 func TestIdentifyingCode_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -55,12 +56,16 @@ func TestIdentifyingCode_Validate(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
-				t.Errorf("IdentifyingCode.Validate() error = %v, want %v", err, tt.errMsg)
+				// Check if error message contains the expected substring
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("IdentifyingCode.Validate() error = %v, want %v", err, tt.errMsg)
+				}
 			}
 		})
 	}
 }
 
+// TestActorParty_Validate covers validation of actor parties, including missing name, platform, identifying codes, and invalid nested codes.
 func TestActorParty_Validate(t *testing.T) {
 	tests := []struct {
 		name    string

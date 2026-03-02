@@ -9,6 +9,8 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
+// TestRSAPublicKeyToJWK covers conversion of RSA public keys to JWK format, including nil key rejection and metadata validation.
+// This app expects alg, use and keyID to be set
 func TestRSAPublicKeyToJWK(t *testing.T) {
 
 	// nil public key
@@ -56,6 +58,8 @@ func TestRSAPublicKeyToJWK(t *testing.T) {
 	}
 }
 
+// TestEd25519PublicKeyToJWK covers conversion of Ed25519 public keys to JWK format, including nil key rejection and metadata validation.
+// This app expects alg, use and keyID to be set
 func TestEd25519PublicKeyToJWK(t *testing.T) {
 	// nil public key
 	var publicKey ed25519.PublicKey
@@ -107,6 +111,7 @@ func TestEd25519PublicKeyToJWK(t *testing.T) {
 	}
 }
 
+// TestJWKToRSAPublicKey covers round-trip conversion from RSA public key to JWK and back, including nil and wrong key type rejection.
 func TestJWKToRSAPublicKey(t *testing.T) {
 	// nil JWK
 	var nilKey jwk.Key
@@ -157,6 +162,7 @@ func TestJWKToRSAPublicKey(t *testing.T) {
 	}
 }
 
+// TestEd25519JWKToPublicKey covers round-trip conversion from Ed25519 public key to JWK and back, including nil and wrong key type rejection.
 func TestEd25519JWKToPublicKey(t *testing.T) {
 	// nil JWK
 	var nilKey jwk.Key

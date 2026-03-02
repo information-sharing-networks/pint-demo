@@ -9,26 +9,28 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
+	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
 	"github.com/information-sharing-networks/pint-demo/app/internal/services"
 )
 
-// test the receiver validation endpoint
+// TestReceiverValidation covers the receiver validation endpoint: known and unknown platforms, trust level requirements, and invalid request bodies.
 func TestReceiverValidation(t *testing.T) {
-	testEnv := startInProcessServer(t, "EBL1")
+	testEnv := startInProcessServer(t, "EBL1", crypto.TrustLevelDV)
 	defer testEnv.shutdown()
 
 	receiverValidationURL := testEnv.baseURL + "/v3/receiver-validation"
 
 	// create test party data
-	_ = createTestParty(t, testEnv.queries, "Test Ltd", true, []testIdentifyingCode{
-		{codeListProvider: "GLEIF", partyCode: "123", codeListName: stringPtr("LEI")},
+	_ = createTestParty(t, testEnv.queries, "Test Ltd", true, []ebl.IdentifyingCode{
+		{CodeListProvider: "GLEIF", PartyCode: "123", CodeListName: stringPtr("LEI")},
 	})
-	_ = createTestParty(t, testEnv.queries, "Test Ltd - No codeListName", true, []testIdentifyingCode{
-		{codeListProvider: "EBL1", partyCode: "456"},
+	_ = createTestParty(t, testEnv.queries, "Test Ltd - No codeListName", true, []ebl.IdentifyingCode{
+		{CodeListProvider: "EBL1", PartyCode: "456"},
 	})
-	_ = createTestParty(t, testEnv.queries, "Inactive Ltd", false, []testIdentifyingCode{
-		{codeListProvider: "GLEIF", partyCode: "789", codeListName: stringPtr("LEI")},
+	_ = createTestParty(t, testEnv.queries, "Inactive Ltd", false, []ebl.IdentifyingCode{
+		{CodeListProvider: "GLEIF", PartyCode: "789", CodeListName: stringPtr("LEI")},
 	})
 
 	tests := []struct {

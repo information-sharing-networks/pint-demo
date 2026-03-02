@@ -11,5 +11,9 @@
 //
 // **state management**
 // action_codes.go: contains the valid transitions between action codes - these rules apply to the sequence of transactions in the transfer chain
-// pint/transport_document_state.go: contains the state machine for managing the state of an eBL as it is processed by the platform
+//
+// there are a couple of state transitions that can only be determined when the transaction is processed by the platform.
+// These are implemented inside the start_transfer handler (pint/handlers/start_transfer.go):
+//   - already surrendered eBLs can't be transferred
+//   - DISE detection (transfer chain inconsistent with existing transfer chain entries for this eBL)
 package ebl

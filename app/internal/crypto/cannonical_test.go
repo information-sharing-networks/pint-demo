@@ -2,8 +2,7 @@ package crypto
 
 import "testing"
 
-// test that cannonical rejects invalid json
-
+// TestCanonicalizeJSON covers rejection of invalid JSON input.
 func TestCanonicalizeJSON(t *testing.T) {
 	// invalid json
 	jsonData := []byte(`{"test": "value"`)
