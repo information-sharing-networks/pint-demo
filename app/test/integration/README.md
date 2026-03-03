@@ -7,7 +7,7 @@ End-to-end tests that start the pint-server with a temporary database and test H
 ```bash
 # the tests require the docker db container to be running
 # (the tests create a temporary database for testing)
-docker compose up db -d
+make docker-up-db   
 
 # Run all integration tests
 cd app

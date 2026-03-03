@@ -282,8 +282,8 @@ definitions:
       recipient:
         allOf:
         - $ref: '#/definitions/ebl.RecipientParty'
-        description: 'recipient: The party receiving the action (optional for some
-          action codes like SIGN)'
+        description: 'recipient: The party receiving the action (nil for SIGN and
+          BLANK_ENDORSE)'
     type: object
   handlers.JWKSResponse:
     properties:

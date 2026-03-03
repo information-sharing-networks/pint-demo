@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl/testutil"
@@ -349,7 +350,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
 				actor, recipient := GetPartiesFromFile(t, validTRSNSChainEntryPath)
 
-				transferTx := CreateTransferTransaction(actor, recipient)
+				transferTx := CreateTransferTransaction(actor, recipient, time.Time{})
 
 				// Keep the existing transactions but add SURRENDER_FOR_DELIVERY and then another TRANSFER (which is invalid)
 				actor, recipient = GetPartiesFromFile(t, validISSUChainEntryPath)
@@ -366,7 +367,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 				newActor.EblPlatform = recipient.EblPlatform
 				newActor.IdentifyingCodes = recipient.IdentifyingCodes
 
-				surrenderTx := CreateSurrenderForDeliveryTransaction(newActor, carrier)
+				surrenderTx := CreateSurrenderForDeliveryTransaction(newActor, carrier, time.Time{})
 
 				// Add both new transactions
 				transactions = append(transactions, surrenderTx, transferTx)
@@ -401,10 +402,10 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 
 				actor, recipient := GetPartiesFromFile(t, validTRSNSChainEntryPath)
 
-				transferTx := CreateTransferTransaction(actor, recipient)
+				transferTx := CreateTransferTransaction(actor, recipient, time.Time{})
 
 				// we are using the ebl2 recipient as the carrier, which should fail
-				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient)
+				surrenderTx := CreateSurrenderForDeliveryTransaction(actor, recipient, time.Time{})
 
 				// Add both new transactions
 				transactions = append(transactions, surrenderTx, transferTx)

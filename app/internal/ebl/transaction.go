@@ -2,16 +2,16 @@ package ebl
 
 // transaction.go provides functions for creating transactions to be included in transfer chain entries.
 // you can use the helpers below to create the transactions you need, they will be correctly populated with the
-// mandatory fields and current timestamp.
+// mandatory fields.
 //
-// All Create* functions accept an optional time.Time as the final argument. When provided it is used as the
-// actionDateTime instead of time.Now(). This is intended for golden-record tests that need to reproduce an
-// exact transaction from stored fixture data.
-
+// The helpers use UTC time for the actionDateTime and default to time.Now() unless a non-nil time.Time is passed.
+//
 import (
 	"fmt"
 	"time"
 )
+
+const dateTimeFormat = "2006-01-02T15:04:05.000Z"
 
 // Transaction represents a action performed on a platform for a specific eBL
 type Transaction struct {
@@ -22,7 +22,7 @@ type Transaction struct {
 	// actor: The legal entity (party) performing the action (required)
 	Actor ActorParty `json:"actor"`
 
-	// recipient: The party receiving the action (optional for some action codes like SIGN)
+	// recipient: The party receiving the action (nil for SIGN and BLANK_ENDORSE)
 	Recipient *RecipientParty `json:"recipient,omitempty"`
 
 	// actionDateTime: RFC3339 timestamp (UTC) when the transaction was created
@@ -74,28 +74,22 @@ func (t *Transaction) ValidateStructure() error {
 	return nil
 }
 
-const actionDateTimeFormat = "2006-01-02T15:04:05.000Z"
-
-// resolveActionDateTime returns the first element of ts formatted as actionDateTime,
-// or the current UTC time if ts is empty.
-func resolveActionDateTime(ts []time.Time) string {
-	if len(ts) > 0 {
-		return ts[0].UTC().Format(actionDateTimeFormat)
-	}
-	return time.Now().UTC().Format(actionDateTimeFormat)
-}
-
 // CreateIssueTransaction creates an ISSUE transaction.
 //
 // This is used in when the carrier issues the eBL to the recipient (shipper).
 //
 // Returns a Transaction ready to include in the first transfer chain entry.
-func CreateIssueTransaction(actor ActorParty, recipient RecipientParty, actionDateTime ...time.Time) Transaction {
+func CreateIssueTransaction(actor ActorParty, recipient RecipientParty, actionTime time.Time) Transaction {
+	// If the caller passes time.Time{}, use Now()
+	if actionTime.IsZero() {
+		actionTime = time.Now()
+
+	}
 	return Transaction{
 		ActionCode:     ActionCodeIssue,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -105,12 +99,15 @@ func CreateIssueTransaction(actor ActorParty, recipient RecipientParty, actionDa
 // on another platform.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateTransferTransaction(actor ActorParty, recipient RecipientParty, actionDateTime ...time.Time) Transaction {
+func CreateTransferTransaction(actor ActorParty, recipient RecipientParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeTransfer,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -119,12 +116,15 @@ func CreateTransferTransaction(actor ActorParty, recipient RecipientParty, actio
 // This is used when the actor endorses the eBL to a named party.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty, actionDateTime ...time.Time) Transaction {
+func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeEndorse,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -133,12 +133,15 @@ func CreateEndorseTransaction(actor ActorParty, recipient RecipientParty, action
 // This is used when the actor endorses the document to order of the recipient, allowing the recipient to further endorse the eBL to another party)
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty, actionDateTime ...time.Time) Transaction {
+func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeEndorseToOrder,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -147,12 +150,15 @@ func CreateEndorseToOrderTransaction(actor ActorParty, recipient RecipientParty,
 // This is used when the actor endorses the document without specifying a named endorsee.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateBlankEndorseTransaction(actor ActorParty, actionDateTime ...time.Time) Transaction {
+func CreateBlankEndorseTransaction(actor ActorParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeBlankEndorse,
 		Actor:          actor,
 		Recipient:      nil,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -161,12 +167,15 @@ func CreateBlankEndorseTransaction(actor ActorParty, actionDateTime ...time.Time
 // This is used when a party signs the eBL while in their possession (no recipient).
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateSignTransaction(actor ActorParty, actionDateTime ...time.Time) Transaction {
+func CreateSignTransaction(actor ActorParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeSign,
 		Actor:          actor,
 		Recipient:      nil, // SIGN transactions don't have a recipient
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -175,12 +184,15 @@ func CreateSignTransaction(actor ActorParty, actionDateTime ...time.Time) Transa
 // This is used when the actor surrenders the eBL for amendment.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient RecipientParty, reasonCode SurrenderForAmendmentReasonCode, actionDateTime ...time.Time) Transaction {
+func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient RecipientParty, reasonCode SurrenderForAmendmentReasonCode, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeSurrenderForAmendment,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 		ReasonCode:     &reasonCode,
 	}
 }
@@ -190,12 +202,15 @@ func CreateSurrenderForAmendmentTransaction(actor ActorParty, recipient Recipien
 // This is used when the actor surrenders the eBL for delivery.
 //
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateSurrenderForDeliveryTransaction(actor ActorParty, recipient RecipientParty, actionDateTime ...time.Time) Transaction {
+func CreateSurrenderForDeliveryTransaction(actor ActorParty, recipient RecipientParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeSurrenderForDelivery,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }
 
@@ -203,13 +218,15 @@ func CreateSurrenderForDeliveryTransaction(actor ActorParty, recipient Recipient
 //
 // This is used when the carrier accepts a surrender request.
 //
-// TODO what is in a SACC transaction?
 // Returns a Transaction ready to include in a transfer chain entry.
-func CreateSACCTransaction(actor ActorParty, recipient RecipientParty, actionDateTime ...time.Time) Transaction {
+func CreateSACCTransaction(actor ActorParty, recipient RecipientParty, actionDateTime time.Time) Transaction {
+	if actionDateTime.IsZero() {
+		actionDateTime = time.Now()
+	}
 	return Transaction{
 		ActionCode:     ActionCodeSACC,
 		Actor:          actor,
 		Recipient:      &recipient,
-		ActionDateTime: resolveActionDateTime(actionDateTime),
+		ActionDateTime: actionDateTime.UTC().Format(dateTimeFormat),
 	}
 }

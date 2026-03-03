@@ -53,9 +53,6 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 
 	testEnv := &testEnv{}
 
-	t.Log("Starting in-process server...")
-	t.Logf("platformCode: %s", platformCode)
-
 	// server config
 	var (
 		ctx                 = context.Background()
@@ -171,7 +168,6 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 
 	// Create shutdown function to be called by the test
 	testEnv.shutdown = func() {
-		t.Log("Stopping server...")
 
 		// Cancel the server context to trigger graceful shutdown
 		serverCancel()
@@ -182,7 +178,7 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 			if err != nil {
 				t.Logf("❌ Server shutdown with error: %v", err)
 			} else {
-				t.Log("✅ Server shut down gracefully")
+				t.Logf("✅ %s server shut down", platformCode)
 			}
 		case <-time.After(5 * time.Second):
 			t.Log("⚠️ Server shutdown timeout")
@@ -193,7 +189,6 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 	}
 
 	testEnv.baseURL = fmt.Sprintf("http://localhost:%d", port)
-	t.Logf("Starting in-process server at %s", testEnv.baseURL)
 
 	testEnv.cfg = cfg
 
@@ -213,7 +208,7 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
 
-	t.Log("✅ Server started")
+	t.Logf("✅ %s server started at %s", platformCode, testEnv.baseURL)
 	return testEnv
 }
 
@@ -327,8 +322,6 @@ func setupTestDatabase(t *testing.T) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("CREATE DATABASE failed: %v", err)
 	}
-	t.Logf("Created database: %s", testDbName)
-
 	t.Cleanup(func() {
 		postgresPool.Close()
 	})

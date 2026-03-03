@@ -160,7 +160,12 @@ type EnvelopeVerificationResult struct {
 
 	// RecipientPlatform is the intended recipient platform code extracted from the last transaction.
 	// This is the DCSA platform code (e.g., "WAVE", "CARX") that identifies
-	// which platform should receive this transfer.
+	// which platform should receive this action.
+	//
+	// Note that SIGN and BLANK_ENDORSE transactions must always take place on the eBL platform of
+	// the current possessor of the eBL. Envelope verification will set RecipientPlatform to the
+	// current platform in these cases. Otherwise it is derived from the recipient of the last
+	// transaction in the transfer chain.
 	//
 	// The handler should verify this matches the server's configured platform code.
 	RecipientPlatform string
@@ -168,13 +173,6 @@ type EnvelopeVerificationResult struct {
 	// SenderPlatform is the platform code of the sender (from the last transfer chain entry's eblPlatform field).
 	// This is provided for informational purposes and logging.
 	SenderPlatform string
-
-	// PossessionTransaction is the latest transaction where possession of the eBL was established.
-	// the current possesor is the recipient of this transaction (PossessionTransaction.Recipient.EblPlatform).
-	//
-	// Note that when envelope verification is called from a handler that is processing a new envelope transfer, this is the transaction
-	// that the sending platform is requesting - it is not yet accepted.
-	PossessionTransaction *Transaction
 
 	// ActionCode is the action code of the last transaction in the last transfer chain entry
 	// When processing a newly recieved envelope, this is the action the sender wants the platform to accept
@@ -193,7 +191,10 @@ type EnvelopeVerificationResult struct {
 //   - Successful validation returns a complete EnvelopeVerificationResult, including the trust level and org information, and nil error.
 //   - Internal errors return ebl.InternalError and a nil EnvelopeVerificationResult
 //   - Other errors are returned as either ebl.EnvelopeError or ebl.SignatureError with a non-nil EnvelopeVerificationResult containing partial information.
-//     (minimally the LastEnvelopeTransferChainEntrySignedContentChecksum is returned to allow the caller to implement duplicate detection)
+//     (minimally the LastEnvelopeTransferChainEntrySignedContentChecksum is returned)
+//
+// TODO - this function returns early where possible, but this means the returned data for logging is not always very helpful
+// consider doing this in two passes: 1) collect result data, 2) validate
 func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
 
@@ -349,14 +350,29 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	}
 
 	lastTransaction := lastEntry.Transactions[len(lastEntry.Transactions)-1]
-	// recipient can be nil for SIGN and SACC transactions
-	if lastTransaction.Recipient == nil {
-		return result, NewEnvelopeError("recipient is required in last transaction")
-	}
 
-	recipientPlatform := lastTransaction.Recipient.EblPlatform
-	if recipientPlatform == "" {
-		return result, NewEnvelopeError("recipient.eBLPlatform is required")
+	recipientPlatform := ""
+
+	// SIGN and BLANK_ENDORSE transactions do not have a recipient
+	if lastTransaction.ActionCode == ActionCodeSign ||
+		lastTransaction.ActionCode == ActionCodeBlankEndorse {
+
+		if lastTransaction.Recipient != nil {
+			return result, NewEnvelopeError(fmt.Sprintf("recipient is not allowed in last transaction for action code %s", lastTransaction.ActionCode))
+		}
+		// Sign and BlankEndorse transactions can only take place on the platform of the current possessor
+		// in this case this is the platform responsible for the latest transfer chain entry
+		recipientPlatform = lastEntry.EblPlatform
+
+	} else {
+
+		if lastTransaction.Recipient == nil {
+			return result, NewEnvelopeError("recipient is required in last transaction")
+		}
+		recipientPlatform = lastTransaction.Recipient.EblPlatform
+		if recipientPlatform == "" {
+			return result, NewEnvelopeError("recipient.eBLPlatform is required")
+		}
 	}
 
 	// Extract sender platform from last entry
@@ -383,24 +399,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 		return result, WrapSignatureError(err, "failed to parse last transfer chain entry header")
 	}
 
-	// Step 14: Get the transaction that establishes the latest possession of the eBL
-	// This is done by walking through the chain backwards and finding the most recent ISSUE or TRANSFER
-	for i := len(transferChain) - 1; i >= 0; i-- {
-		entry := transferChain[i]
-		for j := len(entry.Transactions) - 1; j >= 0; j-- {
-			transaction := entry.Transactions[j]
-			if transaction.ActionCode == ActionCodeIssue || transaction.ActionCode == ActionCodeTransfer {
-				result.PossessionTransaction = &transaction
-			}
-
-		}
-	}
-
-	if result.PossessionTransaction == nil {
-		return result, NewEnvelopeError("invalid envelope: no transaction establishes possession of the eBL")
-	}
-
-	// Step 15: Reject envelopes where the manifest and last transfer chain entry were signed by different keys
+	// Step 14: Reject envelopes where the manifest and last transfer chain entry were signed by different keys
 	// This prevents the sender substituting a different transfer chain signed by another platform.
 	if manifestHeader.KeyID != lastEntryHeader.KeyID {
 		return result, NewEnvelopeError(fmt.Sprintf(
@@ -413,7 +412,7 @@ func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*Enve
 	result.SenderPlatform = senderPlatform
 	result.SenderKeyID = manifestHeader.KeyID
 
-	// Step 16: Reject envelopes not addressed to this platform
+	// Step 15: Reject envelopes not addressed to the specified platform
 	// This prevents a platform from accepting an envelope that was not addressed to it
 	if result.RecipientPlatform != input.RecipientPlatformCode {
 		return result, NewEnvelopeError(fmt.Sprintf(
@@ -671,13 +670,18 @@ func verifyEnvelopeTransferChain(
 		}
 	}
 
-	// Step 4: Reject chains where an entry was created by a platform that is not the intended recipient
+	// Step 4: Reject chains where the recipient of the previous transaction does not match the sender of the current transaction.
 	// Each envelope transfer delivers the eBL to the recipient of the last transaction in the previous entry.
 	// The platform creating the next entry must be that recipient — otherwise a non-possessing platform
 	// could append entries to the chain and redirect the eBL.
 	for i := 1; i < len(allTransferChainEntries); i++ {
 		previousEntry := allTransferChainEntries[i-1]
 		lastTransaction := previousEntry.Transactions[len(previousEntry.Transactions)-1]
+
+		// SIGN and BLANK_ENDORSE transactions do not have a recipient
+		if lastTransaction.ActionCode == ActionCodeSign || lastTransaction.ActionCode == ActionCodeBlankEndorse {
+			continue
+		}
 
 		if lastTransaction.Recipient == nil {
 			return nil, NewEnvelopeError(fmt.Sprintf(

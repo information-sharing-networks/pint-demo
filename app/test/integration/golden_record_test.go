@@ -184,7 +184,6 @@ func TestGoldenRecord(t *testing.T) {
 	// Step 9: build and sign the envelope manifest, then assemble the full envelope
 	mBuilder := ebl.NewEnvelopeManifestBuilder().
 		WithTransportDocument(transportDocument).
-		WithLastTransferChainEntry(issuanceEntryJWS).
 		WithLastTransferChainEntry(trnsEntryJWS)
 	envelopeManifest, err := mBuilder.Build()
 	if err != nil {
