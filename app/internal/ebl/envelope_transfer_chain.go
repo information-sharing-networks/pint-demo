@@ -73,7 +73,7 @@ func (b *EnvelopeTransferChainEntry) ValidateStructure(isFirstEntry bool) error 
 		return NewEnvelopeError("controlTrackingRegistry should only be present in first entry")
 	}
 
-	// TODO - is there a register of valid CTRs - or is this something that is configured at service start up?
+	// TODO - will more than one CTR be allowed?
 	if b.ControlTrackingRegistry != nil {
 		// Validate CTR URL format
 		if _, err := url.Parse(*b.ControlTrackingRegistry); err != nil {

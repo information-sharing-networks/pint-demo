@@ -158,10 +158,7 @@ func validateConfig(cfg *ServerEnvironment) error {
 		}
 	}
 
-	// TODO - this rule says participants using custom root CAs must also use x5c headers
-	// (ie it is assumed the particpants in a private PKI require reciprical trust and must operate at trust-level 2 or 3)
-	// .. but we don't have a similar rule for public CAs (allowing the particpants to select their trust level)
-	// is this correct?
+	// participants using custom root CAs must also use x5c headers
 	if cfg.X5CCustomRootsPath != "" && cfg.X5CCertPath == "" {
 		return fmt.Errorf("X5C_CUSTOM_ROOTS_PATH requires X5C_CERT_PATH: " +
 			"platforms using custom root CAs must provide their own x5c certificate chain")

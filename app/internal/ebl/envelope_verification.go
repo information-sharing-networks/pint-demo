@@ -193,7 +193,7 @@ type EnvelopeVerificationResult struct {
 //   - Other errors are returned as either ebl.EnvelopeError or ebl.SignatureError with a non-nil EnvelopeVerificationResult containing partial information.
 //     (minimally the LastEnvelopeTransferChainEntrySignedContentChecksum is returned)
 //
-// TODO - this function returns early where possible, but this means the returned data for logging is not always very helpful
+// TODO - this function returns early where possible, but this means the returned data for logging is not always complete.
 // consider doing this in two passes: 1) collect result data, 2) validate
 func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
@@ -744,12 +744,32 @@ func verifyEnvelopeTransferChain(
 					currentActionCode, nextActionCode, i, j, reason))
 			}
 
-			// Step 5d: Reject chains where surrender requests are not addressed to the carrier that issued the eBL
+			// Step 5d: Reject chains where surrender requests are not addressed to exactly the same set of identifying codes as the
+			// issuer (first actor in the chain)
+			// TODO are there any circumstances where it is okay to accept a subset of matching codes?
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
-				if transaction.Recipient == nil || !IdentifyingCodesMatch(transaction.Recipient.IdentifyingCodes, issueActorCodes, MatchAny) {
+				recipient := transaction.Recipient.IdentifyingCodes
+				issuer := issueActorCodes
+
+				if len(recipient) != len(issuer) {
 					return nil, NewEnvelopeError(fmt.Sprintf(
 						"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
 						i, j))
+				}
+
+				for _, s := range issuer {
+					found := false
+					for _, r := range recipient {
+						if s.CodeListProvider == r.CodeListProvider && s.PartyCode == r.PartyCode {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return nil, NewEnvelopeError(fmt.Sprintf(
+							"surrender request must be addressed to the issuing carrier (entry %d, transaction %d)",
+							i, j))
+					}
 				}
 			}
 			currentActionCode = nextActionCode
