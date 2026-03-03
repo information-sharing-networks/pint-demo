@@ -9,8 +9,12 @@ import (
 // chain of transactions.
 
 // ActionCode specifies the type of action performed on a BL when a new transaction is added to the transfer chain.
-// The ActionCodes received in the transfer chain in an envelope show the history of the eBL and
-// the final transaction in the last transfer chain entry indicates the action the sender wants the platform to accept.
+// The ActionCodes received in the envelope's transfer chain show the history of the eBL.
+// The final transaction in the last transfer chain entry indicates the action the sender wants the platform to accept.
+//
+// Note that once a server sends a Surrender* action code it is blocked from receiving further actoons for the eBL,
+// other than SREJ/SACC sent by the carrier in response.  This means that the eBL is effectively "frozen" until the carrier responds,
+// and the carrier is in possession until a response is sent.
 type ActionCode string
 
 const (
@@ -87,7 +91,6 @@ const (
 )
 
 // These transitions apply within a chain - if the chain contains invalid transitions it is rejected with a DISE error.
-// TODO: confirm the rules are correct
 var validActionCodeTransitions = map[ActionCode][]ActionCode{
 	ActionCodeIssue:                 {ActionCodeTransfer, ActionCodeSign},
 	ActionCodeTransfer:              {ActionCodeTransfer, ActionCodeEndorse, ActionCodeEndorseToOrder, ActionCodeBlankEndorse, ActionCodeSign, ActionCodeSurrenderForAmendment, ActionCodeSurrenderForDelivery},

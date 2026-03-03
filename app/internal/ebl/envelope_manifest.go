@@ -139,8 +139,10 @@ type EnvelopeManifestBuilder struct {
 // To build an envelope manifest:
 //  1. Create an EnvelopeManifestBuilder
 //  2. Add the required fields using the builder methods
+//     (mimimally WithTransportDocument and WithLastTransferChainEntry,
+//     optionally WithEBLVisualisationByCarrier and WithSupportingDocuments)
 //  3. Call Build() to create the EnvelopeManifest struct
-//  4. Sign the manifest using Sign()
+//  4. Sign the manifest using EnvelopeManifest.Sign()
 //  5. Add the signed manifest to the envelope transfer request
 func NewEnvelopeManifestBuilder() *EnvelopeManifestBuilder {
 	return &EnvelopeManifestBuilder{}

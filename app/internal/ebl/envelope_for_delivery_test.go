@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
@@ -69,6 +70,7 @@ func TestCreateEnvelopeForDelivery(t *testing.T) {
 			newTransaction := CreateTransferTransaction(
 				actorParty,
 				recipientParty,
+				time.Time{},
 			)
 
 			// Create envelope with the new entry

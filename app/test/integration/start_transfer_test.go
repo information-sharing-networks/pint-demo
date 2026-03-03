@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
@@ -609,8 +610,10 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 	}
 }
 
-// test for DISE handling
-func TestTransferDISE(t *testing.T) {
+// test for runtime detection of errors that relate to the lifecycle of the ebl:
+// - DISE (contradictory transfer chain)
+// - actions on surrendered eBLs
+func TestTransferLifecycle(t *testing.T) {
 
 	// signing keys
 	car1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-carrier.example.com.private.jwk")
@@ -633,6 +636,13 @@ func TestTransferDISE(t *testing.T) {
 		Build()
 	if err != nil {
 		t.Fatalf("could not build actor party %v", err)
+	}
+
+	car1Recipient, err := ebl.NewRecipientPartyBuilder("car1 party", "CAR1").
+		WithIdentifyingCode("CAR1", "carrier1party@carrier1.example.com", nil).
+		Build()
+	if err != nil {
+		t.Fatalf("could not build recipient party %v", err)
 	}
 
 	ebl1Actor, err := ebl.NewActorPartyBuilder("ebl1 party", "EBL1").
@@ -664,11 +674,12 @@ func TestTransferDISE(t *testing.T) {
 	}
 
 	// start serveors
+	car1env := startInProcessServer(t, "CAR1", crypto.TrustLevelNoX5C)
 	ebl1env := startInProcessServer(t, "EBL1", crypto.TrustLevelNoX5C)
 	ebl2env := startInProcessServer(t, "EBL2", crypto.TrustLevelNoX5C)
 
 	// set up parties data
-	for _, env := range []*testEnv{ebl1env, ebl2env} {
+	for _, env := range []*testEnv{car1env, ebl1env, ebl2env} {
 		defer env.shutdown()
 		createTestParty(t, env.queries, car1Actor.PartyName, true, car1Actor.IdentifyingCodes)
 		createTestParty(t, env.queries, ebl1Actor.PartyName, true, ebl1Actor.IdentifyingCodes)
@@ -700,7 +711,7 @@ func TestTransferDISE(t *testing.T) {
 		t.Fatal("could not sign issuance manifest")
 	}
 
-	issuanceTransaction := ebl.CreateIssueTransaction(car1Actor, ebl1Recipient)
+	issuanceTransaction := ebl.CreateIssueTransaction(car1Actor, ebl1Recipient, time.Time{})
 
 	issuanceEntryBuilder := ebl.NewEnvelopeTransferChainEntryBuilder(true).
 		WithTransportDocumentChecksum(transportDocumentChecksum).
@@ -756,7 +767,7 @@ func TestTransferDISE(t *testing.T) {
 	defer resp.Body.Close()
 
 	// create a transfer transaction from ebl1 to ebl2
-	transferTransaction := ebl.CreateTransferTransaction(ebl1Actor, ebl2Recipient)
+	transferTransaction := ebl.CreateTransferTransaction(ebl1Actor, ebl2Recipient, time.Time{})
 
 	transferToEbl2Envelope, err := ebl.CreateEnvelopeForDelivery(
 		ebl.CreateEnvelopeInput{
@@ -781,7 +792,7 @@ func TestTransferDISE(t *testing.T) {
 	defer resp.Body.Close()
 
 	// create a new transfer transaction from ebl2 to ebl1
-	transferTransaction = ebl.CreateTransferTransaction(ebl2Actor, ebl1Recipient)
+	transferTransaction = ebl.CreateTransferTransaction(ebl2Actor, ebl1Recipient, time.Time{})
 	transferToEbl1Envelope, err := ebl.CreateEnvelopeForDelivery(
 		ebl.CreateEnvelopeInput{
 			ReceivedEnvelope: transferToEbl2Envelope,
@@ -806,6 +817,7 @@ func TestTransferDISE(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	// ebl1 is now in possession (car1 issued to ebl1 / ebl1 > ebl2 / ebl2 > ebl1)
 	t.Run("DISE - resending a shorter, but legit, chain to a server should fail with DISE", func(t *testing.T) {
 		// resend the original envelope to ebl1 - this should trigger DISE since the chain is shorter
 		envelopesURL = ebl1env.baseURL + "/v3/envelopes"
@@ -835,7 +847,9 @@ func TestTransferDISE(t *testing.T) {
 
 	t.Run("DISE - resending a chain with a forked chain should fail with DISE", func(t *testing.T) {
 		// send the original envelope again to ebl2 but with a new transfer transaction (DISE error)
-		transferTransaction = ebl.CreateTransferTransaction(ebl1Actor, ebl2Recipient)
+		// this is a type of (unlikely) dobule spend where the receiver ignores the second transfer and uses the first one to
+		// try and restart the chain
+		transferTransaction = ebl.CreateTransferTransaction(ebl1Actor, ebl2Recipient, time.Time{})
 		transferToEbl2EnvelopeDISE, err := ebl.CreateEnvelopeForDelivery(
 			ebl.CreateEnvelopeInput{
 				ReceivedEnvelope: envelope,
@@ -873,5 +887,127 @@ func TestTransferDISE(t *testing.T) {
 		defer resp.Body.Close()
 	})
 
-	// TODO SACC handling - need to confirm if SACC transactions have both Actor and Recipient...
+	transferToEbl2EnvelopeSIGN := &ebl.Envelope{}
+	// blank endorse a transaction from ebl1 to ebl2 (not allowed - blank endorse must be on the same platform)
+	t.Run(" sending a BLANK_ENDORSE transaction from ebl1 to ebl2 should be rejected", func(t *testing.T) {
+		// note no recipient
+		signTransaction := ebl.CreateSignTransaction(ebl1Actor, time.Time{})
+		transferToEbl2EnvelopeSIGN, err = ebl.CreateEnvelopeForDelivery(
+			ebl.CreateEnvelopeInput{
+				ReceivedEnvelope: transferToEbl1Envelope,
+				NewTransactions:  []ebl.Transaction{signTransaction},
+			},
+			ebl1PrivateKey,
+			nil,
+			"EBL1",
+		)
+		if err != nil {
+			t.Fatalf("Failed to create envelope: %v", err)
+		}
+		envelopesURL = ebl2env.baseURL + "/v3/envelopes"
+		envelopeData, err = json.Marshal(transferToEbl2EnvelopeSIGN)
+		if err != nil {
+			t.Fatalf("Failed to marshal envelope: %v", err)
+		}
+		resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+		if err != nil {
+			t.Fatalf("Failed to POST envelope: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 422 {
+			t.Fatalf("Expected status code 422, got %d", resp.StatusCode)
+		}
+	})
+
+	// sign actions must be done on the platform of the ebl possessor
+	t.Run("SIGN - sending a SIGN transaction from ebl1 to ebl2 should be rejected", func(t *testing.T) {
+		// note no recipient
+		signTransaction := ebl.CreateSignTransaction(ebl1Actor, time.Time{})
+		transferToEbl2EnvelopeSIGN, err := ebl.CreateEnvelopeForDelivery(
+			ebl.CreateEnvelopeInput{
+				ReceivedEnvelope: transferToEbl2Envelope,
+				NewTransactions:  []ebl.Transaction{signTransaction},
+			},
+			ebl1PrivateKey,
+			nil,
+			"EBL1",
+		)
+		if err != nil {
+			t.Fatalf("Failed to create envelope: %v", err)
+		}
+		envelopesURL = ebl2env.baseURL + "/v3/envelopes"
+		envelopeData, err = json.Marshal(transferToEbl2EnvelopeSIGN)
+		if err != nil {
+			t.Fatalf("Failed to marshal envelope: %v", err)
+		}
+		resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+		if err != nil {
+			t.Fatalf("Failed to POST envelope: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 422 {
+			t.Fatalf("Expected status code 422, got %d", resp.StatusCode)
+		}
+	})
+
+	transferToCar1EnvelopeSurrender := &ebl.Envelope{}
+	t.Run("SurrenderForDelivery - sending a SurrenderForDelivery transaction from ebl1 to car1 should be accepted", func(t *testing.T) {
+		surrenderForDeliveryTransaction := ebl.CreateSurrenderForDeliveryTransaction(ebl1Actor, car1Recipient, time.Time{})
+		transferToCar1EnvelopeSurrender, err = ebl.CreateEnvelopeForDelivery(
+			ebl.CreateEnvelopeInput{
+				ReceivedEnvelope: transferToEbl1Envelope,
+				NewTransactions:  []ebl.Transaction{surrenderForDeliveryTransaction},
+			},
+			ebl1PrivateKey,
+			nil,
+			"EBL1",
+		)
+		if err != nil {
+			t.Fatalf("Failed to create envelope: %v", err)
+		}
+		envelopesURL = car1env.baseURL + "/v3/envelopes"
+		envelopeData, err = json.Marshal(transferToCar1EnvelopeSurrender)
+		if err != nil {
+			t.Fatalf("Failed to marshal envelope: %v", err)
+		}
+		resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+		if err != nil {
+			t.Fatalf("Failed to POST envelope: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("Expected status code 200, got %d", resp.StatusCode)
+		}
+	})
+
+	// SACC - SACC from car1 to ebl2 should be accepted
+	transferToEbl1EnvelopeSACC := &ebl.Envelope{}
+	t.Run("SACC - sending a SACC transaction from car1 to ebl1 should be accepted", func(t *testing.T) {
+		saccTransaction := ebl.CreateSACCTransaction(car1Actor, ebl1Recipient, time.Time{})
+		transferToEbl1EnvelopeSACC, err = ebl.CreateEnvelopeForDelivery(
+			ebl.CreateEnvelopeInput{
+				ReceivedEnvelope: transferToCar1EnvelopeSurrender,
+				NewTransactions:  []ebl.Transaction{saccTransaction},
+			},
+			car1PrivateKey,
+			nil,
+			"CAR1",
+		)
+		if err != nil {
+			t.Fatalf("Failed to create envelope: %v", err)
+		}
+		envelopesURL = ebl1env.baseURL + "/v3/envelopes"
+		envelopeData, err = json.Marshal(transferToEbl1EnvelopeSACC)
+		if err != nil {
+			t.Fatalf("Failed to marshal envelope: %v", err)
+		}
+		resp, err = http.Post(envelopesURL, "application/json", bytes.NewReader(envelopeData))
+		if err != nil {
+			t.Fatalf("Failed to POST envelope: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("Expected status code 200, got %d", resp.StatusCode)
+		}
+	})
 }

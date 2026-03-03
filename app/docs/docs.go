@@ -949,7 +949,7 @@ const docTemplate = `{
                     ]
                 },
                 "recipient": {
-                    "description": "recipient: The party receiving the action (optional for some action codes like SIGN)",
+                    "description": "recipient: The party receiving the action (nil for SIGN and BLANK_ENDORSE)",
                     "allOf": [
                         {
                             "$ref": "#/definitions/ebl.RecipientParty"
