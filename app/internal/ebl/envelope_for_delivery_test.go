@@ -11,8 +11,6 @@ import (
 
 // TestCreateEnvelopeForDelivery covers building a forwarding envelope by appending a new transfer chain entry to a received envelope.
 func TestCreateEnvelopeForDelivery(t *testing.T) {
-	// debug
-	t.Skip("debug")
 	tests := []struct {
 		name                 string
 		privateKeyJWKPath    string
