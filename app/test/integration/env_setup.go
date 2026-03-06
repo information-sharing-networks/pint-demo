@@ -315,7 +315,7 @@ func setupTestDatabase(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("Unable to create postgres connection pool: %v", err)
 	}
 	if err := postgresPool.Ping(ctx); err != nil {
-		t.Fatalf("Can't ping PostgreSQL server %s", postgresConnectionURL)
+		t.Fatalf("Can't ping PostgreSQL server %s - did you start the db container?", postgresConnectionURL)
 	}
 
 	_, err = postgresPool.Exec(ctx, "CREATE DATABASE "+testDbName)
