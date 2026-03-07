@@ -6,7 +6,7 @@ package main
 // - JWK format for PINT message signing (private) and publishing (public)
 // - PEM format for creating Certificate Signing Requests (CSR) to send to a CA - PEMS are in PKCS#8 format
 //
-// The key ID (kid) is generated as a SHA256 thumbprint of the public key (RFC7638)
+// The key ID (kid) is generated as a SHA256 thumbprint of the public key in JWK format (RFC7638)
 // You can specify the length of the kid using the -l flag (default is 16 chars = 8 bytes)
 // (specify 0 or 64 for full length)
 //

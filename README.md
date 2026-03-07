@@ -21,7 +21,7 @@ A demonstration implementation of the DCSA PINT (Platform Interoperability) API 
 
 To run the app locally you just need [Docker Desktop](https://docs.docker.com/get-docker).
 
-If you plan to make changes to the code (or want to run the go tests) you will also need [Go 1.25.7](https://go.dev/doc/install) or above.
+If you plan to make changes to the code (or want to run the go tests) you will also need the latest version of [Go](https://go.dev/doc/install).
 
 ### Quick Start
 
@@ -154,7 +154,7 @@ This app implements a hybrid approach to key distribution:
 - **Dynamic JWK endpoints**: Automatically fetches and caches public keys from configured JWKS endpoints. The list of endpoints is retrieved from the DCSA registry.
 - **Manual keys**: Supports manually configured keys for testing or private networks where keys are exchanged out of band.
 
-Keys are looked up by the KID retrieved from JWS headers. The KID is derived from the first 8 bytes of the public key RFC 7638 JWK thumbprints
+Keys are looked up by the KID retrieved from JWS headers. Where the keygen CLI is used to generate the keys, the KID is the first 16 characters of the SHA-256 thumbprint of the public key in JWK format (c.f RFC7638).
    (see `app/internal/crypto/jwk.go` for the implementation details).
 
 ### Platform registry

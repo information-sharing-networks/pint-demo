@@ -32,7 +32,8 @@ package ebl
 // Platform identification is done by looking up the platform in the DCSA registry
 // using the JWS key ID.
 //
-// This app uses the JWK thumbprint of the signing public key as the key ID.
+// Where the keys are managed using the keygen CLI tool that comes with this implementation,
+// the key ID is the first 16 characters of the SHA-256 thumbprint of the public key in JWK format (c.f RFC7638).
 //
 // The keystore is populated with public keys retrieved either from the
 // platform's JWKS endpoint or from a local store of manually configured keys, depending on how the platform was

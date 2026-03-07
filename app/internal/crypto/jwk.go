@@ -7,7 +7,7 @@ package crypto
 // ... and by keygen CLI to generate JWKs for distribution via /.well-known/jwks.json
 // keygen also uses the PEM functions below to create a PEM file that can be used to create a CA CSR (certificate signing request)).
 //
-// Note the JWK kid is generated using the first 16 characters (8 bytes) of the SHA-256 thumbprint of the public key.
+// Note the JWK kid is generated using the first 16 characters of the SHA-256 thumbprint of the public key in JWK format (c.f RFC7638).
 //
 // these are low level functions - for standard usage (issuance requests, transfer requests etc) you will not need to call these functions directly.
 
@@ -191,8 +191,11 @@ func Ed25519JWKToPublicKey(key jwk.Key) (ed25519.PublicKey, error) {
 }
 
 // GenerateDefaultKeyID generates a key ID from an RSA or Ed25519 public key using the first 16 characters of the SHA-256 thumbprint.
+//
 // The thumbprint is generated according to RFC 7638 and encoded using base64url without padding.
 // This is the default key ID generation method used by keygen.
+//
+// If you want to specify a different key ID length, use GenerateKeyID instead.
 func GenerateDefaultKeyID(publickey crypto.PublicKey) (string, error) {
 	return GenerateKeyID(publickey, 16)
 }

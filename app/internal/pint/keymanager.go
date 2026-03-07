@@ -64,7 +64,6 @@ type eblSolutionProvider struct {
 	JWKSEndpoint string
 
 	// ManualKeyID is the kid of the manually configured public key for this provider.
-	// this implementation expects the kid to be the thumbprint of the public key.
 	//
 	// Assuming a jwk with the corresponding kid is found in the manual keys directory
 	// the key will be cached and associated with this provider.
@@ -85,7 +84,6 @@ type PublicKeyInfo struct {
 	Key jwk.Key
 
 	// KeyID is the KID of the public key
-	// this implementation expects the KID to be the thumbprint of the public key (see jwk.go)
 	KeyID string
 }
 
