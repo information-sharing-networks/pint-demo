@@ -185,11 +185,11 @@ function stage0() {
         platform=$(echo $i | cut -d, -f1)
         id=$(echo $i | cut -d, -f2)
         tmpfile=/tmp/$$.csv
-
+        
         awk ' BEGIN { FS=OFS="," } 
             $1 == platform { $4 = id } 
             { print }
-        ' platform=$platform id=$id < $csv > $tmpfile && mv $tmpfile $csv
+        ' platform=$platform id=$id < $REGISTRY_FILE > $tmpfile && mv $tmpfile $REGISTRY_FILE
     done
 
     echo "  Updated: eblsolutionproviders.csv"
