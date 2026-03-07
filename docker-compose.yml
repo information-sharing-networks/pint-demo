@@ -140,7 +140,7 @@ services:
       resources:
         limits:
           cpus: '1'
-          memory: 512M
+          memory: 1024M
 
 networks:
   app-network:
