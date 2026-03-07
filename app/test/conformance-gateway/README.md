@@ -5,11 +5,11 @@ Use the settings icon in the webui to set the `Application base URL` to http://h
 
 to start the pint-server for conformance testing:
 ```bash
- X5C_CERT_PATH="" X5C_CUSTOM_ROOTS_PATH="" SIGNING_KEY_PATH=test/testdata/keys/conformance-eblplatform.example.com.private.jwk MIN_TRUST_LEVEL=1 PLATFORM_CODE=CARX PORT=8081 make docker-up
+# the PINT conformance tests will send PINT transfers to this server (configured as CARX in the registry)
+ X5C_CERT_PATH="" X5C_CUSTOM_ROOTS_PATH="" SIGNING_KEY_PATH=test/testdata/keys/ctk-carx.example.com.private.jwk MIN_TRUST_LEVEL=1 PLATFORM_CODE=CARX PORT=8081 make docker-up
  ```
 
-When running manual tests, the CTK webui requires the public key used by the pint-server to be pasted in for each test.
-(the CTK needs this key to verify the JWS signatures in the response) 
+When running manual tests, the CTK webui requires the public key used by the receiving pint-server to be pasted in for each test (it needs this to verify the JWS signature in the response)
 
 The app expects the server's public key to be pasted in in PEM format for each test.
 the current cert is:
@@ -29,8 +29,8 @@ make delete-envelopes` # will delete all envelopes from the database.
 ```
 
 - there is currently no option to specify the server's public key in the CTK beyond copying it in manually before each test.  
-To avoid this, you can updte the conformance-gateway source code with a copy of the pint-server's private key:
-Relace the value of `CTK_RECEIVER_PRIVATE_KEY_PEM` with the server's private key in pem format `../testdata/keys/conformance-eblplatform.example.com.private.pem` (see
+To avoid this, you can update the conformance-gateway source code with a copy of the pint-server's private key:
+Relace the value of `CTK_RECEIVER_PRIVATE_KEY_PEM` with the server's private key in pem format `../testdata/keys/ctk-carx.example.com.private.pem` (see
 `Conformance-Gateway/ebl/src/main/java/org/dcsa/conformance/standards/ebl/crypto/PayloadSignerFactory.java`)
 .. and then `run docker compose up --build` in the Conformance-Gateway directory.
 
@@ -67,19 +67,19 @@ The carrier and sender private keys used by the CTK when signing PINT transfers 
 c.f CTK_SENDER_PRIVATE_KEY_PEM and CTK_CARRIER_PRIVATE_RSA_KEY_PEM
 
 These have been copied to the current directory as:
-- `sender-private.pem`
+- `sender-private.pemt
 - `carrier-private.pem`
 
 The go command below is used to create the jwks needed by the pint-server to verify the CTK test transfer requests:
 ```bash
-go run main.go -o . -p sender-private.pem -s sender-ctk.example.com 
-go run main.go -o . -p carrier-private.pem -s carrier-ctk.example.com 
+go run main.go -o . -p sender-private.pem -s ctk-bole.example.com
+go run main.go -o . -p carrier-private.pem -s ctk-carr.example.com 
 ```
 
 the keys needed to verify CTK signatures have already been added to the `platform-registry/eblsolutionproviders.csv` file 
 and added to `../testdata/keys/` as:
-- `carrier-ctk.example.com.public.jwk`
-- `sender-ctk.example.com.public.jwk`
+- `ctk-carr.example.com.public.jwk`
+- `ctk-bole.example.com.public.jwk`
 
 these keys have beeen copied to testdata/keys. If you need to regenerate them, see notes below:
 
@@ -89,23 +89,23 @@ the kids have to be added to the `platform-registry/eblsolutionproviders.csv` fi
 
 ... the current registry csv file has them as CARR and BOLE respectively.
 
-The private key used to start the pint-server for conformance testing is CARX/`conformance-eblplatform.example.com` and was created with:
+The private key used to start the pint-server for conformance testing is CARX/`ctk-carx.example.com` and was created with:
 ```bash
 # note use a RSA signing key as ed25519 doesn't work with the conformance platform for some reason
-go run /mydir/pint-demo/app/cmd/keygen/main.go -d conformance-eblplatform.example.com -o . -t rsa  -s 2048
-cp conformance-eblplatform.example.com.*.jwk ../testdata/keys/
+go run /mydir/pint-demo/app/cmd/keygen/main.go -d ctk-carx.example.com -o . -t rsa  -s 2048
+cp ctk-carx.example.com.*.jwk ../testdata/keys/
 ```
 
-the registry was udated with the kid from tmp/conformance-eblplatform.example.com.public.jwk
+the registry was udated with the kid from tmp/ctk-carx.example.com.public.jwk
 `../testdata/platform-registry/eblsolutionproviders.csv`:
 
 ```csv
-CARX,https://conformance-eblplatform.example.com/,,d554a38fd3bbe54f
+CARX,https://ctk-carx.example.com/,,d554a38fd3bbe54f
 ```
 
 The app expects the public key to be a PEM cert file on a single line and can be created by:
 ```bash
 ```bash
-openssl req -new -x509 -key conformance-eblplatform.example.com.private.pem -out certificate.pem -days 365 -subj "/CN=Test Certificate" && \
+openssl req -new -x509 -key ctk-carx.example.com.private.pem -out certificate.pem -days 365 -subj "/CN=Test Certificate" && \
 awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' certificate.pem
 ```

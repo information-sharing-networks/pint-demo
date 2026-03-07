@@ -179,13 +179,18 @@ function stage0() {
 
     # Update the CSV file
     # Header: Code,Site,jwks_endpoint,manual_key_id
-    cat > "$REGISTRY_FILE" << EOF
-Code,Site,jwks_endpoint,manual_key_id
-EBL1,https://ed25519-eblplatform.example.com/,,${ebl1_kid}
-CAR1,https://ed25519-carrier.example.com/,,${car1_kid}
-EBL2,https://rsa-eblplatform.example.com/,,${ebl2_kid}
-CAR2,https://rsa-carrier.example.com/,https://rsa-carrier.example.com/.well-known/jwks.json,
-EOF
+
+    for i in "EBL1,$ebl1_kid" "CAR1,$car1_kid" "EBL2,$ebl2_kid"
+    do 
+        platform=$(echo $i | cut -d, -f1)
+        id=$(echo $i | cut -d, -f2)
+        tmpfile=/tmp/$$.csv
+
+        awk ' BEGIN { FS=OFS="," } 
+            $1 == platform { $4 = id } 
+            { print }
+        ' platform=$platform id=$id < $csv > $tmpfile && mv $tmpfile $csv
+    done
 
     echo "  Updated: eblsolutionproviders.csv"
     echo
