@@ -192,9 +192,6 @@ type EnvelopeVerificationResult struct {
 //   - Internal errors return ebl.InternalError and a nil EnvelopeVerificationResult
 //   - Other errors are returned as either ebl.EnvelopeError or ebl.SignatureError with a non-nil EnvelopeVerificationResult containing partial information.
 //     (minimally the LastEnvelopeTransferChainEntrySignedContentChecksum is returned)
-//
-// TODO - this function returns early where possible, but this means the returned data for logging is not always complete.
-// consider doing this in two passes: 1) collect result data, 2) validate
 func VerifyEnvelope(ctx context.Context, input EnvelopeVerificationInput) (*EnvelopeVerificationResult, error) {
 	result := &EnvelopeVerificationResult{}
 
@@ -478,7 +475,6 @@ func verifyTransportDocumentChecksum(
 //   - Carrier signature verification ensures the carrier is the one who issued the eBL
 //   - Document checksum verification ensures the transport document hasn't been tampered with since issuance
 //
-// TODO: confirm this is correct:
 // The issueToChecksum is verified only at issuance time (EBL_ISS API) by the first eBL Solution Provider
 // and the check is not repeated in subsequent PINT transfers.  This is because the first eBL Solution Provider
 // is the only one that has access to the original "issueTo" property from the carrier.
@@ -746,7 +742,6 @@ func verifyEnvelopeTransferChain(
 
 			// Step 5d: Reject chains where surrender requests are not addressed to exactly the same set of identifying codes as the
 			// issuer (first actor in the chain)
-			// TODO are there any circumstances where it is okay to accept a subset of matching codes?
 			if nextActionCode == ActionCodeSurrenderForDelivery || nextActionCode == ActionCodeSurrenderForAmendment {
 				recipient := transaction.Recipient.IdentifyingCodes
 				issuer := issueActorCodes

@@ -89,6 +89,3 @@ the script will replace the signed content and checksums in the existing ebl env
 the CARR, BOLE and CARX keys are used in the CTK tests. 
 
 The `app/test/conformance-gateway/README.md` file contains more information on running the CTK tests.
-
-# TODO
-the transportDocumentChecksums are not recalculated by the scripts above (so changing the transport doc content will break the integration tests...)

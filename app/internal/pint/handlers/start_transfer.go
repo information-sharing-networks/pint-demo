@@ -733,11 +733,6 @@ func checkTransferChainConsistency(
 			return fmt.Errorf("fork at transfer chain entry position %d: payload checksum of incoming chain is different to the stored chain", seq)
 		}
 	}
-	// TODO where there has been one or more transfers, we should also check the endorsement chain is consistent
-	// (i.e for each transfer chain entry, the endorsee and transfer recipient should be the same party, and
-	// the actor of the transfer transaction should be the endorsee of the previous entry).
-	// Note there is still a question mark about what counts as being 'the same party' (do all identifying codes for a party need to match etc.)
-
 	return nil
 }
 
@@ -752,16 +747,13 @@ func checkTransferChainConsistency(
 // Validate each code via the party validator service and ensure all successfully validated
 // codes refer to the same internal party ID.
 //
+// DCSA do not specify how to handle cases where some codes validate and others don't and leave it as an implementation detail.
+//
+// This implementaton follows a strict approach:
 // a. No codes validate = REJECT
 // b. Codes validate to different party IDs = REJECT
 // c. Some codes validate, others don't = REJECT
 // e. All codes validate to same party ID = ACCEPT
-//
-// TODO: check the expectation for receiver logic:
-//   - Rule b is implied by the spec (which says the sender should take care not to send conflicting codes).
-//   - Rule c is not explicitly required but seems sensible: accepting unmatched codes
-//     risks downstream confusion since there is no way for the downstream system
-//     to know which code(s) were successfully validated.
 func (s *StartTransferHandler) verifyRecipientParty(ctx context.Context, recipient *ebl.RecipientParty) (reason string, error error) {
 
 	validatedPartyIDs := make(map[string]bool) // partyID -> true

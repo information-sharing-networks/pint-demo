@@ -25,10 +25,8 @@
 // Platforms not in the registry will not have their keys loaded, and their messages will be rejected.
 //
 // TODO: for the demo app the registry is a simple CSV file, but in a real deployment the registry would be served
-// from a secure endpoint and cover all participants in the PINT network.
+// from a secure location and cover all participants in the PINT network (potentially there could be separate networks with their own admistration)
 // We would also need to implement a mechanism to refresh the registry in case of changes (for now it is loaded at startup and not refreshed)
-//
-// TODO: do we need to keep a record of expired keys so we can validate signatures on old documents?
 package pint
 
 import (
