@@ -287,8 +287,8 @@ func TestGenerateKeyIDFromKey(t *testing.T) {
 		name     string
 		generate func() (string, error)
 	}{
-		{name: "Ed25519", generate: func() (string, error) { return GenerateKeyIDFromEd25519Key(ed25519Key.Public().(ed25519.PublicKey)) }},
-		{name: "RSA", generate: func() (string, error) { return GenerateKeyIDFromRSAKey(&rsaKey.PublicKey) }},
+		{name: "Ed25519", generate: func() (string, error) { return GenerateDefaultKeyID(ed25519Key.Public().(ed25519.PublicKey)) }},
+		{name: "RSA", generate: func() (string, error) { return GenerateDefaultKeyID(&rsaKey.PublicKey) }},
 	}
 
 	for _, tt := range tests {
@@ -467,7 +467,7 @@ func TestVerifyJWS(t *testing.T) {
 	}
 
 	platformPublicKey := platformPrivateKey.Public().(ed25519.PublicKey)
-	platformKeyID, err := GenerateKeyIDFromEd25519Key(platformPublicKey)
+	platformKeyID, err := GenerateDefaultKeyID(platformPublicKey)
 	if err != nil {
 		t.Fatalf("failed to generate platform key ID: %v", err)
 	}
@@ -545,7 +545,7 @@ func TestVerifyJWS(t *testing.T) {
 				// Generate a throwaway key — not registered in the provider
 				otherKey, _ := GenerateEd25519KeyPair()
 				otherPub := otherKey.Public().(ed25519.PublicKey)
-				otherKID, _ := GenerateKeyIDFromEd25519Key(otherPub)
+				otherKID, _ := GenerateDefaultKeyID(otherPub)
 				jwsStr, _ := SignJSONWithEd25519([]byte(`{"test":"data"}`), otherKey, otherKID)
 				return jwsStr
 			},

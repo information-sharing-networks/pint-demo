@@ -184,7 +184,7 @@ func SignJSON(payload []byte, privateKey any, certChain []*x509.Certificate) (st
 	case ed25519.PrivateKey:
 		// Generate keyID from public key
 		publicKey := key.Public().(ed25519.PublicKey)
-		keyID, err = GenerateKeyIDFromEd25519Key(publicKey)
+		keyID, err = GenerateDefaultKeyID(publicKey)
 		if err != nil {
 			return "", WrapInternalError(err, "failed to generate keyID from Ed25519 key")
 		}
@@ -198,7 +198,7 @@ func SignJSON(payload []byte, privateKey any, certChain []*x509.Certificate) (st
 
 	case *rsa.PrivateKey:
 		// Generate keyID from public key
-		keyID, err = GenerateKeyIDFromRSAKey(&key.PublicKey)
+		keyID, err = GenerateDefaultKeyID(&key.PublicKey)
 		if err != nil {
 			return "", WrapInternalError(err, "failed to generate keyID from RSA key")
 		}

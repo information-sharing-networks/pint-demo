@@ -15,6 +15,7 @@ import (
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -27,7 +28,7 @@ func RSAPublicKeyToJWK(publicKey *rsa.PublicKey) (jwk.Key, error) {
 		return nil, NewInternalError("public key is nil")
 	}
 
-	keyID, err := GenerateKeyIDFromRSAKey(publicKey)
+	keyID, err := GenerateDefaultKeyID(publicKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
@@ -58,7 +59,7 @@ func RSAPrivateKeyToJWK(privateKey *rsa.PrivateKey) (jwk.Key, error) {
 		return nil, NewInternalError("private key is nil")
 	}
 
-	keyID, err := GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
+	keyID, err := GenerateDefaultKeyID(&privateKey.PublicKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
@@ -89,7 +90,7 @@ func Ed25519PublicKeyToJWK(publicKey ed25519.PublicKey) (jwk.Key, error) {
 		return nil, NewInternalError("public key is nil")
 	}
 
-	keyID, err := GenerateKeyIDFromEd25519Key(publicKey)
+	keyID, err := GenerateDefaultKeyID(publicKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
@@ -121,7 +122,7 @@ func Ed25519PrivateKeyToJWK(privateKey ed25519.PrivateKey) (jwk.Key, error) {
 	}
 
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	keyID, err := GenerateKeyIDFromEd25519Key(publicKey)
+	keyID, err := GenerateDefaultKeyID(publicKey)
 	if err != nil {
 		return nil, WrapKeyManagementError(err, "failed to generate key ID")
 	}
@@ -189,11 +190,17 @@ func Ed25519JWKToPublicKey(key jwk.Key) (ed25519.PublicKey, error) {
 
 }
 
-// GenerateKeyIDFromRSAKey generates a key ID from an RSA private key RFC 7638 JWK thumbprints
-// Returns the first 16 characters of the hex-encoded thumbprint.
-//
-// The raw thumbprint is generated according to RFC 7638.
-func GenerateKeyIDFromRSAKey(publickey *rsa.PublicKey) (string, error) {
+// GenerateDefaultKeyID generates a key ID from an RSA or Ed25519 public key using the first 16 characters of the SHA-256 thumbprint.
+// The thumbprint is generated according to RFC 7638 and encoded using base64url without padding.
+// This is the default key ID generation method used by keygen.
+func GenerateDefaultKeyID(publickey crypto.PublicKey) (string, error) {
+	return GenerateKeyID(publickey, 16)
+}
+
+// GenerateKeyID generates a key ID an RSA or Ed25519 public key.
+// The thumbprint is generated according to RFC 7638 and encoded using base64url without padding.
+// If maxLength is > 0, the returned string will be truncated to this length.
+func GenerateKeyID(publickey crypto.PublicKey, maxLength int) (string, error) {
 	if publickey == nil {
 		return "", NewInternalError("private key is nil")
 	}
@@ -209,46 +216,12 @@ func GenerateKeyIDFromRSAKey(publickey *rsa.PublicKey) (string, error) {
 		return "", WrapKeyManagementError(err, "failed to generate thumbprint")
 	}
 
-	return fmt.Sprintf("%x", thumbprint)[:16], nil
-}
-
-// GenerateKeyIDFromEd25519Key generates a key ID from an Ed25519 private key using RFC 7638 JWK thumbprints
-// Returns the first 16 characters of the hex-encoded thumbprint (RFC 7638).
-//
-// The raw thumbprint is generated according to RFC 7638.
-func GenerateKeyIDFromEd25519Key(publicKey ed25519.PublicKey) (string, error) {
-	if len(publicKey) != ed25519.PublicKeySize {
-		return "", NewInternalError("invalid Ed25519 private key length")
+	encoded := base64.RawURLEncoding.EncodeToString(thumbprint)
+	if maxLength < 0 || maxLength > len(encoded) {
+		return "", NewInternalError(fmt.Sprintf("maxLength must be between 0 and %d", len(encoded)))
 	}
-	// Import to JWK to calculate thumbprint
-	jwkKey, err := jwk.Import(publicKey)
-	if err != nil {
-		return "", WrapKeyManagementError(err, "failed to import key")
+	if maxLength == 0 {
+		return encoded, nil
 	}
-
-	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
-	if err != nil {
-		return "", WrapKeyManagementError(err, "failed to generate thumbprint")
-	}
-
-	return fmt.Sprintf("%x", thumbprint)[:16], nil
-}
-
-func GenerateKeyIDFromRSAPublicKey(publicKey *rsa.PublicKey) (string, error) {
-	if publicKey == nil {
-		return "", NewInternalError("public key is nil")
-	}
-
-	// Import to JWK to calculate thumbprint
-	jwkKey, err := jwk.Import(publicKey)
-	if err != nil {
-		return "", WrapKeyManagementError(err, "failed to import key")
-	}
-
-	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
-	if err != nil {
-		return "", WrapKeyManagementError(err, "failed to generate thumbprint")
-	}
-
-	return fmt.Sprintf("%x", thumbprint)[:16], nil
+	return encoded[:maxLength], nil
 }

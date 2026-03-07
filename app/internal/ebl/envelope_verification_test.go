@@ -199,7 +199,7 @@ func TestVerifyEnvelopeTransfer_ErrorConditions(t *testing.T) {
 	}
 
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
+	keyID, err := crypto.GenerateDefaultKeyID(publicKey)
 	if err != nil {
 		t.Fatal("failed to compute key ID: %w", err)
 	}
@@ -538,7 +538,7 @@ func TestVerifyEnvelopeTransfer_BrokenChainLink(t *testing.T) {
 	}
 
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	keyID, err := crypto.GenerateKeyIDFromEd25519Key(publicKey)
+	keyID, err := crypto.GenerateDefaultKeyID(publicKey)
 	if err != nil {
 		t.Fatalf("Failed to compute key ID: %v", err)
 	}

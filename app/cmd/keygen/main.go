@@ -6,6 +6,10 @@ package main
 // - JWK format for PINT message signing (private) and publishing (public)
 // - PEM format for creating Certificate Signing Requests (CSR) to send to a CA - PEMS are in PKCS#8 format
 //
+// The key ID (kid) is generated as a SHA256 thumbprint of the public key (RFC7638)
+// You can specify the length of the kid using the -l flag (default is 16 chars = 8 bytes)
+// (specify 0 or 64 for full length)
+//
 // Workflow:
 // 1. Generate keys with keygen → JWK files (for PINT) + PEM file (for CSR)
 // 2. Create CSR using the PEM key
@@ -38,6 +42,7 @@ var (
 	kid       string
 	keyType   string
 	rsaSize   int
+	kidLength int
 )
 
 func main() {
@@ -50,7 +55,7 @@ func main() {
 Generates key pairs in both JWK and PEM formats
 
 Example:
-  keygen --type ed25519 --hostname eblplatform.example.com --outputdir ./keys
+  keygen --type ed25519 --hostname eblplatform.example.com --outputdir -l 16 ./keys
 
 Outputs:
   eblplatform.example.com.private.jwk  (for signing PINT messages)
@@ -58,6 +63,10 @@ Outputs:
   eblplatform.example.com.private.pem  (for creating CSR to send to CA)
   
   never share the private key files. 
+
+  The key ID (kid) is generated as a SHA256 thumbprint of the public key (RFC7638)
+  You can specify the length of the kid using the -l flag (default is 16 chars = 8 bytes)
+  (specify 0 or 64 for full length)
   `,
 		RunE: run,
 	}
@@ -73,6 +82,7 @@ Outputs:
 	// Flags
 	rootCmd.Flags().StringVarP(&keyType, "type", "t", "", "Key type: rsa or ed25519 [required]")
 	rootCmd.Flags().IntVarP(&rsaSize, "size", "s", 4096, "RSA key size in bits: 2048 or 4096 (default: 4096)")
+	rootCmd.Flags().IntVarP(&kidLength, "kidlength", "l", 16, "Key ID length in chars (default: 16, 0 for full length)")
 
 	// Required flags
 	if err := rootCmd.MarkFlagRequired("outputdir"); err != nil {
@@ -100,6 +110,9 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid RSA key size: %d (must be 2048 or 4096)", rsaSize)
 	}
 
+	if kidLength < 0 || kidLength > 64 {
+		return fmt.Errorf("invalid kid length: %d (must be between 0 and 64)", kidLength)
+	}
 	// Create output directory if it doesn't exist
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(outputDir, 0750); err != nil {
@@ -130,7 +143,7 @@ func generateRSAKeys() error {
 	}
 
 	// Get the auto-generated kid for display
-	keyID, err := pintcrypto.GenerateKeyIDFromRSAKey(&privateKey.PublicKey)
+	keyID, err := pintcrypto.GenerateDefaultKeyID(&privateKey.PublicKey)
 	if err != nil {
 		return fmt.Errorf("failed to generate key ID: %w", err)
 	}
@@ -182,7 +195,7 @@ func generateEd25519Keys() error {
 	}
 
 	// Get the auto-generated kid for display
-	keyID, err := pintcrypto.GenerateKeyIDFromEd25519Key(publicKey)
+	keyID, err := pintcrypto.GenerateDefaultKeyID(publicKey)
 	if err != nil {
 		return fmt.Errorf("failed to generate key ID: %w", err)
 	}

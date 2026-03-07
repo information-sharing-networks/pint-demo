@@ -50,12 +50,12 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatalf("Failed to read cert chain: %v", err)
 	}
 
-	car1KeyId, err := crypto.GenerateKeyIDFromEd25519Key(car1PrivateKey.Public().(ed25519.PublicKey))
+	car1KeyId, err := crypto.GenerateDefaultKeyID(car1PrivateKey.Public().(ed25519.PublicKey))
 	if err != nil {
 		t.Fatalf("Failed to generate key ID: %v", err)
 	}
 
-	ebl1KeyId, err := crypto.GenerateKeyIDFromEd25519Key(ebl1PrivateKey.Public().(ed25519.PublicKey))
+	ebl1KeyId, err := crypto.GenerateDefaultKeyID(ebl1PrivateKey.Public().(ed25519.PublicKey))
 	if err != nil {
 		t.Fatalf("Failed to generate key ID: %v", err)
 	}

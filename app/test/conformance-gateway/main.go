@@ -66,7 +66,7 @@ Usage: keys-from-pem -p <private-key-pem-file> -o <output-dir> -s <server-name>
 				fmt.Printf("Error saving public key: %v\n", err)
 				os.Exit(1)
 			}
-			kid, err = crypto.GenerateKeyIDFromRSAKey(publicKey)
+			kid, err = crypto.GenerateDefaultKeyID(publicKey)
 			if err != nil {
 				fmt.Printf("Error generating key ID: %v\n", err)
 				os.Exit(1)
@@ -81,7 +81,7 @@ Usage: keys-from-pem -p <private-key-pem-file> -o <output-dir> -s <server-name>
 				fmt.Printf("Error saving public key: %v\n", err)
 				os.Exit(1)
 			}
-			kid, err = crypto.GenerateKeyIDFromEd25519Key(publicKey)
+			kid, err = crypto.GenerateDefaultKeyID(publicKey)
 			if err != nil {
 				fmt.Printf("Error generating key ID: %v\n", err)
 				os.Exit(1)
