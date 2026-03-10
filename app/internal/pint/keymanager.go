@@ -25,10 +25,8 @@
 // Platforms not in the registry will not have their keys loaded, and their messages will be rejected.
 //
 // TODO: for the demo app the registry is a simple CSV file, but in a real deployment the registry would be served
-// from a secure endpoint and cover all participants in the PINT network.
+// from a secure location and cover all participants in the PINT network (potentially there could be separate networks with their own admistration)
 // We would also need to implement a mechanism to refresh the registry in case of changes (for now it is loaded at startup and not refreshed)
-//
-// TODO: do we need to keep a record of expired keys so we can validate signatures on old documents?
 package pint
 
 import (
@@ -66,7 +64,6 @@ type eblSolutionProvider struct {
 	JWKSEndpoint string
 
 	// ManualKeyID is the kid of the manually configured public key for this provider.
-	// this implementation expects the kid to be the thumbprint of the public key.
 	//
 	// Assuming a jwk with the corresponding kid is found in the manual keys directory
 	// the key will be cached and associated with this provider.
@@ -87,7 +84,6 @@ type PublicKeyInfo struct {
 	Key jwk.Key
 
 	// KeyID is the KID of the public key
-	// this implementation expects the KID to be the thumbprint of the public key (see jwk.go)
 	KeyID string
 }
 
@@ -214,8 +210,6 @@ func NewKeyManager(ctx context.Context, config *KeyManagerConfig, logger *slog.L
 		if err := km.initJWKCache(ctx); err != nil {
 			return nil, WrapKeyError(err, "failed to init JWK cache")
 		}
-
-		km.logger.Debug("JWK cache initialized")
 	} else {
 		km.logger.Info("JWK cache initialization skipped")
 	}

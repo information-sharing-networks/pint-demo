@@ -3,10 +3,10 @@
     {
       "alg": "EdDSA",
       "crv": "Ed25519",
-      "kid": "07a83be723983557",
+      "kid": "EwmZRO_d3BMirvSP",
       "kty": "OKP",
       "use": "sig",
-      "x": "O5jcIzchSxP0QQ0B7wJuwOVfiUIY-EUVLJc0VQWpUUg"
+      "x": "dUZvQX3_WcbjUqKUGaM4u5KRd-PiHz6tW426cdTSzGw"
     }
   ]
 }

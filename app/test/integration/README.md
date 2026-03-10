@@ -33,6 +33,6 @@ ENABLE_SERVER_LOGS=true go test -tags=integration -v ./test/integration/
 Tests use resources from `app/test/testdata/`:
 - **Registry**: `platform-registry/eblsolutionproviders.csv`
 - **Keys**: `keys/` directory (Ed25519 and RSA test keys)
-- **Signing key**: `keys/ed25519-eblplatform.example.com.private.jwk` (platform code: EBL1)
+- **Signing key**: `keys/private/ed25519-eblplatform.example.com.private.jwk` (platform code: EBL1)
 - **Test json** (see `app/test/testdata/README.md` for details)
 

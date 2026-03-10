@@ -21,7 +21,7 @@ A demonstration implementation of the DCSA PINT (Platform Interoperability) API 
 
 To run the app locally you just need [Docker Desktop](https://docs.docker.com/get-docker).
 
-If you plan to make changes to the code (or want to run the go tests) you will also need [Go 1.25.7](https://go.dev/doc/install) or above.
+If you plan to make changes to the code (or want to run the go tests) you will also need the latest version of [Go](https://go.dev/doc/install).
 
 ### Quick Start
 
@@ -40,14 +40,14 @@ PORT=8080
 REGISTRY_PATH="test/testdata/platform-registry/eblsolutionproviders.csv"
 
 # Path to private key JWK file used for signing PINT messages
-SIGNING_KEY_PATH="test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+SIGNING_KEY_PATH="test/testdata/keys/private/ed25519-eblplatform.example.com.private.jwk"
 
 # Directory containing manually configured public keys from other PINT participants in JWK format
 # The keymanager will load any public key in the directory that has a matching kid in the registry
 # (other keys will be ignored).
 # Supported file extensions: .jwk, .jwks, .jwks.json
 # The keymanager expects one key per file.
-MANUAL_KEYS_DIR="test/testdata/keys"
+MANUAL_KEYS_DIR="test/testdata/keys/public"
 
 # DCSA Code of the platform this instance represents (from the registry)
 PLATFORM_CODE="EBL1"
@@ -86,14 +86,9 @@ export GO_VERSION=$(grep '^go ' app/go.mod | awk '{print $2}')
    make docker-up
    ```
 
-   This will:
-   - Start the db contaienr (PostgreSQL 17)
-   - Generate SQLC code and API docs
-   - Run database migrations
-   - Start the app container (pint-server service) on http://localhost:8080
-  
+this will start the server on http://localhost:8080
 
-you can override default configs by setting environment variables when you start the server, e.g.
+you can override the default configs by setting environment variables when you start the server, e.g.
 
 ```bash
 SKIP_JWK_CACHE=true make docker-up    # Set true to disable JWK caching
@@ -154,7 +149,7 @@ This app implements a hybrid approach to key distribution:
 - **Dynamic JWK endpoints**: Automatically fetches and caches public keys from configured JWKS endpoints. The list of endpoints is retrieved from the DCSA registry.
 - **Manual keys**: Supports manually configured keys for testing or private networks where keys are exchanged out of band.
 
-Keys are looked up by the KID retrieved from JWS headers. The KID is derived from the first 8 bytes of the public key RFC 7638 JWK thumbprints
+Keys are looked up by the KID retrieved from JWS headers. Where the keygen CLI is used to generate the keys, the KID is the first 16 characters of the SHA-256 thumbprint of the public key in JWK format (c.f RFC7638).
    (see `app/internal/crypto/jwk.go` for the implementation details).
 
 ### Platform registry
@@ -185,11 +180,15 @@ Per DCSA, it is not clear how PINT networks operating at the first trust level c
 
 Note: the public key in the x5c certificate must match the key pair used by platform to sign the JWS - see the *Generating Key Pairs* section below for more information.
 
+The following diagram shows the key exchange and verification process:
+
+<img width="12516" height="6414" alt="keyexchange" src="https://github.com/user-attachments/assets/5d96e426-3002-445f-b681-8f7d47de9d2e" />
+
 ### Signatures
 DCSA do not specify which algorithms should be used for signing. This implementation supports both Ed25519 and RSA (Ed25519 is recommended for new implementations).
 
 ### Validation
-This app implements all the cryptographic validation steps outlined in the DCSA *Digital Signatures Implementation Guide* and associated standards. It only does basic validation of the contents of the transport document JSON - schema validation is not implemented.
+This app implements all the cryptographic validation steps outlined in the DCSA *Digital Signatures Implementation Guide* and associated standards. It only does basic validation of the contents of the transport document JSON - full schema validation is not implemented.
 
 ### Party (Legal Entity) Validation
 The PINT receiver validation endpoint (`POST /v3/receiver-validation`) validates party identifying codes to ensure that the recipient party exists and is active before accepting a transfer.
@@ -300,7 +299,7 @@ See `app/test/testdata/README.md` for details on how to regenerate the test keys
 
 
 ## Server
-There is a server implementation in `app/cmd/pint-server/main.go` - this is work-in-progress
+There is a server implementation in `app/cmd/pint-server/main.go` 
 
 see the http://localhost:8080/docs for the API docs
 

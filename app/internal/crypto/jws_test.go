@@ -167,7 +167,7 @@ func TestSignAndVerifySignature(t *testing.T) {
 // TestSignWithX5C covers Ed25519 and RSA JWS signing with x5c certificate chains:
 // verifies signature, payload integrity, and cert extraction; rejects empty keyID or empty cert chain.
 func TestSignWithX5C(t *testing.T) {
-	ed25519Key, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	ed25519Key, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/private/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load Ed25519 private key: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestSignWithX5C(t *testing.T) {
 		t.Fatalf("failed to load Ed25519 cert chain: %v", err)
 	}
 
-	rsaKey, err := ReadRSAPrivateKeyFromPEMFile("../../test/testdata/keys/rsa-eblplatform.example.com.private.pem")
+	rsaKey, err := ReadRSAPrivateKeyFromPEMFile("../../test/testdata/keys/pem/rsa-eblplatform.example.com.private.pem")
 	if err != nil {
 		t.Fatalf("failed to load RSA private key: %v", err)
 	}
@@ -287,8 +287,8 @@ func TestGenerateKeyIDFromKey(t *testing.T) {
 		name     string
 		generate func() (string, error)
 	}{
-		{name: "Ed25519", generate: func() (string, error) { return GenerateKeyIDFromEd25519Key(ed25519Key.Public().(ed25519.PublicKey)) }},
-		{name: "RSA", generate: func() (string, error) { return GenerateKeyIDFromRSAKey(&rsaKey.PublicKey) }},
+		{name: "Ed25519", generate: func() (string, error) { return GenerateDefaultKeyID(ed25519Key.Public().(ed25519.PublicKey)) }},
+		{name: "RSA", generate: func() (string, error) { return GenerateDefaultKeyID(&rsaKey.PublicKey) }},
 	}
 
 	for _, tt := range tests {
@@ -307,7 +307,7 @@ func TestGenerateKeyIDFromKey(t *testing.T) {
 // TestSignJSON tests the convenience SignJSON function with both Ed25519 and RSA keys
 func TestSignJSON(t *testing.T) {
 	// Load test keys and certificates
-	ed25519PrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	ed25519PrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/private/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load Ed25519 private key: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestSignJSON(t *testing.T) {
 		t.Fatalf("failed to load Ed25519 cert chain: %v", err)
 	}
 
-	rsaPrivateKey, err := ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/rsa-eblplatform.example.com.private.jwk")
+	rsaPrivateKey, err := ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/private/rsa-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load RSA private key: %v", err)
 	}
@@ -461,13 +461,13 @@ func (p *testKeyProvider) FetchKeys(_ context.Context, sink jws.KeySink, sig *jw
 // TestVerifyJWS covers multi-key JWS verification including x5c chain validation, x5c mismatch detection, and unknown key ID rejection.
 func TestVerifyJWS(t *testing.T) {
 	// Load platform key + certs (key A)
-	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	platformPrivateKey, err := ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/private/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("failed to load platform private key: %v", err)
 	}
 
 	platformPublicKey := platformPrivateKey.Public().(ed25519.PublicKey)
-	platformKeyID, err := GenerateKeyIDFromEd25519Key(platformPublicKey)
+	platformKeyID, err := GenerateDefaultKeyID(platformPublicKey)
 	if err != nil {
 		t.Fatalf("failed to generate platform key ID: %v", err)
 	}
@@ -545,7 +545,7 @@ func TestVerifyJWS(t *testing.T) {
 				// Generate a throwaway key — not registered in the provider
 				otherKey, _ := GenerateEd25519KeyPair()
 				otherPub := otherKey.Public().(ed25519.PublicKey)
-				otherKID, _ := GenerateKeyIDFromEd25519Key(otherPub)
+				otherKID, _ := GenerateDefaultKeyID(otherPub)
 				jwsStr, _ := SignJSONWithEd25519([]byte(`{"test":"data"}`), otherKey, otherKID)
 				return jwsStr
 			},

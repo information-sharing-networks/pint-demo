@@ -43,7 +43,7 @@ func GenerateEd25519KeyPair() (ed25519.PrivateKey, error) {
 // Note: the key is not encrypted
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.jwk")
+//   - path: The file path (e.g., "./keys/private/private.jwk")
 func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -79,7 +79,7 @@ func SaveEd25519PrivateKeyToJWKFile(privateKey ed25519.PrivateKey, path string) 
 // SaveEd25519PublicKeyToJWKFile saves an ED25519 public key to a JWK file with auto-generated kid.
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.jwk")
+//   - path: The file path (e.g., "./keys/public/public.jwk")
 func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -116,7 +116,7 @@ func SaveEd25519PublicKeyToJWKFile(publicKey ed25519.PublicKey, path string) err
 // the app uses JWK for key exchange - this function is primarily for generating a PEM file for creating a CSR
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.pem")
+//   - path: The file path (e.g., "./keys/private/private.pem")
 func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -153,7 +153,7 @@ func SaveEd25519PrivateKeyToPEMFile(privateKey ed25519.PrivateKey, path string) 
 // SaveEd25519PublicKeyToPEMFile saves an Ed25519 public key to a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.pem")
+//   - path: The file path (e.g., "./keys/public/public.pem")
 func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -197,7 +197,7 @@ func SaveEd25519PublicKeyToPEMFile(publicKey ed25519.PublicKey, path string) err
 //   - error if the key type is unsupported or file cannot be read
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.jwk")
+//   - path: The file path (e.g., "./keys/private/private.jwk")
 func ReadPrivateKeyFromJWKFile(path string) (any, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -298,7 +298,7 @@ func ReadPublicKeyFromJWKFile(path string) (any, error) {
 // ReadEd25519PrivateKeyFromJWKFile loads an ED25519 private key from a JWK file
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.jwk")
+//   - path: The file path (e.g., "./keys/private/private.jwk")
 func ReadEd25519PrivateKeyFromJWKFile(path string) (ed25519.PrivateKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -343,7 +343,7 @@ func ReadEd25519PrivateKeyFromJWKFile(path string) (ed25519.PrivateKey, error) {
 
 // ReadEd25519PublicKeyFromJWKFile loads an ed25519 public key from a JWK file
 //
-//   - path: The file path (e.g., "./keys/public.jwk")
+//   - path: The file path (e.g., "./keys/public/public.jwk")
 func ReadEd25519PublicKeyFromJWKFile(path string) (ed25519.PublicKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -389,7 +389,7 @@ func ReadEd25519PublicKeyFromJWKFile(path string) (ed25519.PublicKey, error) {
 // ReadEd25519PrivateKeyFromPEMFile loads an Ed25519 private key from a PEM file in PKCS#8 format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.pem")
+//   - path: The file path (e.g., "./keys/private/private.pem")
 func ReadEd25519PrivateKeyFromPEMFile(path string) (ed25519.PrivateKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -430,7 +430,7 @@ func ReadEd25519PrivateKeyFromPEMFile(path string) (ed25519.PrivateKey, error) {
 // ReadEd25519PublicKeyFromPEMFile loads an Ed25519 public key from a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.pem")
+//   - path: The file path (e.g., "./keys/public/public.pem")
 func ReadEd25519PublicKeyFromPEMFile(path string) (ed25519.PublicKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -490,7 +490,7 @@ func GenerateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
 // SaveRSAPrivateKeyToJWKFile saves an RSA private key to a JWK file with auto-generated kid.
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.jwk")
+//   - path: The file path (e.g., "./keys/private/private.jwk")
 func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -526,7 +526,7 @@ func SaveRSAPrivateKeyToJWKFile(privateKey *rsa.PrivateKey, path string) error {
 // SaveRSAPublicKeyToJWKFile saves an RSA public key to a JWK file with auto-generated kid.
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.jwk")
+//   - path: The file path (e.g., "./keys/public/public.jwk")
 func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -562,7 +562,7 @@ func SaveRSAPublicKeyToJWKFile(publicKey *rsa.PublicKey, path string) error {
 // SaveRSAPrivateKeyToPEMFile saves an RSA private key to a PEM file in PKCS#8 format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.pem")
+//   - path: The file path (e.g., "./keys/private/private.pem")
 func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -599,7 +599,7 @@ func SaveRSAPrivateKeyToPEMFile(privateKey *rsa.PrivateKey, path string) error {
 // SaveRSAPublicKeyToPEMFile saves an RSA public key to a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.pem")
+//   - path: The file path (e.g., "./keys/public/public.pem")
 func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, path string) error {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -637,7 +637,7 @@ func SaveRSAPublicKeyToPEMFile(publicKey *rsa.PublicKey, path string) error {
 // ReadRSAPrivateKeyFromJWKFile loads an RSA private key from a JWK file
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.jwk")
+//   - path: The file path (e.g., "./keys/private/private.jwk")
 func ReadRSAPrivateKeyFromJWKFile(path string) (*rsa.PrivateKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -683,7 +683,7 @@ func ReadRSAPrivateKeyFromJWKFile(path string) (*rsa.PrivateKey, error) {
 // ReadRSAPublicKeyFromJWKFile loads an RSA public key from a JWK file
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.jwk")
+//   - path: The file path (e.g., "./keys/public/public.jwk")
 func ReadRSAPublicKeyFromJWKFile(path string) (*rsa.PublicKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -729,7 +729,7 @@ func ReadRSAPublicKeyFromJWKFile(path string) (*rsa.PublicKey, error) {
 // ReadRSAPrivateKeyFromPEMFile loads an RSA private key from a PEM file in PKCS#8 format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/private.pem")
+//   - path: The file path (e.g., "./keys/private/private.pem")
 func ReadRSAPrivateKeyFromPEMFile(path string) (*rsa.PrivateKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)
@@ -770,7 +770,7 @@ func ReadRSAPrivateKeyFromPEMFile(path string) (*rsa.PrivateKey, error) {
 // ReadRSAPublicKeyFromPEMFile loads an RSA public key from a PEM file in SubjectPublicKeyInfo format
 //
 // Parameters:
-//   - path: The file path (e.g., "./keys/public.pem")
+//   - path: The file path (e.g., "./keys/public/public.pem")
 func ReadRSAPublicKeyFromPEMFile(path string) (*rsa.PublicKey, error) {
 	dir := filepath.Dir(path)
 	filename := filepath.Base(path)

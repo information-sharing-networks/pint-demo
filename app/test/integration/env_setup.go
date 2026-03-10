@@ -64,7 +64,7 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 		logLevel            = logger.ParseLogLevel("none")
 		x5cCustomRootsPath  = "../testdata/certs/root-ca.crt"
 		registryPath        = "../testdata/platform-registry/eblsolutionproviders.csv"
-		manualKeysDir       = "../testdata/keys"
+		manualKeysDir       = "../testdata/keys/public"
 		signingKeyPath      string
 		x5cCertPath         string
 		partyServiceName    = "local"
@@ -73,13 +73,13 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 
 	switch platformCode {
 	case "EBL1":
-		signingKeyPath = "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+		signingKeyPath = "../testdata/keys/private/ed25519-eblplatform.example.com.private.jwk"
 		x5cCertPath = "../testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
 	case "EBL2":
-		signingKeyPath = "../testdata/keys/rsa-eblplatform.example.com.private.jwk"
+		signingKeyPath = "../testdata/keys/private/rsa-eblplatform.example.com.private.jwk"
 		x5cCertPath = "../testdata/certs/rsa-eblplatform.example.com-fullchain.crt"
 	case "CAR1":
-		signingKeyPath = "../testdata/keys/ed25519-carrier.example.com.private.jwk"
+		signingKeyPath = "../testdata/keys/private/ed25519-carrier.example.com.private.jwk"
 		x5cCertPath = "../testdata/certs/ed25519-carrier.example.com-fullchain.crt"
 	default:
 		t.Fatalf("platform code: %s not supported (use EBL1, EBL2 or CAR1)", platformCode)
@@ -315,7 +315,7 @@ func setupTestDatabase(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("Unable to create postgres connection pool: %v", err)
 	}
 	if err := postgresPool.Ping(ctx); err != nil {
-		t.Fatalf("Can't ping PostgreSQL server %s", postgresConnectionURL)
+		t.Fatalf("Can't ping PostgreSQL server %s - did you start the db container?", postgresConnectionURL)
 	}
 
 	_, err = postgresPool.Exec(ctx, "CREATE DATABASE "+testDbName)

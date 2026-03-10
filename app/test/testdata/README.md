@@ -38,9 +38,9 @@ the `HHL71800000-envelope-manifest-nodocs-ed25519.json` file is the same transpo
 The `certs/` and `keys/` directories contain test certificates and key pairs for use in testing the crypto package. 
 
 The keys used to sign the valid issuance and PINT transfers are:
-- `../keys/ed25519-carrier.example.com.private.jwk` 
-- `../keys/ed25519-eblplatform.example.com.private.jwk` 
-- `../keys/rsa-eblplatform.example.com.private.jwk`
+- `../keys/private/ed25519-carrier.example.com.private.jwk` 
+- `../keys/private/ed25519-eblplatform.example.com.private.jwk` 
+- `../keys/private/rsa-eblplatform.example.com.private.jwk`
 
 The fullchain certs are included in the JWS headers:
 - `../certs/ed25519-eblplatform.example.com-fullchain.crt` 
@@ -89,6 +89,3 @@ the script will replace the signed content and checksums in the existing ebl env
 the CARR, BOLE and CARX keys are used in the CTK tests. 
 
 The `app/test/conformance-gateway/README.md` file contains more information on running the CTK tests.
-
-# TODO
-the transportDocumentChecksums are not recalculated by the scripts above (so changing the transport doc content will break the integration tests...)

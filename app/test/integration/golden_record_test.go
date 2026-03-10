@@ -32,7 +32,7 @@ import (
 func TestGoldenRecord(t *testing.T) {
 
 	// Step 1: load the signing keys and cert chains used to produce the golden record
-	car1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-carrier.example.com.private.jwk")
+	car1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/private/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatalf("Failed to read cert chain: %v", err)
 	}
 
-	ebl1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	ebl1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/private/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
 	}
@@ -50,12 +50,12 @@ func TestGoldenRecord(t *testing.T) {
 		t.Fatalf("Failed to read cert chain: %v", err)
 	}
 
-	car1KeyId, err := crypto.GenerateKeyIDFromEd25519Key(car1PrivateKey.Public().(ed25519.PublicKey))
+	car1KeyId, err := crypto.GenerateDefaultKeyID(car1PrivateKey.Public().(ed25519.PublicKey))
 	if err != nil {
 		t.Fatalf("Failed to generate key ID: %v", err)
 	}
 
-	ebl1KeyId, err := crypto.GenerateKeyIDFromEd25519Key(ebl1PrivateKey.Public().(ed25519.PublicKey))
+	ebl1KeyId, err := crypto.GenerateDefaultKeyID(ebl1PrivateKey.Public().(ed25519.PublicKey))
 	if err != nil {
 		t.Fatalf("Failed to generate key ID: %v", err)
 	}

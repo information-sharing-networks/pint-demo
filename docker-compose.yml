@@ -117,7 +117,7 @@ services:
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8080}/health/live"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -140,7 +140,7 @@ services:
       resources:
         limits:
           cpus: '1'
-          memory: 512M
+          memory: 1024M
 
 networks:
   app-network:

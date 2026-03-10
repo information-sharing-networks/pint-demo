@@ -73,7 +73,7 @@ func (b *EnvelopeTransferChainEntry) ValidateStructure(isFirstEntry bool) error 
 		return NewEnvelopeError("controlTrackingRegistry should only be present in first entry")
 	}
 
-	// TODO - will more than one CTR be allowed?
+	// TODO: CTR validation
 	if b.ControlTrackingRegistry != nil {
 		// Validate CTR URL format
 		if _, err := url.Parse(*b.ControlTrackingRegistry); err != nil {

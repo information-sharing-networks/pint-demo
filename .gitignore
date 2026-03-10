@@ -30,13 +30,11 @@ pint-client
 
 # Ignore all key files by default
 *.pem
-*.key
 *.jwk
 
 # But allow test keys in any testdata directory
 !**/testdata/**/*.pem
-!**/testdata/**/*.key
 !**/testdata/**/*.jwk
-
-
+!**/conformance-gateway/*.pem
+!**/conformance-gateway/*.jwk
 

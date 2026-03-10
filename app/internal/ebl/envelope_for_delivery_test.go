@@ -20,7 +20,7 @@ func TestCreateEnvelopeForDelivery(t *testing.T) {
 	}{
 		{
 			name:                 "forward_Ed25519",
-			privateKeyJWKPath:    "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk",
+			privateKeyJWKPath:    "../../test/testdata/keys/private/ed25519-eblplatform.example.com.private.jwk",
 			certChainFilePath:    "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt",
 			receivedEnvelopePath: "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
 			eblPlatform:          "EBL1",
