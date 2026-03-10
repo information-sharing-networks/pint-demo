@@ -3,6 +3,6 @@ EBL1,https://ed25519-eblplatform.example.com/,,YLFVnyMkSsFTvj-H
 CAR1,https://ed25519-carrier.example.com/,,sBq4Mgu7lhEcfph7
 EBL2,https://rsa-eblplatform.example.com/,,cbnuKK2OdATnMnmf
 CAR2,https://rsa-carrier.example.com/,https://rsa-carrier.example.com/.well-known/jwks.json,
-CARR,https://ctk-carrier.example.com/,,cd4353893e5552ec
-BOLE,https://ctk-bole.example.com/,,62672234fc926888
+CARR,https://ctk-carrier.example.com/,,2drwR6ALmLLgnl3wYXsJkce9gXLLMTKvGLRJWX_Dzgw
+BOLE,https://ctk-bole.example.com/,,g06vJi87PN3hUf4jUD9H-QKkaFhHxCQDlsLDTeVwus4
 CARX,https://ctk-carx.example.com/,,d554a38fd3bbe54f
