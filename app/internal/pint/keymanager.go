@@ -210,8 +210,6 @@ func NewKeyManager(ctx context.Context, config *KeyManagerConfig, logger *slog.L
 		if err := km.initJWKCache(ctx); err != nil {
 			return nil, WrapKeyError(err, "failed to init JWK cache")
 		}
-
-		km.logger.Debug("JWK cache initialized")
 	} else {
 		km.logger.Info("JWK cache initialization skipped")
 	}

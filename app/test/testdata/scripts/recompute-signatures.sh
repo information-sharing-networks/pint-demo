@@ -41,11 +41,11 @@ function get_kid_from_jwk() {
 # Uses JWK thumbprint-based kid
 function sign_json_rsa() {
     local host=$1
-    local kid=$(get_kid_from_jwk "$KEY_DIR/rsa-${host}.example.com.private.jwk")
+    local kid=$(get_kid_from_jwk "$KEY_DIR/private/rsa-${host}.example.com.private.jwk")
     jq -c -S '.' | \
         tr -d '\n' | \
         step crypto jws sign \
-            --key "$KEY_DIR/rsa-${host}.example.com.private.pem" \
+            --key "$KEY_DIR/pem/rsa-${host}.example.com.private.pem" \
             --alg RS256 \
             --kid "$kid" \
             --x5c-cert "$CERT_DIR/rsa-${host}.example.com-fullchain.crt"
@@ -57,11 +57,11 @@ function sign_json_rsa() {
 
 function sign_json_ed25519() {
     local host=$1
-    local kid=$(get_kid_from_jwk "$KEY_DIR/ed25519-${host}.example.com.private.jwk")
+    local kid=$(get_kid_from_jwk "$KEY_DIR/private/ed25519-${host}.example.com.private.jwk")
     jq -c -S '.' | \
         tr -d '\n' | \
         step crypto jws sign \
-            --key "$KEY_DIR/ed25519-${host}.example.com.private.pem" \
+            --key "$KEY_DIR/pem/ed25519-${host}.example.com.private.pem" \
             --alg EdDSA \
             --kid "$kid" \
             --x5c-cert "$CERT_DIR/ed25519-${host}.example.com-fullchain.crt"
@@ -74,11 +74,11 @@ function sign_json_ed25519() {
 # Sign JSON and return the SHA-256 hash of the JWS
 function sign_and_hash_json_rsa() {
     local host=$1
-    local kid=$(get_kid_from_jwk "$KEY_DIR/rsa-${host}.example.com.private.jwk")
+    local kid=$(get_kid_from_jwk "$KEY_DIR/private/rsa-${host}.example.com.private.jwk")
     jq -c -S '.' | \
         tr -d '\n' | \
         step crypto jws sign \
-            --key "$KEY_DIR/rsa-${host}.example.com.private.pem" \
+            --key "$KEY_DIR/pem/rsa-${host}.example.com.private.pem" \
             --alg RS256 \
             --kid "$kid"  \
             --x5c-cert "$CERT_DIR/rsa-${host}.example.com-fullchain.crt" | \
@@ -92,11 +92,11 @@ function sign_and_hash_json_rsa() {
 
 function sign_and_hash_json_ed25519() {
     local host=$1
-    local kid=$(get_kid_from_jwk "$KEY_DIR/ed25519-${host}.example.com.private.jwk")
+    local kid=$(get_kid_from_jwk "$KEY_DIR/private/ed25519-${host}.example.com.private.jwk")
     jq -c -S '.' | \
         tr -d '\n' | \
         step crypto jws sign \
-            --key "$KEY_DIR/ed25519-${host}.example.com.private.pem" \
+            --key "$KEY_DIR/pem/ed25519-${host}.example.com.private.pem" \
             --alg EdDSA \
             --kid "$kid" \
             --x5c-cert "$CERT_DIR/ed25519-${host}.example.com-fullchain.crt" | \
@@ -167,9 +167,9 @@ function stage0() {
     REGISTRY_FILE="$PROJECT_ROOT_DIR/app/test/testdata/platform-registry/eblsolutionproviders.csv"
 
     # Get thumbprints from the actual key files
-    ebl1_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/ed25519-eblplatform.example.com.public.jwk")
-    car1_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/ed25519-carrier.example.com.public.jwk")
-    ebl2_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/rsa-eblplatform.example.com.public.jwk")
+    ebl1_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/public/ed25519-eblplatform.example.com.public.jwk")
+    car1_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/public/ed25519-carrier.example.com.public.jwk")
+    ebl2_kid=$(jq -r '.keys[0].kid' < "$KEY_DIR/public/rsa-eblplatform.example.com.public.jwk")
 
     echo "✓ Key thumbprints:"
     echo "  EBL1 (ed25519-eblplatform): $ebl1_kid"
