@@ -86,14 +86,9 @@ export GO_VERSION=$(grep '^go ' app/go.mod | awk '{print $2}')
    make docker-up
    ```
 
-   This will:
-   - Start the db contaienr (PostgreSQL 17)
-   - Generate SQLC code and API docs
-   - Run database migrations
-   - Start the app container (pint-server service) on http://localhost:8080
-  
+this will start the server on http://localhost:8080
 
-you can override default configs by setting environment variables when you start the server, e.g.
+you can override the default configs by setting environment variables when you start the server, e.g.
 
 ```bash
 SKIP_JWK_CACHE=true make docker-up    # Set true to disable JWK caching
@@ -185,11 +180,15 @@ Per DCSA, it is not clear how PINT networks operating at the first trust level c
 
 Note: the public key in the x5c certificate must match the key pair used by platform to sign the JWS - see the *Generating Key Pairs* section below for more information.
 
+The following diagram shows the key exchange and verification process:
+
+<img width="12516" height="6414" alt="keyexchange" src="https://github.com/user-attachments/assets/5d96e426-3002-445f-b681-8f7d47de9d2e" />
+
 ### Signatures
 DCSA do not specify which algorithms should be used for signing. This implementation supports both Ed25519 and RSA (Ed25519 is recommended for new implementations).
 
 ### Validation
-This app implements all the cryptographic validation steps outlined in the DCSA *Digital Signatures Implementation Guide* and associated standards. It only does basic validation of the contents of the transport document JSON - schema validation is not implemented.
+This app implements all the cryptographic validation steps outlined in the DCSA *Digital Signatures Implementation Guide* and associated standards. It only does basic validation of the contents of the transport document JSON - full schema validation is not implemented.
 
 ### Party (Legal Entity) Validation
 The PINT receiver validation endpoint (`POST /v3/receiver-validation`) validates party identifying codes to ensure that the recipient party exists and is active before accepting a transfer.
@@ -300,7 +299,7 @@ See `app/test/testdata/README.md` for details on how to regenerate the test keys
 
 
 ## Server
-There is a server implementation in `app/cmd/pint-server/main.go` - this is work-in-progress
+There is a server implementation in `app/cmd/pint-server/main.go` 
 
 see the http://localhost:8080/docs for the API docs
 
