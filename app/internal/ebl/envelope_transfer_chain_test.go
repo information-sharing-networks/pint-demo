@@ -40,7 +40,7 @@ var (
 // TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C covers signing with Ed25519 and a full
 // certificate chain
 func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
-	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/private/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_WithX5C(t *testing.T) {
 // TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C covers signing with Ed25519 when no certificate
 // chain is provided: the JWS must be valid and the x5c header must be absent.
 func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
-	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/ed25519-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../../test/testdata/keys/private/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestEnvelopeTransferChainEntry_Sign_Ed25519_NoX5C(t *testing.T) {
 // TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C covers signing with an RSA key and a full
 // certificate chain
 func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
-	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/rsa-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/private/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestEnvelopeTransferChainEntry_Sign_RSA_WithX5C(t *testing.T) {
 // TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C covers signing with an RSA key when no certificate
 // chain is provided: the JWS must be valid and the x5c header must be absent.
 func TestEnvelopeTransferChainEntry_Sign_RSA_NoX5C(t *testing.T) {
-	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/rsa-carrier.example.com.private.jwk")
+	privateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../../test/testdata/keys/private/rsa-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Could not read private key: %v", err)
 	}

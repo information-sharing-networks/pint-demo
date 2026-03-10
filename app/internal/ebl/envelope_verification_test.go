@@ -20,14 +20,14 @@ import (
 
 var (
 	validEnvelopePath         = "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json"
-	validPublicKeyPath        = "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk"
-	validCarrierPublicKeyPath = "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk"
-	validPrivateKeyPath       = "../../test/testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	validPublicKeyPath        = "../../test/testdata/keys/public/ed25519-eblplatform.example.com.public.jwk"
+	validCarrierPublicKeyPath = "../../test/testdata/keys/public/ed25519-carrier.example.com.public.jwk"
+	validPrivateKeyPath       = "../../test/testdata/keys/private/ed25519-eblplatform.example.com.private.jwk"
 	validFullChainPath        = "../../test/testdata/certs/ed25519-eblplatform.example.com-fullchain.crt"
 	validRootCAPath           = "../../test/testdata/certs/root-ca.crt"
 	validISSUChainEntryPath   = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-ISSU-ed25519.json"
 	validTRSNSChainEntryPath  = "../../test/testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
-	wrongPublicKeyPath        = "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk"
+	wrongPublicKeyPath        = "../../test/testdata/keys/public/rsa-eblplatform.example.com.public.jwk"
 )
 
 // TestVerifyValidEnvelopeTransfer tests valid envelopes using different signature algorithms
@@ -50,8 +50,8 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 		{
 			name:                  "verifies Ed25519 signed envelope",
 			envelopePath:          "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-ed25519.json",
-			publicKeyJWKPath:      "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk",
-			carrierPublicKeyPath:  "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk",
+			publicKeyJWKPath:      "../../test/testdata/keys/public/ed25519-eblplatform.example.com.public.jwk",
+			carrierPublicKeyPath:  "../../test/testdata/keys/public/ed25519-carrier.example.com.public.jwk",
 			rootCACertPath:        "../../test/testdata/certs/root-ca.crt", // all the test certs are signed by the same root CA
 			expectedSenderDomain:  "ed25519-eblplatform.example.com",
 			expectedCarrierDomain: "ed25519-carrier.example.com",
@@ -62,8 +62,8 @@ func TestVerifyEnvelopeTransfer_ValidEnvelopes(t *testing.T) {
 		{
 			name:                  "verifies RSA signed envelope",
 			envelopePath:          "../../test/testdata/pint-transfers/HHL71800000-ebl-envelope-rsa.json",
-			publicKeyJWKPath:      "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk",
-			carrierPublicKeyPath:  "../../test/testdata/keys/rsa-carrier.example.com.public.jwk",
+			publicKeyJWKPath:      "../../test/testdata/keys/public/rsa-eblplatform.example.com.public.jwk",
+			carrierPublicKeyPath:  "../../test/testdata/keys/public/rsa-carrier.example.com.public.jwk",
 			rootCACertPath:        "../../test/testdata/certs/root-ca.crt",
 			expectedSenderDomain:  "rsa-eblplatform.example.com",
 			expectedCarrierDomain: "rsa-carrier.example.com",

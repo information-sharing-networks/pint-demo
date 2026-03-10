@@ -80,9 +80,9 @@ func TestKeyManager_LoadRegistry(t *testing.T) {
 	}
 
 	// Read actual key IDs from the test key files
-	ebl1KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/ed25519-eblplatform.example.com.public.jwk")
-	car1KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/ed25519-carrier.example.com.public.jwk")
-	ebl2KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/rsa-eblplatform.example.com.public.jwk")
+	ebl1KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/public/ed25519-eblplatform.example.com.public.jwk")
+	car1KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/public/ed25519-carrier.example.com.public.jwk")
+	ebl2KeyID := getKeyIDFromJWKFile(t, "../../test/testdata/keys/public/rsa-eblplatform.example.com.public.jwk")
 
 	// Check for expected providers (based on the CSV file)
 	expectedProviders := map[string]struct {
@@ -126,7 +126,7 @@ func TestKeyManager_LoadManualKeys(t *testing.T) {
 
 	jwkName := "ed25519-eblplatform.example.com.public.jwk"
 
-	publicKeyPath := "../../test/testdata/keys/" + jwkName
+	publicKeyPath := "../../test/testdata/keys/public/" + jwkName
 
 	// Read the actual key ID from the JWK file
 	keyID := getKeyIDFromJWKFile(t, publicKeyPath)

@@ -7,7 +7,7 @@ to start the pint-server for conformance testing:
 ```bash
 # the PINT conformance tests will send PINT transfers to this server (configured as CARX in the registry)
 # The sending platform is configured as BOLE and the carrier is configured as CARR 
- X5C_CERT_PATH="" X5C_CUSTOM_ROOTS_PATH="" SIGNING_KEY_PATH=test/testdata/keys/ctk-carx.example.com.private.jwk MIN_TRUST_LEVEL=1 PLATFORM_CODE=CARX PORT=8081 make docker-up
+ X5C_CERT_PATH="" X5C_CUSTOM_ROOTS_PATH="" SIGNING_KEY_PATH=test/testdata/keys/private/ctk-carx.example.com.private.jwk MIN_TRUST_LEVEL=1 PLATFORM_CODE=CARX PORT=8081 make docker-up
  ```
 
 When running manual tests, the CTK webui requires the public key used by the receiving pint-server to be pasted in for each test (it needs this to verify the JWS signature in the response)

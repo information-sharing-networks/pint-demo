@@ -36,7 +36,7 @@ func TestStartTransfer(t *testing.T) {
 	testTransferChainEntryPath := "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json"
 
 	// signing key is ed25519
-	signingKeyPath := "../testdata/keys/ed25519-eblplatform.example.com.private.jwk"
+	signingKeyPath := "../testdata/keys/private/ed25519-eblplatform.example.com.private.jwk"
 
 	signingKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile(signingKeyPath)
 	if err != nil {
@@ -616,16 +616,16 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 func TestTransferLifecycle(t *testing.T) {
 
 	// signing keys
-	car1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-carrier.example.com.private.jwk")
+	car1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/private/ed25519-carrier.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
 	}
-	ebl1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/ed25519-eblplatform.example.com.private.jwk")
+	ebl1PrivateKey, err := crypto.ReadEd25519PrivateKeyFromJWKFile("../testdata/keys/private/ed25519-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
 	}
 
-	ebl2PrivateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../testdata/keys/rsa-eblplatform.example.com.private.jwk")
+	ebl2PrivateKey, err := crypto.ReadRSAPrivateKeyFromJWKFile("../testdata/keys/private/rsa-eblplatform.example.com.private.jwk")
 	if err != nil {
 		t.Fatalf("Failed to read private key: %v", err)
 	}
