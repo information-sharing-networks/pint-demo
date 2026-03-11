@@ -136,7 +136,6 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 
 	testEnv.queries = database.New(testEnv.pool)
 
-	logLevel = logger.ParseLogLevel("none")
 	if os.Getenv("ENABLE_SERVER_LOGS") == "true" {
 		logLevel = logger.ParseLogLevel("Info")
 	}
