@@ -26,7 +26,7 @@ func TestIdentifyingCode_Validate(t *testing.T) {
 			code: IdentifyingCode{
 				CodeListProvider: "GLEIF",
 				PartyCode:        "LEI123456",
-				CodeListName:     stringPtr("LEI"),
+				CodeListName:     new("LEI"),
 			},
 			wantErr: false,
 		},
@@ -170,8 +170,4 @@ func TestActorParty_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func stringPtr(s string) *string {
-	return &s
 }
