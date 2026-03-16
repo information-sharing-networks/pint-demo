@@ -17,7 +17,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/sqlc-dev/sqlc v1.30.0
 	github.com/swaggo/swag v1.16.6
-	golang.org/x/time v0.14.0
+	golang.org/x/time v0.15.0
 	golang.org/x/vuln v1.1.4
 	honnef.co/go/tools v0.7.0
 )
