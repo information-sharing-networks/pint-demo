@@ -83,8 +83,9 @@ func (h *TransferAdditionalDocumentHandler) signEnvelopeTransferFinishedResponse
 //	@Description
 //	@Description	**Request Body Format**
 //	@Description
-//	@Description	The request body is a base64-encoded string containing the document content.
-//	@Description	Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."` (json string containing the base64 document content).
+//	@Description	The request body is a base64-encoded string containing the document content. The data should be
+//	@Description	be sent as a JSON (quoted) string.
+//	@Description	Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."`
 //	@Description
 //	@Description	The decoded content type is determined by the sending platform based on the media type
 //	@Description	declared in the EnvelopeManifest.
@@ -114,7 +115,7 @@ func (h *TransferAdditionalDocumentHandler) signEnvelopeTransferFinishedResponse
 //
 //	@Param		envelopeReference	path	string	true	"Envelope reference (UUID)"
 //	@Param		documentChecksum	path	string	true	"SHA-256 checksum of the document"
-//	@Param		body				body	string	true	"Base64-encoded document content (plain string, e.g., UmF3IGNvbnRlbnQ...)"
+//	@Param		body				body	string	true	"Base64-encoded document content (json string)"
 //
 //	@Success	204					"Document received successfully"
 //	@Failure	400					{object}	pint.ErrorResponse							"Malformed request"

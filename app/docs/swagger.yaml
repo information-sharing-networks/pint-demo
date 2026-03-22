@@ -980,8 +980,9 @@ paths:
 
         **Request Body Format**
 
-        The request body is a base64-encoded string containing the document content.
-        Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."` (json string containing the base64 document content).
+        The request body is a base64-encoded string containing the document content. The data should be
+        be sent as a JSON (quoted) string.
+        Example: `"UmF3IGNvbnRlbnQgb2YgdGhlIGZpbGU..."`
 
         The decoded content type is determined by the sending platform based on the media type
         declared in the EnvelopeManifest.
@@ -1014,7 +1015,7 @@ paths:
         name: documentChecksum
         required: true
         type: string
-      - description: Base64-encoded document content (plain string, e.g., UmF3IGNvbnRlbnQ...)
+      - description: Base64-encoded document content (json string)
         in: body
         name: body
         required: true
