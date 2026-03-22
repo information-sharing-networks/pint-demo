@@ -699,7 +699,7 @@ func TestTransferLifecycle(t *testing.T) {
 
 	iBuilder := ebl.NewIssuanceManifestBuilder().
 		WithDocumentChecksum(transportDocumentChecksum).
-		WithIssueTo(issueToChecksum)
+		WithIssueToChecksum(issueToChecksum)
 
 	issuanceManifest, err := iBuilder.Build()
 	if err != nil {

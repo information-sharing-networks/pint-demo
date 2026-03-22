@@ -113,7 +113,7 @@ func TestGoldenRecord(t *testing.T) {
 	iBuilder := ebl.NewIssuanceManifestBuilder().
 		WithDocumentChecksum(transportDocumentChecksum).
 		WitheBLVisualisationByCarrierChecksum(*eblVisualisationChecksum).
-		WithIssueTo(issueToChecksum)
+		WithIssueToChecksum(issueToChecksum)
 
 	issuanceManifest, err := iBuilder.Build()
 	if err != nil {

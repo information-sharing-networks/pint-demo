@@ -53,7 +53,7 @@ func TestIssuanceManifestBuilderNew(t *testing.T) {
 				builder.WithDocumentChecksum(tt.documentChecksum)
 			}
 			if tt.issueToChecksum != "" {
-				builder.WithIssueTo(tt.issueToChecksum)
+				builder.WithIssueToChecksum(tt.issueToChecksum)
 			}
 			if tt.eBLVisualisationByCarrierChecksum != "" {
 				builder.WitheBLVisualisationByCarrierChecksum(tt.eBLVisualisationByCarrierChecksum)

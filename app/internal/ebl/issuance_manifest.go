@@ -1,13 +1,13 @@
 package ebl
 
-// issuance.go contains the builders for issuance manifests.
+// issuance.go contains the builder for issuance manifests.
+// In a production service this functionality is implemented by the carrier - a simple version is included here
+// to support testing of the PINT server
 
 import (
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
@@ -43,26 +43,6 @@ type IssuanceManifestSignedContent string
 // IssueToChecksum is the SHA-256 checksum of the canonicalized issueTo party JSON.
 type IssueToChecksum string
 
-// Payload extract the eBL visualization from the manifest
-// Note this function does not verify the JWS signature.
-func (i IssuanceManifestSignedContent) Payload() (*IssuanceManifest, error) {
-	parts := strings.Split(string(i), ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid JWS format: expected 3 parts, got %d", len(parts))
-	}
-
-	manifestPayload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode manifest JWS payload %v", err)
-	}
-
-	var issuanceManifest IssuanceManifest
-	if err := json.Unmarshal(manifestPayload, &issuanceManifest); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal issuance manifest: %v", err)
-	}
-	return &issuanceManifest, nil
-}
-
 // Checksum returns the SHA-256 checksum of the issuance manifest JWS token.
 func (i IssuanceManifestSignedContent) Checksum() (string, error) {
 	c, err := crypto.Hash([]byte(i))
@@ -92,36 +72,25 @@ func NewIssuanceManifestBuilder() *IssuanceManifestBuilder {
 	return &IssuanceManifestBuilder{}
 }
 
-// WithDocument sets the transport document (must be valid JSON)
-// The document will be canonicalized by the Build() method before checksum calculation
+// WithDocument sets the transport document checksum
 func (b *IssuanceManifestBuilder) WithDocumentChecksum(checksum TransportDocumentChecksum) *IssuanceManifestBuilder {
 	b.documentChecksum = checksum
 	return b
 }
 
-// WithIssueTo sets the issueTo party (must be valid JSON)
-// The issueTo will be canonicalized by the Build() method before checksum calculation
-func (b *IssuanceManifestBuilder) WithIssueTo(issueToChecksum IssueToChecksum) *IssuanceManifestBuilder {
+// WithIssueToChecksum sets the issueTo party (must be valid JSON)
+func (b *IssuanceManifestBuilder) WithIssueToChecksum(issueToChecksum IssueToChecksum) *IssuanceManifestBuilder {
 	b.issueToChecksum = issueToChecksum
 	return b
 }
 
-// WithEBLVisualisation sets the eBL visualisation content.
-//
-// Expects the base64-encoded string from eblVisualisationByCarrier.content field in the JSON.
-// The content will be decoded before calculating the checksum - Build() will return an error if the content is not valid base64.
+// WithEBLVisualisation sets the eBL visualisation content checksum
 func (b *IssuanceManifestBuilder) WitheBLVisualisationByCarrierChecksum(checksum EBLVisualisationByCarrierChecksum) *IssuanceManifestBuilder {
 	b.eBLVisualisationByCarrierChecksum = checksum
 	return b
 }
 
-// Build creates the IssuanceManifest with calculated checksums
-// for the document JSON, issueTo JSON and (optionally) eblVisualisationByCarrier content
-// the function will
-//
-//   - canonicalize the JSON documents
-//   - calculate the SHA-256 checksums for the canonical JSON documents
-//   - calculate the SHA-256 checksum of the decoded eblVisualisationByCarrier content (if provided)
+// Build creates the IssuanceManifest with the supplied checksums
 func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 
 	issuanceManifest := &IssuanceManifest{
@@ -139,9 +108,6 @@ func (b *IssuanceManifestBuilder) Build() (*IssuanceManifest, error) {
 }
 
 // Sign creates the issuanceManifestSignedContent JWS string.
-//
-// The privateKey can be either ed25519.PrivateKey or *rsa.PrivateKey.
-// If certChain is provided, the x5c header will be included in the JWS for non-repudiation.
 //
 // Returns a JWS compact serialization string ready to include in IssuanceRequest.issuanceManifestSignedContent
 func (m *IssuanceManifest) Sign(privateKey any, certChain []*x509.Certificate) (IssuanceManifestSignedContent, error) {
