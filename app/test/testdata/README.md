@@ -2,24 +2,23 @@
 
 ## Platform Registry
 
-The `platform-registry.csv` file contains a test registry of platforms for use in testing the crypto package.
+The `platform-registry.csv` file contains a test registry of platforms for use in testing.
 
 the servers used in testing are:
-- EBL1: ed25519-eblplatform.example.com (uses ed25519 keys)
-- EBL2: rsa-eblplatform.example.com (uses rsa keys)
-- CAR1: ed25519-carrier.example.com
+- EBL1: ed25519-eblplatform.example.com (uses a ed25519 key)
+- EBL2: rsa-eblplatform.example.com (rsa key)
+- CAR1: ed25519-carrier.example.com (ed25519 key)
 
 ## Transport Documents
-the `issuance-documents` directory contains sample JSON that would be used in a issuance request. 
+the `issuance-documents` directory contains sample JSON that would be created in a issuance request. 
 
 The computed fields (JWS and checksums) were calculated indepenently of the pint-demo code so they can be used in testing.
-
 
 ## PINT Transfers
 The `pint-transfers` directory contains json that can be used in a PINT transfer.  The json is based on the DCSA openapi v3.0.0 PINT sample data.
 
-**`HHL71800000-ebl-envelope-ed25519.json`** is the main file for the end-2-end tests of PINT transfers.
-
+The main test file is:
+**`HHL71800000-ebl-envelope-ed25519.json`** 
 This is a To-Order eBL that has been endorsed by EBL1 and is being transferred to EBL2 (recipient party code: `next-recipient@EBL2_party_code`)
 
 The ebl envelope requires that 2 supporting docs (`HHL71800000-invoice.pdf` nd `HHL71800000-packing-list.pdf`) + an ebl visualization (`HHL71800000.pdf`) be uploaded.
@@ -32,6 +31,8 @@ The transfer chain includes 2 entries:
 the `HHL71800000-envelope-manifest-nodocs-ed25519.json` file is the same transport document but with no supporting documents and no ebl visualization.  
 
 `HHL71800000-envelope-manifest-rsa.json` is the same transport document but issued by CAR2 > EBL2 and then transfered to EBL1 
+
+`HHL71800000-ebl-envelope-ed25519.json` is the basis for the golden record test (c.f `app/test/integration/golden_record_test.go`)
 
 ## Test Certificates and Keys
 
