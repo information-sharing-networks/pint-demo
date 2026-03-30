@@ -1,6 +1,6 @@
 # Docker-based Makefile for pint-demo
 
-.PHONY: help build test clean db-migrate db-reset sqlc docker-up docker-down docker-reset docker-up-db docker-down-db docker-app-up docker-app-down docker-restart-app docker-build restart logs psql check fmt vet vuln
+.PHONY: help build test clean db-migrate-up db-migrate-down sqlc docker-up docker-down docker-reset docker-up-db docker-down-db docker-app-up docker-app-down docker-restart-app docker-build restart logs psql check fmt vet vuln
 
 export GO_VERSION := $(shell grep '^go ' app/go.mod | awk '{print $$2}')
 
@@ -25,19 +25,20 @@ help: ## Show this help message
 	@echo "  make docker-up-app      - Start the app container (detached mode)"
 	@echo "  make docker-down-app    - Stop the app container"
 	@echo "  make docker-restart-app - Restart the app container"
+	@echo "  make db-migrate-up      - Run database migrations (goose up)"
+	@echo "  make db-migrate-down    - Reset database and reapply migrations (goose down to 0)"
+	@echo "  make delete-envelopes   - Delete all envelopes from the database"
 	@echo "  make logs               - Follow docker app logs"
 	@echo "  make psql               - Run psql against the dev database"
 	@echo "  make sqlc               - Generate sqlc code"
 	@echo "  make docs               - Generate swagger documentation"
 	@echo "  make swag-fmt           - format swag comments"
-	@echo "  make db-migrate         - Run database migrations (goose up)"
-	@echo "  make db-reset           - Reset database and reapply migrations (goose down-to 0 > up)"
-	@echo "  make delete-envelopes   - Delete all envelopes from the database"
 	@echo "  make test               - Run tests"
 	@echo "  make fmt                - Format code"
 	@echo "  make lint               - Run staticcheck"
 	@echo "  make security           - Run gosec security analysis"
 	@echo "  make vet                - Run go vet"
+	@echo "  make vuln               - Run vulnerability scan"
 	@echo "  make check              - Run all pre-commit checks (recommended before committing)"
 	@echo "  make clean              - Clean build artifacts"
 
@@ -117,7 +118,7 @@ psql:
 # Generate sqlc code
 sqlc:
 	@echo "🔄 Generating sqlc code..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && sqlc generate"
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool sqlc generate"
 
 # delete the envelopes from the database
 delete-envelopes:
@@ -125,16 +126,16 @@ delete-envelopes:
 	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && psql \$$DATABASE_URL -c 'DELETE FROM ENVELOPES CASCADE;'"
 
 # Run database migrations
-db-migrate:
+db-migrate-up:
 	@echo "🔄 Running database migrations..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none up"
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool goose -dir sql/schema postgres \$$DATABASE_URL -env=none up"
 
 
-# Reset database and reapply migrations
-db-reset:
+# down to zero (drop all tables)
+db-migrate-down:
 	@echo "🔄 Resetting database..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && goose -dir sql/schema postgres \$$DATABASE_URL -env=none down-to 0"
-	@$(MAKE) db-migrate
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool goose -dir sql/schema postgres \$$DATABASE_URL -env=none down-to 0"
+	@$(MAKE) db-migrate-up
 
 # Format code
 fmt:
@@ -149,29 +150,29 @@ vet:
 # Run staticcheck linter
 lint:
 	@echo "🔄 Running staticcheck..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && staticcheck ./..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool staticcheck ./..."
 
 # Format swag comments
 swag-fmt:
 	@echo "🔄 Formatting swag comments..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag fmt"
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool swag fmt"
 
 
 # Generate swagger documentation
 docs:
 	@echo "🔄 Generating swagger documentation..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && swag init --parseInternal -g ./cmd/pint-server/main.go  "
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool swag init --parseInternal -g ./cmd/pint-server/main.go  "
 
 # Run security analysis
 security:
 	@echo "🔄 Running security analysis..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && gosec -exclude-generated ./..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool gosec -exclude-generated ./..."
 
 
 # Run vulnerability scan
 vuln:
 	@echo "🔍 Running vulnerability scan..."
-	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && govulncheck ./..."
+	@docker compose exec $(APP_SERVICE) sh -c "cd /pint-demo/app && go tool govulncheck ./..."
 
 # Run tests
 test:

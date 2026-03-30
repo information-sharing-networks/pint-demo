@@ -38,21 +38,11 @@ services:
         # Install system dependencies in one layer for better caching
         RUN apk add --no-cache bash postgresql-client curl jq vim git
 
-        # Install Go tools — versions pinned via go.mod/go.sum.
-        # This layer is only rebuilt when go.sum changes, i.e. when a
-        # tool or dependency version is deliberately updated.
         WORKDIR /build
-        COPY app/tools.go app/go.mod app/go.sum ./
-        RUN go mod download && \
-            go install github.com/air-verse/air && \
-            go install github.com/pressly/goose/v3/cmd/goose && \
-            go install github.com/sqlc-dev/sqlc/cmd/sqlc && \
-            go install github.com/swaggo/swag/cmd/swag && \
-            go install honnef.co/go/tools/cmd/staticcheck && \
-            go install github.com/securego/gosec/v2/cmd/gosec && \
-            go install golang.org/x/vuln/cmd/govulncheck && \
-            cd / && rm -rf /build
+        COPY app/go.mod app/go.sum ./
 
+        # tool versions are pinned via go.mod/go.sum — this layer only rebuilds when they change.
+        RUN go install tool && cd / && rm -rf /build
         WORKDIR /pint-demo
 
     container_name: pint-server
