@@ -101,7 +101,6 @@ func TestTransferAdditionalDocument_SequentialUploads(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
-	defer testEnv.shutdown()
 
 	// Load test envelope and manifest
 	envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)
@@ -373,7 +372,6 @@ func TestTransferAdditionalDocument_ErrorCases(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
 	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
-	defer testEnv.shutdown()
 
 	// Load test envelope and manifest
 	envelopeData, err := os.ReadFile(testEnvelopeWithDocsPath)

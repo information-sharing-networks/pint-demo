@@ -39,19 +39,22 @@ import (
 
 // testEnv provides access to test db and server for integration tests
 type testEnv struct {
-	baseURL  string
-	cfg      *config.ServerEnvironment
-	pool     *pgxpool.Pool
-	queries  *database.Queries
-	shutdown func()
+	baseURL string
+	cfg     *config.ServerEnvironment
+	pool    *pgxpool.Pool
+	queries *database.Queries
 }
 
-// startInProcessServer starts the pint-server in-process for testing - returns the base URL for the API and a shutdown function
-// the signing key used is determined by the platformCode parameter (EBL1, EBL2 or CAR1 are supported)
+// startInProcessServer starts the pint-server in-process for testing.
+// A new database is created for each test and the server is configured to use it.
+// Server shutdown is registered via t.Cleanup automatically.
+// The signing key used is determined by the platformCode parameter (EBL1, EBL2 or CAR1 are supported).
 func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypto.TrustLevel) *testEnv {
 	t.Helper()
 
 	testEnv := &testEnv{}
+
+	t.Log("Starting in-process server...")
 
 	// server config
 	var (
@@ -165,27 +168,24 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 		}
 	}()
 
-	// Create shutdown function to be called by the test
-	testEnv.shutdown = func() {
-
-		// Cancel the server context to trigger graceful shutdown
+	// Register shutdown via t.Cleanup so callers don't need to remember defer
+	t.Cleanup(func() {
+		t.Log("Stopping server...")
 		serverCancel()
 
-		// Wait for server to shut down gracefully with timeout
 		select {
 		case err := <-serverDone:
 			if err != nil {
-				t.Logf("❌ Server shutdown with error: %v", err)
+				t.Logf("Server shutdown with error: %v", err)
 			} else {
-				t.Logf("✅ %s server shut down", platformCode)
+				t.Logf("%s server shut down", platformCode)
 			}
 		case <-time.After(5 * time.Second):
-			t.Log("⚠️ Server shutdown timeout")
+			t.Log("Server shutdown timeout")
 		}
 
-		// Ensure database connections are closed
 		serverInstance.DatabaseShutdown()
-	}
+	})
 
 	testEnv.baseURL = fmt.Sprintf("http://localhost:%d", port)
 
@@ -196,18 +196,7 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 		t.Fatal("Server failed to start within timeout")
 	}
 
-	// Test the server is working
-	resp, err := http.Get(testEnv.baseURL + "/health/live")
-	if err != nil {
-		t.Fatalf("Failed to call health endpoint: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	t.Logf("✅ %s server started at %s", platformCode, testEnv.baseURL)
+	t.Logf("Server started at %s", testEnv.baseURL)
 	return testEnv
 }
 

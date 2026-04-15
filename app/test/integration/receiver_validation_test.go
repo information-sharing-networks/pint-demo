@@ -18,7 +18,6 @@ import (
 // TestReceiverValidation covers the receiver validation endpoint: known and unknown platforms, trust level requirements, and invalid request bodies.
 func TestReceiverValidation(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL1", crypto.TrustLevelDV)
-	defer testEnv.shutdown()
 
 	receiverValidationURL := testEnv.baseURL + "/v3/receiver-validation"
 

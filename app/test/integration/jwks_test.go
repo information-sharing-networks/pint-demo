@@ -49,8 +49,6 @@ func TestJWKSEndpoint(t *testing.T) {
 		t.Fatalf("failed to get key id from public key file: %v", err)
 	}
 
-	defer testEnv.shutdown()
-
 	jwksURL := testEnv.baseURL + "/.well-known/jwks.json"
 
 	resp, err := http.Get(jwksURL)

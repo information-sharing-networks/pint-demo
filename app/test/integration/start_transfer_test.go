@@ -23,7 +23,6 @@ import (
 // TestStartTransfer does an end-2-end test of the POST /v3/envelopes endpointd
 func TestStartTransfer(t *testing.T) {
 	testEnv := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
-	defer testEnv.shutdown()
 	createPartiesFromFile(t, testEnv, "../testdata/pint-transfers/HHL71800000-transfer-chain-entry-TRNS-ed25519.json")
 
 	envelopesURL := testEnv.baseURL + "/v3/envelopes"
@@ -458,7 +457,6 @@ func TestStartTransfer_RecipientPlatformValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Start server as the specified platform
 			env := startInProcessServer(t, tt.serverPlatform, crypto.TrustLevelDV)
-			defer env.shutdown()
 			createPartiesFromFile(t, env, testTransferChainEntryPath)
 
 			envelopesURL := env.baseURL + "/v3/envelopes"
@@ -556,7 +554,6 @@ func TestStartTransfer_RecipientPartyValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Start server as EBL2
 			env := startInProcessServer(t, "EBL2", crypto.TrustLevelDV)
-			defer env.shutdown()
 
 			// setup parties
 			tt.setupParties(t, env)
@@ -680,7 +677,6 @@ func TestTransferLifecycle(t *testing.T) {
 
 	// set up parties data
 	for _, env := range []*testEnv{car1env, ebl1env, ebl2env} {
-		defer env.shutdown()
 		createTestParty(t, env.queries, car1Actor.PartyName, true, car1Actor.IdentifyingCodes)
 		createTestParty(t, env.queries, ebl1Actor.PartyName, true, ebl1Actor.IdentifyingCodes)
 		createTestParty(t, env.queries, ebl2Actor.PartyName, true, ebl2Actor.IdentifyingCodes)
