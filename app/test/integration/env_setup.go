@@ -146,11 +146,11 @@ func startInProcessServer(t *testing.T, platformCode string, minTrustLevel crypt
 	appLogger := logger.InitLogger(logLevel, "test")
 
 	serverInstance, err := server.NewServer(
+		ctx,
 		testEnv.pool,
 		testEnv.queries,
 		cfg,
 		appLogger,
-		ctx,
 	)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)

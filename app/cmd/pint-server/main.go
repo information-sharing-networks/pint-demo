@@ -147,11 +147,11 @@ func run() error {
 
 	// configure the server
 	server, err := server.NewServer(
+		ctx,
 		pool,
 		queries,
 		cfg,
 		appLogger,
-		ctx,
 	)
 	if err != nil {
 		appLogger.Error("Failed to create server", slog.String("error", err.Error()))

@@ -58,11 +58,12 @@ type DetailedError struct {
 
 // errorResponseFromError maps pint.Error, ebl.Error, crypto.Error, or generic errors to a DCSA error response.
 //
-// The error code text is sanitized for the response, but the full error message is logged server-side.
+// The client-facing response carries only the caller-supplied message (or a generic "Internal Error"
+// for 500s); the full wrapped error chain is logged server-side via slog by the calling handler.
 // The mapping also establishes the appropriate HTTP status code based on the error type.
 //
-// you typically don't need to call this directly - use RespondWithErrorResponse() instead
-// this will map the error, return a santized response to the client and log the full error details.
+// you typically don't need to call this directly - use RespondWithErrorResponse() instead;
+// it maps the error, returns a sanitized response to the client, and logs the full error details.
 func errorResponseFromError(err error, r *http.Request) *ErrorResponse {
 	requestID := middleware.GetReqID(r.Context())
 
@@ -87,7 +88,7 @@ func errorResponseFromError(err error, r *http.Request) *ErrorResponse {
 		return errorResponseFromPint(pintErr, r, requestID)
 	}
 
-	// fallback - this is not expectedi - if it does, return an internal error response and log the unmapped error
+	// fallback - this is not expected - if it does, return an internal error response and log the unmapped error
 	reqLogger := logger.ContextRequestLogger(r.Context())
 	reqLogger.Error("BUG: Unmapped error type in MapErrorToResponse",
 		slog.String("error_type", fmt.Sprintf("%T", err)),
@@ -112,8 +113,10 @@ func errorResponseFromError(err error, r *http.Request) *ErrorResponse {
 	}
 }
 
-// errorResponseFromPint maps pint.Error to API error responses
-// the error code text is sanitized for the response, but the full error message is logged server-side
+// errorResponseFromPint maps pint.Error to API error responses.
+//
+// The client-facing ErrorCodeMessage carries only the caller-supplied message for 4xx errors,
+// or "Internal Error" for 5xx; the wrapped chain is never returned to the client.
 func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *ErrorResponse {
 	var statusCode int
 	var errorCodeText string
@@ -122,19 +125,19 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 	switch err.Code() {
 	case ErrCodeBadCertificate:
 		statusCode = http.StatusBadRequest
-		errorCodeText = "Bad certificate"
+		errorCodeText = "Bad Certificate"
 	case ErrCodeBadChecksum:
 		statusCode = http.StatusBadRequest
-		errorCodeText = "Bad checksum"
+		errorCodeText = "Bad Checksum"
 	case ErrCodeBadSignature:
 		statusCode = http.StatusBadRequest
-		errorCodeText = "Bad signature"
+		errorCodeText = "Bad Signature"
 	case ErrCodeInsufficientTrust:
 		statusCode = http.StatusBadRequest
 		errorCodeText = "Insufficient trust level"
 	case ErrCodeInvalidEnvelope:
 		statusCode = http.StatusBadRequest
-		errorCodeText = "Invalid envelope"
+		errorCodeText = "Invalid Envelope"
 	case ErrCodeKeyError:
 		statusCode = http.StatusBadRequest
 		errorCodeText = "Error retrieving public key"
@@ -158,6 +161,11 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 		errorCodeText = "Internal Error"
 	}
 
+	clientMessage := err.Message()
+	if statusCode == http.StatusInternalServerError {
+		clientMessage = errorCodeText
+	}
+
 	return &ErrorResponse{
 		HTTPMethod:                   r.Method,
 		RequestURI:                   r.RequestURI,
@@ -170,14 +178,16 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 			{
 				ErrorCode:        err.Code(),
 				ErrorCodeText:    errorCodeText,
-				ErrorCodeMessage: err.Error(),
+				ErrorCodeMessage: clientMessage,
 			},
 		},
 	}
 }
 
-// errorResponseFromCrypto maps crypto.Error to API error responses
-// the error code text is sanitized for the response, but the full error message is logged server-side
+// errorResponseFromCrypto maps crypto.Error to API error responses.
+//
+// The client-facing ErrorCodeMessage carries only the caller-supplied message for 4xx errors,
+// or "Internal Error" for 5xx
 func errorResponseFromCrypto(err *crypto.CryptoError, r *http.Request, requestID string) *ErrorResponse {
 	var statusCode int
 	var errorCode ErrorCode
@@ -210,6 +220,11 @@ func errorResponseFromCrypto(err *crypto.CryptoError, r *http.Request, requestID
 		errorCodeText = "Internal Error"
 	}
 
+	clientMessage := err.Message()
+	if statusCode == http.StatusInternalServerError {
+		clientMessage = errorCodeText
+	}
+
 	return &ErrorResponse{
 		HTTPMethod:                   r.Method,
 		RequestURI:                   r.RequestURI,
@@ -222,14 +237,16 @@ func errorResponseFromCrypto(err *crypto.CryptoError, r *http.Request, requestID
 			{
 				ErrorCode:        errorCode,
 				ErrorCodeText:    errorCodeText,
-				ErrorCodeMessage: err.Error(),
+				ErrorCodeMessage: clientMessage,
 			},
 		},
 	}
 }
 
-// errorResponseFromEbl maps ebl.Error to DCSA error response
-// the error code text is sanitized for the response, but the full error message is logged server-side
+// errorResponseFromEbl maps ebl.Error to DCSA error response.
+//
+// The client-facing ErrorCodeMessage carries only the caller-supplied message for 4xx errors,
+// or "Internal Error" for 5xx; the wrapped chain is never returned to the client.
 func errorResponseFromEbl(err *ebl.EblError, r *http.Request, requestID string) *ErrorResponse {
 
 	// map ebl.ErrorCode to response fields
@@ -244,6 +261,11 @@ func errorResponseFromEbl(err *ebl.EblError, r *http.Request, requestID string) 
 		statusCode, errorCode, errorCodeText = http.StatusConflict, ErrCodeDispute, "Dispute"
 	}
 
+	clientMessage := err.ClientMessage()
+	if statusCode == http.StatusInternalServerError {
+		clientMessage = errorCodeText
+	}
+
 	return &ErrorResponse{
 		HTTPMethod:                   r.Method,
 		RequestURI:                   r.RequestURI,
@@ -256,7 +278,7 @@ func errorResponseFromEbl(err *ebl.EblError, r *http.Request, requestID string) 
 			{
 				ErrorCode:        errorCode,
 				ErrorCodeText:    errorCodeText,
-				ErrorCodeMessage: err.Error(),
+				ErrorCodeMessage: clientMessage,
 			},
 		},
 	}

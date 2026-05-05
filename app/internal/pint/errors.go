@@ -23,6 +23,10 @@ func (e *PintError) Error() string {
 	return e.message
 }
 
+// Message returns the caller-supplied message without the wrapped error chain.
+// Use this for client-facing responses; use Error() for server-side logs.
+func (e *PintError) Message() string { return e.message }
+
 func (e *PintError) Code() ErrorCode { return e.code }
 func (e *PintError) Unwrap() error   { return e.wrapped }
 

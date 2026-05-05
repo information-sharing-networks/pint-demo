@@ -40,6 +40,10 @@ func (e *CryptoError) Error() string {
 	return e.message
 }
 
+// Message returns the caller-supplied message without the wrapped error chain.
+// Use this for client-facing responses; use Error() for server-side logs.
+func (e *CryptoError) Message() string { return e.message }
+
 func (e *CryptoError) Code() ErrorCode { return e.code }
 func (e *CryptoError) Unwrap() error   { return e.wrapped }
 

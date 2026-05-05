@@ -61,6 +61,10 @@ func (e *EblError) Error() string {
 	return fmt.Sprintf("%s: %s", e.code, e.message)
 }
 
+// ClientMessage returns the caller-supplied message without the code prefix or wrapped error chain.
+// Use this for client-facing responses; use Error() for server-side logs.
+func (e *EblError) ClientMessage() string { return e.message }
+
 func (e *EblError) Code() ErrorCode { return e.code }
 func (e *EblError) Unwrap() error   { return e.wrapped }
 

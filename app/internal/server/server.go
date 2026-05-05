@@ -74,11 +74,11 @@ type Server struct {
 }
 
 func NewServer(
+	ctx context.Context,
 	pool *pgxpool.Pool,
 	queries *database.Queries,
 	cfg *config.ServerEnvironment,
 	logger *slog.Logger,
-	ctx context.Context,
 ) (*Server, error) {
 	server := &Server{
 		pool:         pool,
