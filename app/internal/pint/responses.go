@@ -15,21 +15,18 @@ import (
 // Use this function when a request faied because it was malformed or because of a server-side error
 // prevents signing the response. This will return an unsigned error response.
 //
-// The function logs the full error details server-side and sends a sanitized message to the client
+// Error details are accumulated into the request context so they appear in the request
+// completion log.
+//
 // The supplied errors are automatically mapped to the appropriate pint error code/sanitized message
 // (ebl.Error, crypto.Error, pint.Error and general errors are all mapped).
 func WriteJSONError(w http.ResponseWriter, r *http.Request, err error) {
-	// Map the error to DCSA format errorResponse
 	errorResponse := errorResponseFromError(err, r)
 
-	// Log the full error details server-side
-	reqLogger := logger.ContextRequestLogger(r.Context())
-	reqLogger.Warn("Request failed",
+	logger.ContextWithLogAttrs(r.Context(),
 		slog.String("error", err.Error()),
-		slog.Int("status_code", errorResponse.StatusCode),
 		slog.Int("error_code", int(errorResponse.Errors[0].ErrorCode)),
 		slog.String("error_code_text", errorResponse.Errors[0].ErrorCodeText),
-		slog.String("request_id", errorResponse.ProviderCorrelationReference),
 	)
 
 	WriteJSON(w, errorResponse.StatusCode, errorResponse)

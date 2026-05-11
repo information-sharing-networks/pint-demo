@@ -127,8 +127,6 @@ func (h *TransferAdditionalDocumentHandler) signEnvelopeTransferFinishedResponse
 //	@Router		/v3/envelopes/{envelopeReference}/additional-documents/{documentChecksum} [put]
 func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	reqLogger := logger.ContextRequestLogger(ctx)
-
 	// Step 1: Parse URL parameters
 	envelopeRefStr := chi.URLParam(r, "envelopeReference")
 	documentChecksum := chi.URLParam(r, "documentChecksum")
@@ -144,7 +142,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	reqLogger.Info("Transferring additional document",
+	logger.ContextWithLogAttrs(ctx,
 		slog.String("envelope_reference", envelopeRefStr),
 		slog.String("document_checksum", documentChecksum),
 	)
@@ -238,8 +236,8 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 
 	// Step 6: Respond with 204 if document has already been received
 	if expectedDoc.ReceivedAt.Valid {
-		reqLogger.Warn("Document already received",
-			slog.String("received_at", expectedDoc.ReceivedAt.Time.String()),
+		logger.ContextWithLogAttrs(ctx,
+			slog.String("document_already_received_at", expectedDoc.ReceivedAt.Time.String()),
 		)
 		// Return 204 to confirm ok - no content change
 		pint.NoContent(w, http.StatusNoContent)
@@ -298,11 +296,10 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		return
 	}
 
-	reqLogger.Info("Additional document received successfully",
+	logger.ContextWithLogAttrs(ctx,
 		slog.String("document_checksum", documentChecksum),
 		slog.Int64("size_bytes", actualSize),
 		slog.Bool("is_ebl_visualisation", expectedDoc.IsEblVisualisation),
-		slog.String("envelope_reference", envelopeRefStr),
 	)
 
 	// Step 11: Return 204 No Content (unsigned response per spec)

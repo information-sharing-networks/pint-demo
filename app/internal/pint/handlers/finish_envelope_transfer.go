@@ -122,7 +122,6 @@ func (h *FinishEnvelopeTransferHandler) signEnvelopeTransferFinishedResponse(res
 //	@Router		/v3/envelopes/{envelopeReference}/finish-transfer [put]
 func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	reqLogger := logger.ContextRequestLogger(ctx)
 
 	// Step 1: Parse URL parameters
 	envelopeRefStr := chi.URLParam(r, "envelopeReference")
@@ -138,7 +137,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		return
 	}
 
-	reqLogger.Info("Finish envelope transfer request",
+	logger.ContextWithLogAttrs(ctx,
 		slog.String("envelope_reference", envelopeRef.String()),
 	)
 
@@ -194,7 +193,8 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 	// Step 6: Check if envelope has already been accepted (DUPE case)
 	if envelope.AcceptedAt.Valid {
 		// Already accepted - this is a duplicate finish request
-		reqLogger.Info("Envelope transfer already accepted, returning DUPE",
+		logger.ContextWithLogAttrs(ctx,
+			slog.String("response_code", "DUPE"),
 			slog.String("envelope_reference", envelope.ID.String()),
 			slog.String("accepted_at", envelope.AcceptedAt.Time.String()),
 		)
@@ -220,7 +220,7 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		return
 	}
 
-	reqLogger.Info("Envelope transfer accepted",
+	logger.ContextWithLogAttrs(ctx,
 		slog.String("response_code", "RECE"),
 		slog.Int("received_documents", len(receivedDocs)),
 	)
