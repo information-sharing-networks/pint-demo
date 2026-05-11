@@ -82,6 +82,12 @@ const (
 	// ErrCodeNotFound is used when a requested resource is not found (e.g., party not found in receiver validation)
 	ErrCodeNotFound ErrorCode = 7011
 
+	// ErrCodeClientClosed is used when the client disconnects before the server can respond (HTTP 499)
+	ErrCodeClientClosed ErrorCode = 7012
+
+	// ErrCodeTimeout is used when the request exceeds the server's write timeout (HTTP 504)
+	ErrCodeTimeout ErrorCode = 7013
+
 	// ErrCodeUnknownParty is used when a platform is not recognized or not registered
 	ErrCodeUnknownParty ErrorCode = 8001
 
@@ -198,4 +204,14 @@ func NewUnknownPartyError(msg string) error {
 // The returned error will have code ErrCodeRequestTooLarge.
 func NewRequestTooLargeError(msg string) error {
 	return &PintError{code: ErrCodeRequestTooLarge, message: msg}
+}
+
+// NewClientClosedError creates an error for requests abandoned by the client mid-flight.
+func NewClientClosedError(wrapped error) error {
+	return &PintError{code: ErrCodeClientClosed, message: "client closed request", wrapped: wrapped}
+}
+
+// NewTimeoutError creates an error for requests that exceeded the server write timeout.
+func NewTimeoutError(wrapped error) error {
+	return &PintError{code: ErrCodeTimeout, message: "request timed out", wrapped: wrapped}
 }

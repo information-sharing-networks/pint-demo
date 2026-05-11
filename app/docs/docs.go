@@ -1171,6 +1171,8 @@ const docTemplate = `{
                 7009,
                 7010,
                 7011,
+                7012,
+                7013,
                 8001,
                 8002,
                 8003
@@ -1192,6 +1194,8 @@ const docTemplate = `{
                 "",
                 "",
                 "",
+                "",
+                "",
                 "Trust level below minimum required",
                 ""
             ],
@@ -1207,6 +1211,8 @@ const docTemplate = `{
                 "ErrCodeRateLimitExceeded",
                 "ErrCodeRequestTooLarge",
                 "ErrCodeNotFound",
+                "ErrCodeClientClosed",
+                "ErrCodeTimeout",
                 "ErrCodeUnknownParty",
                 "ErrCodeInsufficientTrust",
                 "ErrCodeDispute"

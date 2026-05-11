@@ -141,6 +141,9 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 	case ErrCodeKeyError:
 		statusCode = http.StatusBadRequest
 		errorCodeText = "Error retrieving public key"
+	case ErrCodeClientClosed:
+		statusCode = 499
+		errorCodeText = "Client Closed Request"
 	case ErrCodeMalformedRequest:
 		statusCode = http.StatusBadRequest
 		errorCodeText = "Malformed request"
@@ -153,6 +156,9 @@ func errorResponseFromPint(err *PintError, r *http.Request, requestID string) *E
 	case ErrCodeRequestTooLarge:
 		statusCode = http.StatusRequestEntityTooLarge
 		errorCodeText = "Request too large"
+	case ErrCodeTimeout:
+		statusCode = http.StatusGatewayTimeout
+		errorCodeText = "Gateway Timeout"
 	case ErrCodeUnknownParty:
 		statusCode = http.StatusNotFound
 		errorCodeText = "Unknown party"

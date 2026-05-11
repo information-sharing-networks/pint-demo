@@ -3,7 +3,9 @@ package pint
 // responses.go provides helper functions for sending HTTP responses from the PINT API handlers.
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -21,6 +23,14 @@ import (
 // The supplied errors are automatically mapped to the appropriate pint error code/sanitized message
 // (ebl.Error, crypto.Error, pint.Error and general errors are all mapped).
 func WriteJSONError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(r.Context().Err(), context.Canceled):
+		err = NewClientClosedError(err)
+	case errors.Is(r.Context().Err(), context.DeadlineExceeded),
+		errors.Is(err, context.DeadlineExceeded):
+		err = NewTimeoutError(err)
+	}
+
 	errorResponse := errorResponseFromError(err, r)
 
 	logger.ContextWithLogAttrs(r.Context(),
