@@ -134,13 +134,13 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	documentChecksum := chi.URLParam(r, "documentChecksum")
 
 	if envelopeRefStr == "" || documentChecksum == "" {
-		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("missing URL parameters"))
+		pint.WriteJSONError(w, r, pint.NewMalformedRequestError("missing URL parameters"))
 		return
 	}
 
 	envelopeRef, err := uuid.Parse(envelopeRefStr)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "invalid envelope reference"))
+		pint.WriteJSONError(w, r, pint.WrapMalformedRequestError(err, "invalid envelope reference"))
 		return
 	}
 
@@ -153,7 +153,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	// Note: Request size is already limited by middleware.RequestSizeLimit
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to read request body"))
+		pint.WriteJSONError(w, r, pint.WrapMalformedRequestError(err, "failed to read request body"))
 		return
 	}
 	defer r.Body.Close()
@@ -163,19 +163,19 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	var base64Content string
 	err = json.Unmarshal(bodyBytes, &base64Content)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode base64 content"))
+		pint.WriteJSONError(w, r, pint.WrapMalformedRequestError(err, "failed to decode base64 content"))
 		return
 	}
 
 	// Decode the base64 string to get the actual binary document content (PDF, image, etc.)
 	documentContent, err := base64.StdEncoding.DecodeString(base64Content)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "invalid base64 content"))
+		pint.WriteJSONError(w, r, pint.WrapMalformedRequestError(err, "invalid base64 content"))
 		return
 	}
 
 	if len(documentContent) == 0 {
-		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("document content is empty"))
+		pint.WriteJSONError(w, r, pint.NewMalformedRequestError("document content is empty"))
 		return
 	}
 
@@ -183,17 +183,17 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	envelope, err := h.queries.GetEnvelopeByReference(ctx, envelopeRef)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			pint.RespondWithErrorResponse(w, r, pint.NewValidationError("envelope not found"))
+			pint.WriteJSONError(w, r, pint.NewValidationError("envelope not found"))
 			return
 		}
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to lookup envelope"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to lookup envelope"))
 		return
 	}
 
 	// Step 4: Reject documents if the envelope transfer is already complete (422 BENV)
 	missingDocs, err := h.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for missing documents"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to check for missing documents"))
 		return
 	}
 
@@ -205,10 +205,10 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 			return
 		}
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+		pint.WriteToken(w, http.StatusUnprocessableEntity, signedResponse)
 		return
 	}
 
@@ -226,13 +226,13 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 				Reason:       &reason,
 			})
 			if err != nil {
-				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
+				pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create rejection response"))
 				return
 			}
-			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+			pint.WriteToken(w, http.StatusConflict, signedResponse)
 			return
 		}
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to lookup expected document"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to lookup expected document"))
 		return
 	}
 
@@ -242,14 +242,14 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			slog.String("received_at", expectedDoc.ReceivedAt.Time.String()),
 		)
 		// Return 204 to confirm ok - no content change
-		pint.RespondWithStatusCodeOnly(w, http.StatusNoContent)
+		pint.NoContent(w, http.StatusNoContent)
 		return
 	}
 
 	// Step 7: Compute SHA-256 checksum of the decoded content
 	actualChecksum, err := crypto.Hash(documentContent)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to compute document checksum"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to compute document checksum"))
 		return
 	}
 
@@ -262,10 +262,10 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
 			return
 		}
-		pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+		pint.WriteToken(w, http.StatusConflict, signedResponse)
 		return
 	}
 
@@ -280,10 +280,10 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create INCD response"))
 			return
 		}
-		pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+		pint.WriteToken(w, http.StatusConflict, signedResponse)
 		return
 	}
 
@@ -294,7 +294,7 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 		DocumentContent:  documentContent,
 	})
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to store document"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to store document"))
 		return
 	}
 
@@ -306,5 +306,5 @@ func (h *TransferAdditionalDocumentHandler) HandleTransferAdditionalDocument(w h
 	)
 
 	// Step 11: Return 204 No Content (unsigned response per spec)
-	pint.RespondWithStatusCodeOnly(w, http.StatusNoContent)
+	pint.NoContent(w, http.StatusNoContent)
 }

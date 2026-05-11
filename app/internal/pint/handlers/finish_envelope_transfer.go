@@ -128,13 +128,13 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 	envelopeRefStr := chi.URLParam(r, "envelopeReference")
 
 	if envelopeRefStr == "" {
-		pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("missing envelopeReference URL parameter"))
+		pint.WriteJSONError(w, r, pint.NewMalformedRequestError("missing envelopeReference URL parameter"))
 		return
 	}
 
 	envelopeRef, err := uuid.Parse(envelopeRefStr)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "invalid envelopeReference format"))
+		pint.WriteJSONError(w, r, pint.WrapMalformedRequestError(err, "invalid envelopeReference format"))
 		return
 	}
 
@@ -146,17 +146,17 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 	envelope, err := h.queries.GetEnvelopeByReference(ctx, envelopeRef)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			pint.RespondWithErrorResponse(w, r, pint.NewMalformedRequestError("envelope not found"))
+			pint.WriteJSONError(w, r, pint.NewMalformedRequestError("envelope not found"))
 			return
 		}
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to retrieve envelope"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to retrieve envelope"))
 		return
 	}
 
 	// Step 3: Check if all additional documents have been received
 	missingDocs, err := h.queries.GetMissingAdditionalDocumentChecksums(ctx, envelope.ID)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check missing documents"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to check missing documents"))
 		return
 	}
 
@@ -171,18 +171,18 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 			MissingAdditionalDocumentChecksums: missingDocs,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create MDOC response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create MDOC response"))
 			return
 		}
 
-		pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+		pint.WriteToken(w, http.StatusConflict, signedResponse)
 		return
 	}
 
 	// Step 5: get received documents list
 	receivedDocs, err := h.queries.GetReceivedAdditionalDocumentChecksums(ctx, envelope.ID)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to get received documents"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to get received documents"))
 		return
 	}
 
@@ -206,17 +206,17 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 			ReceivedAdditionalDocumentChecksums:                        &receivedDocs,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
 			return
 		}
 
-		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
+		pint.WriteToken(w, http.StatusOK, signedResponse)
 		return
 	}
 
 	// Step 7: Mark envelope as accepted
 	if err := h.queries.MarkEnvelopeAccepted(ctx, envelope.ID); err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
 		return
 	}
 
@@ -232,9 +232,9 @@ func (h *FinishEnvelopeTransferHandler) HandleFinishEnvelopeTransfer(w http.Resp
 		ReceivedAdditionalDocumentChecksums: &receivedDocs,
 	})
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create RECE response"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create RECE response"))
 		return
 	}
 
-	pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
+	pint.WriteToken(w, http.StatusOK, signedResponse)
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/information-sharing-networks/pint-demo/app/internal/logger"
 )
 
-// RespondWithErrorResponse creates and sends a DCSA-formatted error response as a JSON payload.
+// WriteJSONError creates and sends a DCSA-formatted error response as a JSON payload.
 //
 // Use this function when a request faied because it was malformed or because of a server-side error
 // prevents signing the response. This will return an unsigned error response.
@@ -18,7 +18,7 @@ import (
 // The function logs the full error details server-side and sends a sanitized message to the client
 // The supplied errors are automatically mapped to the appropriate pint error code/sanitized message
 // (ebl.Error, crypto.Error, pint.Error and general errors are all mapped).
-func RespondWithErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
+func WriteJSONError(w http.ResponseWriter, r *http.Request, err error) {
 	// Map the error to DCSA format errorResponse
 	errorResponse := errorResponseFromError(err, r)
 
@@ -32,17 +32,17 @@ func RespondWithErrorResponse(w http.ResponseWriter, r *http.Request, err error)
 		slog.String("request_id", errorResponse.ProviderCorrelationReference),
 	)
 
-	RespondWithJSONPayload(w, errorResponse.StatusCode, errorResponse)
+	WriteJSON(w, errorResponse.StatusCode, errorResponse)
 }
 
-// RespondWithJSONPayload sends a JSON response with the given status code
+// WriteJSON sends a WriteJSON response with the given status code
 //
 // Use this function when returning a standard response to the client, including
 // expected PINT errors (e.g. BSIG, BENV, etc.)
 //
 // If returning information about an unexpected error (e.g a request failed because of
 // an internal server error), use RespondWithError which will create an unsigned error response.
-func RespondWithJSONPayload(w http.ResponseWriter, statusCode int, payload any) {
+func WriteJSON(w http.ResponseWriter, statusCode int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
@@ -58,16 +58,16 @@ func RespondWithJSONPayload(w http.ResponseWriter, statusCode int, payload any) 
 	}
 }
 
-// RespondWithStatusCodeOnly sends a response with only a status code (no body)
-func RespondWithStatusCodeOnly(w http.ResponseWriter, statusCode int) {
+// NoContent sends a response with only a status code (no body)
+func NoContent(w http.ResponseWriter, statusCode int) {
 	w.WriteHeader(statusCode)
 }
 
-// RespondWithSignedContent sends a signed response (JWS token) as the raw response body.
+// WriteToken sends a signed response (JWS token) as the raw response body.
 //
 // The JWS token is sent as a json string in the response body.
 // This is used for PINT signed responses (RECE, DUPE, BSIG, BENV, MDOC, INCD, DISE).
-func RespondWithSignedContent(w http.ResponseWriter, statusCode int, signedResponse SignedEnvelopeTransferFinishedResponse) {
+func WriteToken(w http.ResponseWriter, statusCode int, signedResponse SignedEnvelopeTransferFinishedResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 

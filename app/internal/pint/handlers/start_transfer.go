@@ -183,7 +183,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	// Step 1. Reject requests with malformed envelopes (400, unsigned response)
 	var envelope ebl.Envelope
 	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapMalformedRequestError(err, "failed to decode envelope JSON"))
+		pint.WriteJSONError(w, r, pint.WrapMalformedRequestError(err, "failed to decode envelope JSON"))
 		return
 	}
 	defer r.Body.Close()
@@ -201,7 +201,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		var eblErr *ebl.EblError
 
 		if !errors.As(err, &eblErr) || verifiedEnvelope == nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to verify envelope"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to verify envelope"))
 			return
 		}
 		responseCode := pint.ResponseCode(eblErr.Code())
@@ -213,7 +213,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create signed response"))
 			return
 		}
 
@@ -222,20 +222,19 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			status = http.StatusConflict
 		}
 
-		// use ContextWithLogAttrs instead of long logs
 		logger.ContextWithLogAttrs(ctx,
 			slog.String("response_code", string(responseCode)),
 			slog.String("reason", reason),
 			slog.String("LastTransferChainEntrySignedContentChecksum", string(verifiedEnvelope.LastTransferChainEntrySignedContentChecksum)),
 		)
 
-		pint.RespondWithSignedContent(w, status, signedResponse)
+		pint.WriteToken(w, status, signedResponse)
 		return
 	}
 
 	// this checksum is needed as part of the response payload
 	if verifiedEnvelope.LastTransferChainEntrySignedContentChecksum == "" {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to verify envelope - last chain entry signed content checksum is empty"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to verify envelope - last chain entry signed content checksum is empty"))
 		return
 	} // unexpected error - the validation code should have set this if the envelope was valid
 
@@ -270,7 +269,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create signed response"))
 			return
 		}
 
@@ -279,7 +278,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			slog.String("reason", reason),
 		)
 
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+		pint.WriteToken(w, http.StatusUnprocessableEntity, signedResponse)
 		return
 	}
 
@@ -295,7 +294,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			Reason:       &reason,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create signed response"))
 			return
 		}
 
@@ -303,7 +302,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			slog.String("response_code", string(pint.ResponseCodeBSIG)),
 			slog.String("reason", reason),
 		)
-		pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+		pint.WriteToken(w, http.StatusUnprocessableEntity, signedResponse)
 		return
 	}
 
@@ -324,7 +323,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 					Reason:       &reason,
 				})
 				if err != nil {
-					pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create signed response"))
+					pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create signed response"))
 					return
 				}
 
@@ -332,10 +331,10 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 					slog.String("response_code", string(pint.ResponseCodeBENV)),
 					slog.String("reason", reason),
 				)
-				pint.RespondWithSignedContent(w, http.StatusUnprocessableEntity, signedResponse)
+				pint.WriteToken(w, http.StatusUnprocessableEntity, signedResponse)
 				return
 			}
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to validate party"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to validate party"))
 			return
 		}
 	}
@@ -345,7 +344,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	// Note: This cannot detect double-spends across different platforms (requires CTR).
 	existingTransferChainEntries, err := s.queries.GetTransferChainEntriesByTransportDocumentChecksum(ctx, string(verifiedEnvelope.TransportDocumentChecksum))
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for existing transfer chain"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to check for existing transfer chain"))
 		return
 	}
 
@@ -366,14 +365,14 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 				Reason:       &reason,
 			})
 			if err != nil {
-				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create DISE response"))
+				pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create DISE response"))
 				return
 			}
 			logger.ContextWithLogAttrs(ctx,
 				slog.String("response_code", string(pint.ResponseCodeDISE)),
 				slog.String("reason", reason),
 			)
-			pint.RespondWithSignedContent(w, http.StatusConflict, signedResponse)
+			pint.WriteToken(w, http.StatusConflict, signedResponse)
 			return
 		}
 	}
@@ -382,7 +381,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	existingEnvelope, err := s.queries.GetEnvelopeByLastChainEntrySignedContentPayloadChecksum(ctx, string(verifiedEnvelope.LastTransferChainEntrySignedContentPayloadChecksum))
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to check for duplicate envelope"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to check for duplicate envelope"))
 			return
 		}
 	} else {
@@ -398,7 +397,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 
 	receivedDocumentChecksums, err = s.queries.GetReceivedAdditionalDocumentChecksums(ctx, existingEnvelope.ID)
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to get received documents"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to get received documents"))
 		return
 	}
 
@@ -411,7 +410,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 
 	// sanity check - if we get here this is a critical error, since the database is in an inconsistent state
 	if len(missingDocuments) > 0 && existingEnvelope.Accepted {
-		pint.RespondWithErrorResponse(w, r, pint.NewInternalError(fmt.Sprintf("critical internal error: missing documents found but envelope is marked as accepted %s", existingEnvelope.ID.String())))
+		pint.WriteJSONError(w, r, pint.NewInternalError(fmt.Sprintf("critical internal error: missing documents found but envelope is marked as accepted %s", existingEnvelope.ID.String())))
 		return
 	}
 	// Step 9. Handle retry responses
@@ -427,7 +426,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 				ReceivedAdditionalDocumentChecksums:                        &receivedDocumentChecksums,
 			})
 			if err != nil {
-				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
+				pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create DUPE response"))
 				return
 			}
 
@@ -437,7 +436,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 				slog.String("envelope_reference", existingEnvelope.ID.String()),
 			)
 
-			pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
+			pint.WriteToken(w, http.StatusOK, signedResponse)
 			return
 		}
 
@@ -455,7 +454,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			slog.String("envelope_reference", existingEnvelope.ID.String()),
 			slog.Int("missing_documents", len(missingDocuments)),
 		)
-		pint.RespondWithJSONPayload(w, http.StatusCreated, response)
+		pint.WriteJSON(w, http.StatusCreated, response)
 		return
 	}
 
@@ -466,7 +465,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			slog.String("error", err.Error()),
 		)
 
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to begin transaction"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to begin transaction"))
 		return
 	}
 
@@ -492,7 +491,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 				slog.String("first_received_from_platform_code", verifiedEnvelope.LastTransferChainEntry.EblPlatform),
 			)
 		} else {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to store transport document"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to store transport document"))
 			return
 		}
 	}
@@ -513,7 +512,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		TrustLevel:                                         int32(verifiedEnvelope.TrustLevel),
 	})
 	if err != nil {
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to store envelope"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to store envelope"))
 		return
 	}
 
@@ -532,7 +531,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		// This is used for chain linking via previous_signed_content_checksum
 		entryJWSChecksum, err := crypto.Hash([]byte(entryJWS))
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate entry JWS checksum"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to calculate entry JWS checksum"))
 			return
 		}
 
@@ -542,19 +541,19 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		parsedEntry := verifiedEnvelope.TransferChain[i]
 		entryJSON, err := json.Marshal(parsedEntry)
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to marshal entry payload"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to marshal entry payload"))
 			return
 		}
 
 		canonicalPayload, err := crypto.CanonicalizeJSON(entryJSON)
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to canonicalize entry payload"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to canonicalize entry payload"))
 			return
 		}
 
 		entryPayloadChecksum, err := crypto.Hash(canonicalPayload)
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate entry payload checksum"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to calculate entry payload checksum"))
 			return
 		}
 
@@ -568,7 +567,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		if i > 0 {
 			prevChecksum, err := crypto.Hash([]byte(envelope.EnvelopeTransferChain[i-1]))
 			if err != nil {
-				pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to calculate previous entry checksum"))
+				pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to calculate previous entry checksum"))
 				return
 			}
 			previousJWSChecksum = &prevChecksum
@@ -586,7 +585,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			Sequence: int32(i),
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to store transfer chain entry"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to store transfer chain entry"))
 			return
 		}
 	}
@@ -602,7 +601,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			IsEblVisualisation: doc.isEblVisualisation,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create expected additional document record"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create expected additional document record"))
 			return
 		}
 	}
@@ -610,7 +609,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 	// Step 15. Update envelope as accepted if there are no outstanding additional docs.
 	if len(missingDocuments) == 0 {
 		if err := txQueries.MarkEnvelopeAccepted(ctx, newEnvelopeRecord.ID); err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to mark envelope as accepted"))
 			return
 		}
 	}
@@ -621,7 +620,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			slog.String("error", err.Error()),
 		)
 
-		pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to commit transaction"))
+		pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to commit transaction"))
 		return
 	}
 
@@ -635,7 +634,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			ReceivedAdditionalDocumentChecksums: &receivedDocs,
 		})
 		if err != nil {
-			pint.RespondWithErrorResponse(w, r, pint.WrapInternalError(err, "failed to create RECE response"))
+			pint.WriteJSONError(w, r, pint.WrapInternalError(err, "failed to create RECE response"))
 			return
 		}
 
@@ -644,7 +643,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 			slog.String("response_code", "RECE"),
 			slog.String("envelope_reference", newEnvelopeRecord.ID.String()),
 		)
-		pint.RespondWithSignedContent(w, http.StatusOK, signedResponse)
+		pint.WriteToken(w, http.StatusOK, signedResponse)
 		return
 	}
 
@@ -663,7 +662,7 @@ func (s *StartTransferHandler) HandleStartEnvelopeTransfer(w http.ResponseWriter
 		slog.Int("missing_documents", len(missingDocuments)),
 	)
 
-	pint.RespondWithJSONPayload(w, http.StatusCreated, response)
+	pint.WriteJSON(w, http.StatusCreated, response)
 }
 
 // signEnvelopeTransferFinishedResponse creates a JWS-signed EnvelopeTransferFinishedResponse.
