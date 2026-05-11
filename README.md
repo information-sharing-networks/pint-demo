@@ -128,7 +128,14 @@ make docker-reset # warning - this command recreates the pint dev database
 
 live-reload is enabled in dev mode, so changes to the code will be reloaded automatically.
 
-the swagger documentation is available at http://localhost:8080/docs
+
+## Technical documentation
+The swagger documentation is available at http://localhost:8080/docs
+
+The AI generated wiki is a helpful way to get familiar with the code 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/information-sharing-networks/pint-demo)
+
+See below for an overview of the core concepts.
 
 ## Concepts
 
