@@ -28,6 +28,9 @@ func RequestSizeLimit(maxBytes int64) func(http.Handler) http.Handler {
 
 			// Check Content-Length header for early rejection
 			if r.ContentLength > maxBytes {
+				logger.ContextWithLogAttrs(r.Context(),
+					slog.String("component", "RequestSizeLimit"),
+				)
 				err := pint.NewRequestTooLargeError(
 					fmt.Sprintf("Request body size (%d bytes) exceeds maximum allowed size (%d bytes)", r.ContentLength, maxBytes),
 				)
@@ -74,17 +77,8 @@ func RateLimit(requestsPerSecond int32, burst int32) func(http.Handler) http.Han
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !limiter.Allow() {
-				reqLogger := logger.ContextRequestLogger(r.Context())
-
-				// Log rate limit violation immediately
-				reqLogger.Warn("Rate limit exceeded",
-					slog.String("component", "RateLimit"),
-					slog.String("remote_addr", r.RemoteAddr),
-				)
-
-				// Add context for final request log
 				logger.ContextWithLogAttrs(r.Context(),
-					slog.String("remote_addr", r.RemoteAddr),
+					slog.String("component", "RateLimit"),
 				)
 
 				err := pint.NewRateLimitError("Too many requests. Please try again later.")

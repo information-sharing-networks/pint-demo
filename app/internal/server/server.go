@@ -198,7 +198,10 @@ func (s *Server) initKeyManager(ctx context.Context) error {
 
 func (s *Server) setupMiddleware() {
 	s.router.Use(chimiddleware.RequestID)
-	s.router.Use(chimiddleware.RealIP)
+	// Assumes exactly 1 trusted proxy hop (AWS ALB). If the infrastructure changes
+	// (e.g. a CDN or is added), this value must be updated
+	// or the wrong IP will be extracted from X-Forwarded-For.
+	s.router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	s.router.Use(chimiddleware.Recoverer)
 	s.router.Use(logger.RequestLogging(s.logger))
 	s.router.Use(middleware.SecurityHeaders(s.config.Environment))
