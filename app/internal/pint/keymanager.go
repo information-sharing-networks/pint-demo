@@ -332,6 +332,13 @@ func (k *KeyManager) loadManualKeys() error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
+	// Open the directory root
+	root, err := os.OpenRoot(k.config.ManualKeysDir)
+	if err != nil {
+		return WrapKeyError(err, "failed to open manual keys directory")
+	}
+	defer root.Close()
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -348,13 +355,6 @@ func (k *KeyManager) loadManualKeys() error {
 			k.logger.Debug("skipping: file non-JWK file", slog.String("file", filename))
 			continue
 		}
-
-		// Read file
-		root, err := os.OpenRoot(k.config.ManualKeysDir)
-		if err != nil {
-			return WrapKeyError(err, "failed to open manual keys directory")
-		}
-		defer root.Close()
 
 		data, err := root.ReadFile(filename)
 		if err != nil {
