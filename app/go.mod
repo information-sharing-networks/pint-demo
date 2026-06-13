@@ -1,6 +1,6 @@
 module github.com/information-sharing-networks/pint-demo/app
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/Netflix/go-env v0.1.2
