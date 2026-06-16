@@ -3,7 +3,7 @@ module github.com/information-sharing-networks/pint-demo/app
 go 1.26.4
 
 require (
-	github.com/Netflix/go-env v0.1.2
+	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gowebpki/jcs v1.0.1

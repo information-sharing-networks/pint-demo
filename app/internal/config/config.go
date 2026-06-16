@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Netflix/go-env"
+	"github.com/caarlos0/env/v11"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 )
 
@@ -21,56 +21,56 @@ import (
 type ServerEnvironment struct {
 
 	// http server settings
-	Environment           string            `env:"ENVIRONMENT,default=dev"`
-	Host                  string            `env:"HOST,default=0.0.0.0"`
-	Port                  int               `env:"PORT,default=8080"`
-	LogLevel              string            `env:"LOG_LEVEL,default=debug"`
-	ServerShutdownTimeout time.Duration     `env:"SERVER_SHUTDOWN_TIMEOUT,default=10s"`
-	MinTrustLevel         crypto.TrustLevel `env:"MIN_TRUST_LEVEL,default=3"` // Default to highest trust (EV/OV)
-	RegistryFetchTimeout  time.Duration     `env:"REGISTRY_FETCH_TIMEOUT,default=10s"`
-	MaxRequestSize        int64             `env:"MAX_REQUEST_SIZE,default=1048576"` // 1MB - limits request body size for all endpoints
-	TrustedProxies        int               `env:"TRUSTED_PROXIES,default=1"`        // number of trusted reverse proxy hops in front of the server (e.g. 1 for a single ALB)
+	Environment           string            `env:"ENVIRONMENT"            envDefault:"dev"`
+	Host                  string            `env:"HOST"                   envDefault:"0.0.0.0"`
+	Port                  int               `env:"PORT"                   envDefault:"8080"`
+	LogLevel              string            `env:"LOG_LEVEL"              envDefault:"debug"`
+	ServerShutdownTimeout time.Duration     `env:"SERVER_SHUTDOWN_TIMEOUT" envDefault:"10s"`
+	MinTrustLevel         crypto.TrustLevel `env:"MIN_TRUST_LEVEL"        envDefault:"3"` // Default to highest trust (EV/OV)
+	RegistryFetchTimeout  time.Duration     `env:"REGISTRY_FETCH_TIMEOUT" envDefault:"10s"`
+	MaxRequestSize        int64             `env:"MAX_REQUEST_SIZE"       envDefault:"1048576"` // 1MB - limits request body size for all endpoints
+	TrustedProxies        int               `env:"TRUSTED_PROXIES"        envDefault:"1"`       // number of trusted reverse proxy hops in front of the server (e.g. 1 for a single ALB)
 
 	// database settings
-	ReadTimeout         time.Duration `env:"READ_TIMEOUT,default=15s"`
-	WriteTimeout        time.Duration `env:"WRITE_TIMEOUT,default=15s"`
-	IdleTimeout         time.Duration `env:"IDLE_TIMEOUT,default=60s"`
-	AllowedOrigins      []string      `env:"ALLOWED_ORIGINS,separator=|"`
-	RateLimitRPS        int32         `env:"RATE_LIMIT_RPS,default=100"`
-	RateLimitBurst      int32         `env:"RATE_LIMIT_BURST,default=200"`
-	DBMaxConnections    int32         `env:"DB_MAX_CONNECTIONS,default=4"`
-	DBMinConnections    int32         `env:"DB_MIN_CONNECTIONS,default=0"`
-	DBMaxConnLifetime   time.Duration `env:"DB_MAX_CONN_LIFETIME,default=60m"`
-	DBMaxConnIdleTime   time.Duration `env:"DB_MAX_CONN_IDLE_TIME,default=30m"`
-	DBConnectTimeout    time.Duration `env:"DB_CONNECT_TIMEOUT,default=5s"`
-	DatabasePingTimeout time.Duration `env:"DATABASE_PING_TIMEOUT,default=10s"`
+	ReadTimeout         time.Duration `env:"READ_TIMEOUT"          envDefault:"15s"`
+	WriteTimeout        time.Duration `env:"WRITE_TIMEOUT"         envDefault:"15s"`
+	IdleTimeout         time.Duration `env:"IDLE_TIMEOUT"          envDefault:"60s"`
+	AllowedOrigins      []string      `env:"ALLOWED_ORIGINS"       envSeparator:"|"`
+	RateLimitRPS        int32         `env:"RATE_LIMIT_RPS"        envDefault:"100"`
+	RateLimitBurst      int32         `env:"RATE_LIMIT_BURST"      envDefault:"200"`
+	DBMaxConnections    int32         `env:"DB_MAX_CONNECTIONS"    envDefault:"4"`
+	DBMinConnections    int32         `env:"DB_MIN_CONNECTIONS"    envDefault:"0"`
+	DBMaxConnLifetime   time.Duration `env:"DB_MAX_CONN_LIFETIME"  envDefault:"60m"`
+	DBMaxConnIdleTime   time.Duration `env:"DB_MAX_CONN_IDLE_TIME" envDefault:"30m"`
+	DBConnectTimeout    time.Duration `env:"DB_CONNECT_TIMEOUT"    envDefault:"5s"`
+	DatabasePingTimeout time.Duration `env:"DATABASE_PING_TIMEOUT" envDefault:"10s"`
 
 	// JWK cache settings
-	SkipJWKCache          bool          `env:"SKIP_JWK_CACHE,default=false"`
-	JWKCacheMinRefresh    time.Duration `env:"JWK_CACHE_MIN_REFRESH,default=10m"`
-	JWKCacheMaxRefresh    time.Duration `env:"JWK_CACHE_MAX_REFRESH,default=12h"`
-	JWKCacheHTTPTimeout   time.Duration `env:"JWK_CACHE_HTTP_TIMEOUT,default=30s"`  // Timeout for background HTTP fetches
-	JWKCacheLookupTimeout time.Duration `env:"JWK_CACHE_LOOKUP_TIMEOUT,default=2s"` // Timeout for on-demand key lookups during request processing
+	SkipJWKCache          bool          `env:"SKIP_JWK_CACHE"           envDefault:"false"`
+	JWKCacheMinRefresh    time.Duration `env:"JWK_CACHE_MIN_REFRESH"    envDefault:"10m"`
+	JWKCacheMaxRefresh    time.Duration `env:"JWK_CACHE_MAX_REFRESH"    envDefault:"12h"`
+	JWKCacheHTTPTimeout   time.Duration `env:"JWK_CACHE_HTTP_TIMEOUT"   envDefault:"30s"` // Timeout for background HTTP fetches
+	JWKCacheLookupTimeout time.Duration `env:"JWK_CACHE_LOOKUP_TIMEOUT" envDefault:"2s"`  // Timeout for on-demand key lookups during request processing
 
 	// **Required configuration - the following environment variables and must be set at start up**
 
-	DatabaseURL string `env:"DATABASE_URL,required=true"`
+	DatabaseURL string `env:"DATABASE_URL,required"`
 
 	// Path to CSV file containing the registry of all approved eBL PINT participants
-	RegistryPath string `env:"REGISTRY_PATH,required=true"`
+	RegistryPath string `env:"REGISTRY_PATH,required"`
 
 	// The keymanager will load any public key in this directory that has a matching kid in the registry
 	// other keys will be ignored.
 	// Supported file extensions: .jwk, .jwks, .jwks.json
 	// The keymanager expects one key per file.
-	ManualKeysDir string `env:"MANUAL_KEYS_DIR,required=true"`
+	ManualKeysDir string `env:"MANUAL_KEYS_DIR,required"`
 
 	// Path to the private JWK file used to sign eBL documents - Ed25519 or RSA keys are supported
 	// In prod/staging, this should point to a mounted secret (e.g., /run/secrets/signing-key.jwk)
-	SigningKeyPath string `env:"SIGNING_KEY_PATH,required=true"`
+	SigningKeyPath string `env:"SIGNING_KEY_PATH,required"`
 
 	// DCSA issued 4 char platform code
-	PlatformCode string `env:"PLATFORM_CODE,required=true"`
+	PlatformCode string `env:"PLATFORM_CODE,required"`
 
 	// Path to X.509 certificate(s) in PEM format (optional)
 	// When set, certificate(s) are included in the JWS x5c header for non-repudiation purposes
@@ -88,10 +88,10 @@ type ServerEnvironment struct {
 	// PartyServiceName selects which party validation implementation to use
 	//
 	// See app/internal/services/party_validator.go for implementation details
-	PartyServiceName string `env:"PARTY_SERVICE_NAME,default=local"`
+	PartyServiceName string `env:"PARTY_SERVICE_NAME" envDefault:"local"`
 
 	// PartyServiceBaseURL is the base URL of the party management service
-	PartyServiceBaseURL string `env:"PARTY_SERVICE_BASE_URL,required=true"`
+	PartyServiceBaseURL string `env:"PARTY_SERVICE_BASE_URL,required"`
 }
 
 var validEnvs = map[string]bool{
@@ -105,9 +105,8 @@ var validEnvs = map[string]bool{
 func NewServerConfig() (*ServerEnvironment, error) {
 	var cfg ServerEnvironment
 
-	_, err := env.UnmarshalFromEnviron(&cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal environment variables: %w", err)
+	if err := env.Parse(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse environment variables: %w", err)
 	}
 
 	if err := validateConfig(&cfg); err != nil {
