@@ -29,6 +29,7 @@ type ServerEnvironment struct {
 	MinTrustLevel         crypto.TrustLevel `env:"MIN_TRUST_LEVEL,default=3"` // Default to highest trust (EV/OV)
 	RegistryFetchTimeout  time.Duration     `env:"REGISTRY_FETCH_TIMEOUT,default=10s"`
 	MaxRequestSize        int64             `env:"MAX_REQUEST_SIZE,default=1048576"` // 1MB - limits request body size for all endpoints
+	TrustedProxies        int               `env:"TRUSTED_PROXIES,default=1"`        // number of trusted reverse proxy hops in front of the server (e.g. 1 for a single ALB)
 
 	// database settings
 	ReadTimeout         time.Duration `env:"READ_TIMEOUT,default=15s"`
@@ -139,6 +140,10 @@ func validateConfig(cfg *ServerEnvironment) error {
 
 	if cfg.MinTrustLevel < 1 || cfg.MinTrustLevel > 3 {
 		return fmt.Errorf("MIN_TRUST_LEVEL must be between 1 and 3 (1=NoX5C, 2=DV, 3=EV/OV), got %d", cfg.MinTrustLevel)
+	}
+
+	if cfg.TrustedProxies < 0 {
+		return fmt.Errorf("TRUSTED_PROXIES must be 0 or greater")
 	}
 
 	// In prod/staging, validate that secret paths point to approved mount locations

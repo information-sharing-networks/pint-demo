@@ -35,6 +35,13 @@ alternatively, you can create a .env file manually and adjust the settings to yo
 # PORT 
 PORT=8080
 
+# Set `TRUSTED_PROXIES` to match the number of proxy hops between the internet and the server
+# For a single load balancer (e.g. AWS ALB) the default of `1` is correct.
+# Add `1` for each additional proxy layer (e.g. a CDN in front of the ALB would require `2`).
+# This is used by the [chi](https://github.com/go-chi/chi) router's `ClientIPFromXFFTrustedProxies`
+# middleware for correct client IP extraction from the `X-Forwarded-For` header
+TRUSTED_PROXIES=1     
+
 # Path to CSV file containing the registry of all approved eBL PINT participants
 REGISTRY_PATH="test/testdata/platform-registry/eblsolutionproviders.csv"
 
@@ -80,15 +87,20 @@ PARTY_SERVICE_BASE_URL="http://localhost:${PORT}/admin/parties"
 
 this will start the server on http://localhost:8080
 
-you can override the default configs by setting environment variables when you start the server, e.g.
+you can override the default configs by setting environment variables when you start the server.
+Common overrides are:
 
 ```bash
+# overriding default configs in dev environment
 SKIP_JWK_CACHE=true make docker-up    # Set true to disable JWK caching
 PORT=8081 make docker-up              # server port (default is 8080)
 LOG_LEVEL=info make docker-up         # debug, info, warn, error (default is debug)
 MIN_TRUST_LEVEL=2  make docker-up     # 1=NoX5C, 2=DV, 3=EV/OV (defaults to 3)
 ```
 Other configs have sensible defaults (see `app/internal/server/config/config.go` for the full list).
+
+#### TRUSTED_PROXIES
+Required by the [chi](https://github.com/go-chi/chi) router's `ClientIPFromXFFTrustedProxies` middleware for correct client IP extraction from the `X-Forwarded-For` header. Set this to the number of reverse proxy hops in front of the server (e.g. `1` for a single load balancer such as AWS ALB, `2` if there is also a CDN in front of it).
 
 ## Development Tools
 

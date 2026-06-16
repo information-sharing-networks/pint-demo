@@ -90,6 +90,7 @@ services:
       - RATE_LIMIT_RPS
       - RATE_LIMIT_BURST
       - MIN_TRUST_LEVEL
+      - TRUSTED_PROXIES
 
       # JWK cache settings
       - SKIP_JWK_CACHE
