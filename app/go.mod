@@ -1,6 +1,6 @@
 module github.com/information-sharing-networks/pint-demo/app
 
-go 1.26.6
+go 1.27.0
 
 require (
 	github.com/caarlos0/env/v11 v11.4.1
@@ -164,7 +164,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	honnef.co/go/tools v0.7.0 // indirect
+	honnef.co/go/tools v0.8.0 // indirect
 	howett.net/plist v1.0.1 // indirect
 	modernc.org/libc v1.74.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
