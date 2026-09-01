@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/information-sharing-networks/pint-demo/app/internal/crypto"
 	"github.com/information-sharing-networks/pint-demo/app/internal/ebl"
 	"github.com/information-sharing-networks/pint-demo/app/internal/pint"
@@ -196,7 +196,7 @@ func TestStartTransfer(t *testing.T) {
 					t.Fatalf("Failed to retrieve envelope from database: %v", err)
 				}
 
-				if envelope.ID == uuid.Nil {
+				if envelope.ID == uuid.Nil() {
 					t.Fatalf("Expected envelope reference to be set")
 				}
 
