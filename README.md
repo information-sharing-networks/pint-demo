@@ -27,7 +27,7 @@ If you plan to make changes to the code you will also need the latest version of
 
 #### 1. create a .env file in the root of the project. You can use the example file as a starting point:
 ```bash
-cp .env.example .env
+cp .env-example .env
 ```
 
 alternatively, you can create a .env file manually and adjust the settings to your needs. The following is the default config:
@@ -108,7 +108,7 @@ All development tools are available via Docker (no local installation needed):
 
 ```bash
 make sqlc      # Generate SQLC code
-make migrate   # Run database migrations
+make db-migrate-up # Run database migrations
 make docs      # generate swagger (openAPI) docs
 make swag-fmt  # format swag comments
 make psql      # run psql against the dev database
